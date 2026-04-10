@@ -11,7 +11,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm build
+RUN DATABASE_URL=build-placeholder pnpm build
 
 
 # ── runtime stage ──────────────────────────────────────────────────────────────
