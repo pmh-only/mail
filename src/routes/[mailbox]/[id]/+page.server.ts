@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { getMailboxSyncStatus, getStoredMessageById, startMailboxSync } from '$lib/server/mail';
+import { getStoredMessageById } from '$lib/server/mail';
 
 function serializeMessage(message: NonNullable<Awaited<ReturnType<typeof getStoredMessageById>>>) {
 	return {
@@ -18,19 +18,11 @@ function serializeMessage(message: NonNullable<Awaited<ReturnType<typeof getStor
 }
 
 export const load: PageServerLoad = async ({ params }) => {
-	startMailboxSync();
-
-	const [sync, message] = await Promise.all([
-		getMailboxSyncStatus(),
-		getStoredMessageById(params.id)
-	]);
+	const message = await getStoredMessageById(params.id);
 
 	if (!message) {
 		error(404, 'Message not found');
 	}
 
-	return {
-		sync,
-		message: serializeMessage(message)
-	};
+	return { message: serializeMessage(message) };
 };

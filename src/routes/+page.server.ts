@@ -1,35 +1,3 @@
-import type { PageServerLoad } from './$types';
-import { getMailboxSyncStatus, listStoredMessages, startMailboxSync } from '$lib/server/mail';
+import { redirect } from '@sveltejs/kit';
 
-const PAGE_SIZE = 50;
-
-function serializeMessage(message: Awaited<ReturnType<typeof listStoredMessages>>[number]) {
-	return {
-		id: message.id,
-		uid: message.uid,
-		subject: message.subject,
-		from: message.from,
-		to: message.to,
-		preview: message.preview,
-		textContent: message.textContent,
-		flags: JSON.parse(message.flags) as string[],
-		receivedAt: message.receivedAt?.toISOString() ?? null
-	};
-}
-
-export const load: PageServerLoad = async () => {
-	startMailboxSync();
-
-	const [sync, messages] = await Promise.all([
-		getMailboxSyncStatus(),
-		listStoredMessages(PAGE_SIZE + 1, 0)
-	]);
-	const hasMore = messages.length > PAGE_SIZE;
-
-	return {
-		sync,
-		messages: messages.slice(0, PAGE_SIZE).map(serializeMessage),
-		hasMore,
-		pageSize: PAGE_SIZE
-	};
-};
+export const load = () => redirect(302, '/inbox');

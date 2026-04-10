@@ -236,9 +236,9 @@ async function runSync(config: MailConfig): Promise<SyncResult> {
 		const lock = await client.getMailboxLock(config.mailbox);
 
 		try {
-			const needsHistoryBackfill = !historyComplete;
-			const range = needsHistoryBackfill ? '1:*' : `${nextLastUid + 1}:*`;
-			const fetchOptions = needsHistoryBackfill ? undefined : { uid: true };
+			const needsInitialBackfill = !historyComplete && nextLastUid === 0;
+			const range = needsInitialBackfill ? '1:*' : `${nextLastUid + 1}:*`;
+			const fetchOptions = needsInitialBackfill ? undefined : { uid: true };
 
 			for await (const item of client.fetch(
 				range,
