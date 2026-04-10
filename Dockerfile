@@ -8,7 +8,7 @@ RUN corepack enable
 FROM base AS build
 RUN apk add --no-cache python3 make g++
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
 RUN DATABASE_URL=build-placeholder pnpm build
