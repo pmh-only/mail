@@ -21,14 +21,18 @@ RUN DATABASE_URL=build-placeholder \
 FROM base AS runtime
 RUN apk add --no-cache python3 make g++
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --prod --frozen-lockfile && pnpm rebuild better-sqlite3
 COPY --from=build /app/build ./build
 COPY drizzle ./drizzle
+
+RUN mkdir -p /data
+VOLUME /data
 
 EXPOSE 3000
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=3000
+    PORT=3000 \
+    DATABASE_URL=/data/local.db
 
 CMD ["node", "build/index.js"]
