@@ -22,10 +22,6 @@
 
 	const message = $derived(data.message);
 
-	let replyText = $state('');
-	let mutedThread = $state(false);
-	let draftNotice = $state<string | null>(null);
-
 	const fullDateFormatter = new Intl.DateTimeFormat(undefined, {
 		month: 'short',
 		day: 'numeric',
@@ -63,11 +59,6 @@
 		return msg.textContent || msg.preview || 'No message body available.';
 	}
 
-	function sendReply() {
-		if (!replyText.trim()) return;
-		draftNotice = 'Reply drafted locally.';
-		replyText = '';
-	}
 </script>
 
 <svelte:head>
@@ -165,27 +156,4 @@
 		{/if}
 	</div>
 
-	<div class="border-t border-white/8 p-4 sm:p-5">
-		<textarea
-			bind:value={replyText}
-			rows="4"
-			placeholder={`Reply ${senderName(message.from)}...`}
-			class="w-full resize-none rounded-2xl border border-white/8 bg-transparent px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-sky-400/60"
-		></textarea>
-
-		<div class="mt-4 flex flex-wrap items-center justify-end gap-3">
-			<button
-				type="button"
-				class="rounded-xl bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
-				onclick={sendReply}
-				disabled={!replyText.trim()}
-			>
-				Send
-			</button>
-		</div>
-
-		{#if draftNotice}
-			<p class="mt-3 text-sm text-zinc-500">{draftNotice}</p>
-		{/if}
-	</div>
 </div>
