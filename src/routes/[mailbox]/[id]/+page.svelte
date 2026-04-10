@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { Archive, Trash2, ShieldAlert, Reply, ReplyAll, Forward } from 'lucide-svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 
 	type Message = {
 		id: string;
@@ -19,6 +21,25 @@
 	};
 
 	let { data }: Props = $props();
+
+	let acting = $state(false);
+
+	async function performAction(action: 'archive' | 'trash' | 'spam') {
+		if (acting) return;
+		acting = true;
+		try {
+			const res = await fetch(`/api/messages/${data.message.id}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action })
+			});
+			if (res.ok) {
+				await goto(`/${page.params.mailbox}`);
+			}
+		} finally {
+			acting = false;
+		}
+	}
 
 	const message = $derived(data.message);
 
@@ -88,7 +109,9 @@
 					<button
 						type="button"
 						aria-label="Archive"
-						class="rounded-lg border border-white/8 bg-white/[0.03] p-2 text-zinc-400 transition hover:bg-white/[0.06] hover:text-zinc-200"
+						disabled={acting}
+						onclick={() => performAction('archive')}
+						class="rounded-lg border border-white/8 bg-white/[0.03] p-2 text-zinc-400 transition hover:bg-white/[0.06] hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
 					>
 						<Archive size={16} />
 					</button>
@@ -100,7 +123,9 @@
 					<button
 						type="button"
 						aria-label="Delete"
-						class="rounded-lg border border-white/8 bg-white/[0.03] p-2 text-zinc-400 transition hover:bg-white/[0.06] hover:text-rose-400"
+						disabled={acting}
+						onclick={() => performAction('trash')}
+						class="rounded-lg border border-white/8 bg-white/[0.03] p-2 text-zinc-400 transition hover:bg-white/[0.06] hover:text-rose-400 disabled:opacity-40 disabled:cursor-not-allowed"
 					>
 						<Trash2 size={16} />
 					</button>
@@ -108,11 +133,13 @@
 						Delete
 					</span>
 				</div>
-	<div class="group relative">
+				<div class="group relative">
 					<button
 						type="button"
 						aria-label="Move to spam"
-						class="rounded-lg border border-white/8 bg-white/[0.03] p-2 text-zinc-400 transition hover:bg-white/[0.06] hover:text-amber-400"
+						disabled={acting}
+						onclick={() => performAction('spam')}
+						class="rounded-lg border border-white/8 bg-white/[0.03] p-2 text-zinc-400 transition hover:bg-white/[0.06] hover:text-amber-400 disabled:opacity-40 disabled:cursor-not-allowed"
 					>
 						<ShieldAlert size={16} />
 					</button>

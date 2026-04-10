@@ -4,7 +4,7 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { db } from '$lib/server/db';
 import { mailboxSync, mailMessage } from '$lib/server/db/schema';
-import { enqueueMarkRead, registerImapConfig } from '$lib/server/imap-queue';
+import { enqueueMarkRead, enqueueMoveMessage, registerImapConfig } from '$lib/server/imap-queue';
 
 type MailConfig = {
 	host: string;
@@ -456,4 +456,32 @@ export async function markMessageAsRead(message: MailRow) {
 		.where(eq(mailMessage.id, message.id));
 
 	enqueueMarkRead(message.uid, message.mailbox);
+}
+
+export type MessageAction = 'archive' | 'trash' | 'spam';
+
+const ROLE_PATTERNS: Record<MessageAction, RegExp> = {
+	archive: /\b(archive|all[\s._-]?mail)\b/i,
+	trash: /\b(trash|deleted[\s._-]?(items|messages)?)\b/i,
+	spam: /\b(spam|junk([\s._-]?email)?)\b/i
+};
+
+export function findMailboxForAction(action: MessageAction): string | null {
+	const mailboxes = cachedMailboxes ?? [];
+	const pattern = ROLE_PATTERNS[action];
+	return mailboxes.find((mb) => pattern.test(mb.path) || pattern.test(mb.name))?.path ?? null;
+}
+
+export async function moveMessage(message: MailRow, action: MessageAction): Promise<string | null> {
+	const targetMailbox = findMailboxForAction(action);
+	if (!targetMailbox || targetMailbox === message.mailbox) return null;
+
+	// Optimistically update DB: move message to target mailbox
+	await db
+		.update(mailMessage)
+		.set({ mailbox: targetMailbox })
+		.where(eq(mailMessage.id, message.id));
+
+	enqueueMoveMessage(message.uid, message.mailbox, targetMailbox);
+	return targetMailbox;
 }
