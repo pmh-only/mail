@@ -1,5 +1,5 @@
 DROP TABLE IF EXISTS `mail_message`;
--->statement-breakpoint
+--> statement-breakpoint
 CREATE TABLE `mail_message` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`message_id` text NOT NULL,
@@ -11,9 +11,9 @@ CREATE TABLE `mail_message` (
 	`html_content` text,
 	`received_at` integer
 );
--->statement-breakpoint
+--> statement-breakpoint
 CREATE UNIQUE INDEX `mail_message_message_id_idx` ON `mail_message` (`message_id`);
--->statement-breakpoint
+--> statement-breakpoint
 CREATE TABLE `mail_message_mailbox` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`message_id` text NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE `mail_message_mailbox` (
 	`flags` text DEFAULT '[]' NOT NULL,
 	`synced_at` integer NOT NULL
 );
--->statement-breakpoint
+--> statement-breakpoint
 CREATE UNIQUE INDEX `mail_message_mailbox_mailbox_uid_idx` ON `mail_message_mailbox` (`mailbox`, `uid`);
--->statement-breakpoint
+--> statement-breakpoint
 CREATE INDEX `mail_message_mailbox_message_id_idx` ON `mail_message_mailbox` (`message_id`);

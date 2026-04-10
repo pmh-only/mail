@@ -396,8 +396,10 @@ async function runSyncAll(config: MailConfig): Promise<void> {
 		try { await listClient.logout(); } catch { /* ignore */ }
 	}
 
-	// Sync all mailboxes in parallel, each with its own connection
-	await Promise.all(listed.map((mb) => syncOneMailbox(config, mb.path, pollMs)));
+	// Sync mailboxes sequentially — many IMAP servers reject multiple simultaneous connections
+	for (const mb of listed) {
+		await syncOneMailbox(config, mb.path, pollMs);
+	}
 }
 
 export function startMailboxSync() {
