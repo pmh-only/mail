@@ -8,7 +8,7 @@ import { getImapConfig, type ImapConfig } from '$lib/server/config';
 
 // Joined row returned by list/get queries
 export type MailRow = {
-	id: number;        // mail_message_mailbox.id
+	id: number; // mail_message_mailbox.id
 	messageId: string;
 	mailbox: string;
 	uid: number;
@@ -39,7 +39,13 @@ let activeSync: Promise<void> | null = null;
 registerImapConfig(async () => {
 	const config = await getImapConfig();
 	if ('missing' in config) return null;
-	return { host: config.host, port: config.port, secure: config.secure, user: config.user, password: config.password };
+	return {
+		host: config.host,
+		port: config.port,
+		secure: config.secure,
+		user: config.user,
+		password: config.password
+	};
 });
 
 function summarizeAddresses(input: unknown) {
@@ -274,7 +280,9 @@ async function syncOneMailbox(
 
 				const sourceByUid = new Map<number, Awaited<ReturnType<typeof simpleParser>>>();
 				if (needsSourceUids.length > 0) {
-					console.log(`[sync] ${mailboxPath}: fetching source for ${needsSourceUids.length}/${fetchedCount} messages (${fetchedCount - needsSourceUids.length} already cached)`);
+					console.log(
+						`[sync] ${mailboxPath}: fetching source for ${needsSourceUids.length}/${fetchedCount} messages (${fetchedCount - needsSourceUids.length} already cached)`
+					);
 					for await (const item of client.fetch(
 						needsSourceUids.join(','),
 						{ uid: true, source: true },
@@ -284,7 +292,9 @@ async function syncOneMailbox(
 						sourceByUid.set(item.uid, await simpleParser(item.source));
 					}
 				} else {
-					console.log(`[sync] ${mailboxPath}: all ${fetchedCount} messages already cached, updating mailbox entries only`);
+					console.log(
+						`[sync] ${mailboxPath}: all ${fetchedCount} messages already cached, updating mailbox entries only`
+					);
 				}
 
 				// Store content + mailbox entries
@@ -324,7 +334,11 @@ async function syncOneMailbox(
 			lastError: getErrorMessage(error)
 		});
 	} finally {
-		try { await client.logout(); } catch { /* ignore */ }
+		try {
+			await client.logout();
+		} catch {
+			/* ignore */
+		}
 	}
 }
 
@@ -350,7 +364,11 @@ async function runSyncAll(config: ImapConfig): Promise<void> {
 			delimiter: mb.delimiter ?? '/'
 		}));
 	} finally {
-		try { await listClient.logout(); } catch { /* ignore */ }
+		try {
+			await listClient.logout();
+		} catch {
+			/* ignore */
+		}
 	}
 
 	// Sync mailboxes sequentially — many IMAP servers reject multiple simultaneous connections
@@ -383,7 +401,13 @@ export async function getSyncSummary(): Promise<{
 }> {
 	const config = await getImapConfig();
 	if ('missing' in config) {
-		return { syncing: false, configured: false, hasError: false, lastSyncedAt: null, errorMessage: null };
+		return {
+			syncing: false,
+			configured: false,
+			hasError: false,
+			lastSyncedAt: null,
+			errorMessage: null
+		};
 	}
 
 	const rows = await db.select().from(mailboxSync);
@@ -509,7 +533,9 @@ async function refreshMailboxCache(): Promise<void> {
 function startMailboxCacheRefresh() {
 	if (mailboxRefreshTimer) return;
 	void refreshMailboxCache();
-	mailboxRefreshTimer = setInterval(() => { void refreshMailboxCache(); }, MAILBOX_REFRESH_MS);
+	mailboxRefreshTimer = setInterval(() => {
+		void refreshMailboxCache();
+	}, MAILBOX_REFRESH_MS);
 }
 
 export function listImapMailboxes(): ImapMailbox[] {
@@ -596,9 +622,7 @@ export async function moveMessage(message: MailRow, action: MessageAction): Prom
 	if (!targetMailbox || targetMailbox === message.mailbox) return null;
 
 	// Optimistically remove from source mailbox — next sync will add it to target
-	await db
-		.delete(mailMessageMailbox)
-		.where(eq(mailMessageMailbox.id, message.id));
+	await db.delete(mailMessageMailbox).where(eq(mailMessageMailbox.id, message.id));
 
 	enqueueMoveMessage(message.uid, message.mailbox, targetMailbox);
 	return targetMailbox;

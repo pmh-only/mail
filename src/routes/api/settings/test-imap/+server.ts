@@ -11,8 +11,11 @@ export const POST: RequestHandler = async ({ request }) => {
 	const imap = body.imap as Record<string, unknown> | undefined;
 
 	const host = (imap?.host as string | undefined)?.trim() || ('host' in saved ? saved.host : '');
-	const port = (typeof imap?.port === 'number' ? imap.port : null) ?? ('port' in saved ? saved.port : 993);
-	const secure = (typeof imap?.secure === 'boolean' ? imap.secure : null) ?? ('secure' in saved ? saved.secure : true);
+	const port =
+		(typeof imap?.port === 'number' ? imap.port : null) ?? ('port' in saved ? saved.port : 993);
+	const secure =
+		(typeof imap?.secure === 'boolean' ? imap.secure : null) ??
+		('secure' in saved ? saved.secure : true);
 	const user = (imap?.user as string | undefined)?.trim() || ('user' in saved ? saved.user : '');
 	// Accept new password if provided; fall back to saved (non-masked)
 	const rawPassword = imap?.password as string | undefined;
@@ -43,4 +46,4 @@ export const POST: RequestHandler = async ({ request }) => {
 		const message = err instanceof Error ? err.message : String(err);
 		return json({ ok: false, message }, { status: 400 });
 	}
-}
+};

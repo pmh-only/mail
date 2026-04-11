@@ -10,8 +10,11 @@ export const POST: RequestHandler = async ({ request }) => {
 	const smtp = body.smtp as Record<string, unknown> | undefined;
 
 	const host = (smtp?.host as string | undefined)?.trim() || ('host' in saved ? saved.host : '');
-	const port = (typeof smtp?.port === 'number' ? smtp.port : null) ?? ('port' in saved ? saved.port : 587);
-	const secure = (typeof smtp?.secure === 'boolean' ? smtp.secure : null) ?? ('secure' in saved ? saved.secure : false);
+	const port =
+		(typeof smtp?.port === 'number' ? smtp.port : null) ?? ('port' in saved ? saved.port : 587);
+	const secure =
+		(typeof smtp?.secure === 'boolean' ? smtp.secure : null) ??
+		('secure' in saved ? saved.secure : false);
 	const user = (smtp?.user as string | undefined)?.trim() || ('user' in saved ? saved.user : '');
 	const rawPassword = smtp?.password as string | undefined;
 	const password =
@@ -39,4 +42,4 @@ export const POST: RequestHandler = async ({ request }) => {
 		const message = err instanceof Error ? err.message : String(err);
 		return json({ ok: false, message }, { status: 400 });
 	}
-}
+};

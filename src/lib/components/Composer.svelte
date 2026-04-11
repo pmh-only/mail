@@ -42,7 +42,6 @@
 	let linkInputValue = $state('');
 	let editorTick = $state(0); // increments on editor transactions to force re-render
 
-
 	// Create the editor once when the element is first available
 	$effect(() => {
 		if (!editorEl || editor) return;
@@ -52,7 +51,7 @@
 				StarterKit.configure({ codeBlock: { languageClassPrefix: 'language-' } }),
 				Underline,
 				Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer' } }),
-				TextAlign.configure({ types: ['heading', 'paragraph'] }),
+				TextAlign.configure({ types: ['heading', 'paragraph'] })
 			],
 			content: '<p></p>',
 			editorProps: {
@@ -162,360 +161,357 @@
 	}
 </script>
 
-
 <div
 	class="fixed right-4 bottom-0 z-50 flex flex-col overflow-hidden rounded-t-xl border border-white/10 bg-[#18181c] shadow-2xl"
 	style="width: 580px; height: 520px; max-height: 90vh; display: {composer.open ? 'flex' : 'none'}"
 >
-		<!-- Title bar -->
-		<div
-			class="flex shrink-0 items-center justify-between bg-[#1e1e24] px-4 py-3 select-none"
-		>
-			<span class="text-sm font-medium text-zinc-200">{titleLabel()}</span>
-			<div class="flex items-center gap-1">
-				<button
-					type="button"
-					aria-label="Minimize"
-					onclick={() => (composer.minimized = !composer.minimized)}
-					class="rounded p-1 text-zinc-400 transition hover:bg-white/[0.06] hover:text-zinc-200"
-				>
-					{#if composer.minimized}
-						<Maximize2 size={14} />
-					{:else}
-						<Minus size={14} />
-					{/if}
-				</button>
-				<button
-					type="button"
-					aria-label="Close"
-					onclick={discard}
-					class="rounded p-1 text-zinc-400 transition hover:bg-white/[0.06] hover:text-rose-400"
-				>
-					<X size={14} />
-				</button>
-			</div>
+	<!-- Title bar -->
+	<div class="flex shrink-0 items-center justify-between bg-[#1e1e24] px-4 py-3 select-none">
+		<span class="text-sm font-medium text-zinc-200">{titleLabel()}</span>
+		<div class="flex items-center gap-1">
+			<button
+				type="button"
+				aria-label="Minimize"
+				onclick={() => (composer.minimized = !composer.minimized)}
+				class="rounded p-1 text-zinc-400 transition hover:bg-white/[0.06] hover:text-zinc-200"
+			>
+				{#if composer.minimized}
+					<Maximize2 size={14} />
+				{:else}
+					<Minus size={14} />
+				{/if}
+			</button>
+			<button
+				type="button"
+				aria-label="Close"
+				onclick={discard}
+				class="rounded p-1 text-zinc-400 transition hover:bg-white/[0.06] hover:text-rose-400"
+			>
+				<X size={14} />
+			</button>
 		</div>
+	</div>
 
-		{#if !composer.minimized}
-			<!-- Fields -->
-			<div class="shrink-0 border-b border-white/8">
-				<!-- To -->
+	{#if !composer.minimized}
+		<!-- Fields -->
+		<div class="shrink-0 border-b border-white/8">
+			<!-- To -->
+			<div class="flex items-center border-b border-white/8 px-4">
+				<label for="composer-to" class="w-10 shrink-0 text-xs font-medium text-zinc-500">To</label>
+				<input
+					id="composer-to"
+					type="text"
+					bind:value={composer.to}
+					placeholder="recipients@example.com"
+					class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+				/>
+				<div class="flex gap-1 text-xs text-zinc-500">
+					{#if !showCc}
+						<button type="button" onclick={() => (showCc = true)} class="px-1 hover:text-zinc-300"
+							>Cc</button
+						>
+					{/if}
+					{#if !showBcc}
+						<button type="button" onclick={() => (showBcc = true)} class="px-1 hover:text-zinc-300"
+							>Bcc</button
+						>
+					{/if}
+				</div>
+			</div>
+
+			{#if showCc}
 				<div class="flex items-center border-b border-white/8 px-4">
-					<label for="composer-to" class="w-10 shrink-0 text-xs font-medium text-zinc-500">To</label>
-					<input
-						id="composer-to"
-						type="text"
-						bind:value={composer.to}
-						placeholder="recipients@example.com"
-						class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
-					/>
-					<div class="flex gap-1 text-xs text-zinc-500">
-						{#if !showCc}
-							<button
-								type="button"
-								onclick={() => (showCc = true)}
-								class="px-1 hover:text-zinc-300">Cc</button
-							>
-						{/if}
-						{#if !showBcc}
-							<button
-								type="button"
-								onclick={() => (showBcc = true)}
-								class="px-1 hover:text-zinc-300">Bcc</button
-							>
-						{/if}
-					</div>
-				</div>
-
-				{#if showCc}
-					<div class="flex items-center border-b border-white/8 px-4">
-						<label for="composer-cc" class="w-10 shrink-0 text-xs font-medium text-zinc-500">Cc</label>
-						<input
-							id="composer-cc"
-							type="text"
-							bind:value={composer.cc}
-							placeholder="cc@example.com"
-							class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
-						/>
-					</div>
-				{/if}
-
-				{#if showBcc}
-					<div class="flex items-center border-b border-white/8 px-4">
-						<label for="composer-bcc" class="w-10 shrink-0 text-xs font-medium text-zinc-500">Bcc</label>
-						<input
-							id="composer-bcc"
-							type="text"
-							bind:value={composer.bcc}
-							placeholder="bcc@example.com"
-							class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
-						/>
-					</div>
-				{/if}
-
-				<!-- Subject -->
-				<div class="flex items-center px-4">
-					<input
-						type="text"
-						bind:value={composer.subject}
-						placeholder="Subject"
-						class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
-					/>
-				</div>
-			</div>
-
-			<!-- Toolbar -->
-			<div class="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-white/8 bg-[#16161a] px-2 py-1.5">
-				<!-- Undo / Redo -->
-				<button
-					type="button"
-					aria-label="Undo"
-					onclick={() => editor?.chain().focus().undo().run()}
-					class={btnClass(false)}
-				>
-					<Undo2 size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Redo"
-					onclick={() => editor?.chain().focus().redo().run()}
-					class={btnClass(false)}
-				>
-					<Redo2 size={14} />
-				</button>
-
-				<div class="mx-1 h-4 w-px bg-white/10"></div>
-
-				<!-- Headings -->
-				<button
-					type="button"
-					aria-label="Heading 1"
-					onclick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-					class={btnClass(isActive('heading', { level: 1 }))}
-				>
-					<Heading1 size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Heading 2"
-					onclick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-					class={btnClass(isActive('heading', { level: 2 }))}
-				>
-					<Heading2 size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Heading 3"
-					onclick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
-					class={btnClass(isActive('heading', { level: 3 }))}
-				>
-					<Heading3 size={14} />
-				</button>
-
-				<div class="mx-1 h-4 w-px bg-white/10"></div>
-
-				<!-- Inline marks -->
-				<button
-					type="button"
-					aria-label="Bold"
-					onclick={() => editor?.chain().focus().toggleBold().run()}
-					class={btnClass(isActive('bold'))}
-				>
-					<Bold size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Italic"
-					onclick={() => editor?.chain().focus().toggleItalic().run()}
-					class={btnClass(isActive('italic'))}
-				>
-					<Italic size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Underline"
-					onclick={() => editor?.chain().focus().toggleUnderline().run()}
-					class={btnClass(isActive('underline'))}
-				>
-					<UnderlineIcon size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Strikethrough"
-					onclick={() => editor?.chain().focus().toggleStrike().run()}
-					class={btnClass(isActive('strike'))}
-				>
-					<Strikethrough size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Inline code"
-					onclick={() => editor?.chain().focus().toggleCode().run()}
-					class={btnClass(isActive('code'))}
-				>
-					<Code size={14} />
-				</button>
-
-				<div class="mx-1 h-4 w-px bg-white/10"></div>
-
-				<!-- Link -->
-				<button
-					type="button"
-					aria-label="Link"
-					onclick={openLinkInput}
-					class={btnClass(isActive('link'))}
-				>
-					<LinkIcon size={14} />
-				</button>
-
-				<div class="mx-1 h-4 w-px bg-white/10"></div>
-
-				<!-- Lists -->
-				<button
-					type="button"
-					aria-label="Bullet list"
-					onclick={() => editor?.chain().focus().toggleBulletList().run()}
-					class={btnClass(isActive('bulletList'))}
-				>
-					<List size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Ordered list"
-					onclick={() => editor?.chain().focus().toggleOrderedList().run()}
-					class={btnClass(isActive('orderedList'))}
-				>
-					<ListOrdered size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Blockquote"
-					onclick={() => editor?.chain().focus().toggleBlockquote().run()}
-					class={btnClass(isActive('blockquote'))}
-				>
-					<Quote size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Code block"
-					onclick={() => editor?.chain().focus().toggleCodeBlock().run()}
-					class={btnClass(isActive('codeBlock'))}
-				>
-					<Code2 size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Horizontal rule"
-					onclick={() => editor?.chain().focus().setHorizontalRule().run()}
-					class={btnClass(false)}
-				>
-					<HrIcon size={14} />
-				</button>
-
-				<div class="mx-1 h-4 w-px bg-white/10"></div>
-
-				<!-- Alignment -->
-				<button
-					type="button"
-					aria-label="Align left"
-					onclick={() => editor?.chain().focus().setTextAlign('left').run()}
-					class={btnClass(isAlignActive('left'))}
-				>
-					<AlignLeft size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Align center"
-					onclick={() => editor?.chain().focus().setTextAlign('center').run()}
-					class={btnClass(isAlignActive('center'))}
-				>
-					<AlignCenter size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Align right"
-					onclick={() => editor?.chain().focus().setTextAlign('right').run()}
-					class={btnClass(isAlignActive('right'))}
-				>
-					<AlignRight size={14} />
-				</button>
-				<button
-					type="button"
-					aria-label="Justify"
-					onclick={() => editor?.chain().focus().setTextAlign('justify').run()}
-					class={btnClass(isAlignActive('justify'))}
-				>
-					<AlignJustify size={14} />
-				</button>
-
-			</div>
-
-			<!-- Link input bar -->
-			{#if showLinkInput}
-				<div class="flex shrink-0 items-center gap-2 border-b border-white/8 bg-[#16161a] px-3 py-1.5">
-					<LinkIcon size={13} class="shrink-0 text-zinc-500" />
-					<input
-						type="url"
-						bind:value={linkInputValue}
-						placeholder="https://example.com"
-						onkeydown={(e) => {
-							if (e.key === 'Enter') applyLink();
-							if (e.key === 'Escape') {
-								showLinkInput = false;
-								linkInputValue = '';
-							}
-						}}
-						class="flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
-					/>
-					<button
-						type="button"
-						onclick={applyLink}
-						class="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-500"
-					>Apply</button>
-					<button
-						type="button"
-						onclick={() => {
-							showLinkInput = false;
-							linkInputValue = '';
-						}}
-						class="text-zinc-500 hover:text-zinc-300"
+					<label for="composer-cc" class="w-10 shrink-0 text-xs font-medium text-zinc-500">Cc</label
 					>
-						<X size={13} />
-					</button>
+					<input
+						id="composer-cc"
+						type="text"
+						bind:value={composer.cc}
+						placeholder="cc@example.com"
+						class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+					/>
 				</div>
 			{/if}
 
-			<!-- Editor -->
-			<div class="composer-editor-wrap flex-1 overflow-y-auto">
-				<div bind:this={editorEl}></div>
-			</div>
-
-			<!-- Footer -->
-			<div class="flex shrink-0 items-center justify-between border-t border-white/8 bg-[#16161a] px-4 py-2.5">
-				<div class="flex items-center gap-2">
-					<button
-						type="button"
-						disabled={sending || !composer.to || !composer.subject}
-						onclick={send}
-						class="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+			{#if showBcc}
+				<div class="flex items-center border-b border-white/8 px-4">
+					<label for="composer-bcc" class="w-10 shrink-0 text-xs font-medium text-zinc-500"
+						>Bcc</label
 					>
-						<Send size={14} />
-						{sending ? 'Sending…' : 'Send'}
-					</button>
-					{#if sendError}
-						<p class="text-xs text-rose-400">{sendError}</p>
-					{/if}
+					<input
+						id="composer-bcc"
+						type="text"
+						bind:value={composer.bcc}
+						placeholder="bcc@example.com"
+						class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+					/>
 				</div>
+			{/if}
+
+			<!-- Subject -->
+			<div class="flex items-center px-4">
+				<input
+					type="text"
+					bind:value={composer.subject}
+					placeholder="Subject"
+					class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+				/>
+			</div>
+		</div>
+
+		<!-- Toolbar -->
+		<div
+			class="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-white/8 bg-[#16161a] px-2 py-1.5"
+		>
+			<!-- Undo / Redo -->
+			<button
+				type="button"
+				aria-label="Undo"
+				onclick={() => editor?.chain().focus().undo().run()}
+				class={btnClass(false)}
+			>
+				<Undo2 size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Redo"
+				onclick={() => editor?.chain().focus().redo().run()}
+				class={btnClass(false)}
+			>
+				<Redo2 size={14} />
+			</button>
+
+			<div class="mx-1 h-4 w-px bg-white/10"></div>
+
+			<!-- Headings -->
+			<button
+				type="button"
+				aria-label="Heading 1"
+				onclick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+				class={btnClass(isActive('heading', { level: 1 }))}
+			>
+				<Heading1 size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Heading 2"
+				onclick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+				class={btnClass(isActive('heading', { level: 2 }))}
+			>
+				<Heading2 size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Heading 3"
+				onclick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+				class={btnClass(isActive('heading', { level: 3 }))}
+			>
+				<Heading3 size={14} />
+			</button>
+
+			<div class="mx-1 h-4 w-px bg-white/10"></div>
+
+			<!-- Inline marks -->
+			<button
+				type="button"
+				aria-label="Bold"
+				onclick={() => editor?.chain().focus().toggleBold().run()}
+				class={btnClass(isActive('bold'))}
+			>
+				<Bold size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Italic"
+				onclick={() => editor?.chain().focus().toggleItalic().run()}
+				class={btnClass(isActive('italic'))}
+			>
+				<Italic size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Underline"
+				onclick={() => editor?.chain().focus().toggleUnderline().run()}
+				class={btnClass(isActive('underline'))}
+			>
+				<UnderlineIcon size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Strikethrough"
+				onclick={() => editor?.chain().focus().toggleStrike().run()}
+				class={btnClass(isActive('strike'))}
+			>
+				<Strikethrough size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Inline code"
+				onclick={() => editor?.chain().focus().toggleCode().run()}
+				class={btnClass(isActive('code'))}
+			>
+				<Code size={14} />
+			</button>
+
+			<div class="mx-1 h-4 w-px bg-white/10"></div>
+
+			<!-- Link -->
+			<button
+				type="button"
+				aria-label="Link"
+				onclick={openLinkInput}
+				class={btnClass(isActive('link'))}
+			>
+				<LinkIcon size={14} />
+			</button>
+
+			<div class="mx-1 h-4 w-px bg-white/10"></div>
+
+			<!-- Lists -->
+			<button
+				type="button"
+				aria-label="Bullet list"
+				onclick={() => editor?.chain().focus().toggleBulletList().run()}
+				class={btnClass(isActive('bulletList'))}
+			>
+				<List size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Ordered list"
+				onclick={() => editor?.chain().focus().toggleOrderedList().run()}
+				class={btnClass(isActive('orderedList'))}
+			>
+				<ListOrdered size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Blockquote"
+				onclick={() => editor?.chain().focus().toggleBlockquote().run()}
+				class={btnClass(isActive('blockquote'))}
+			>
+				<Quote size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Code block"
+				onclick={() => editor?.chain().focus().toggleCodeBlock().run()}
+				class={btnClass(isActive('codeBlock'))}
+			>
+				<Code2 size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Horizontal rule"
+				onclick={() => editor?.chain().focus().setHorizontalRule().run()}
+				class={btnClass(false)}
+			>
+				<HrIcon size={14} />
+			</button>
+
+			<div class="mx-1 h-4 w-px bg-white/10"></div>
+
+			<!-- Alignment -->
+			<button
+				type="button"
+				aria-label="Align left"
+				onclick={() => editor?.chain().focus().setTextAlign('left').run()}
+				class={btnClass(isAlignActive('left'))}
+			>
+				<AlignLeft size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Align center"
+				onclick={() => editor?.chain().focus().setTextAlign('center').run()}
+				class={btnClass(isAlignActive('center'))}
+			>
+				<AlignCenter size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Align right"
+				onclick={() => editor?.chain().focus().setTextAlign('right').run()}
+				class={btnClass(isAlignActive('right'))}
+			>
+				<AlignRight size={14} />
+			</button>
+			<button
+				type="button"
+				aria-label="Justify"
+				onclick={() => editor?.chain().focus().setTextAlign('justify').run()}
+				class={btnClass(isAlignActive('justify'))}
+			>
+				<AlignJustify size={14} />
+			</button>
+		</div>
+
+		<!-- Link input bar -->
+		{#if showLinkInput}
+			<div
+				class="flex shrink-0 items-center gap-2 border-b border-white/8 bg-[#16161a] px-3 py-1.5"
+			>
+				<LinkIcon size={13} class="shrink-0 text-zinc-500" />
+				<input
+					type="url"
+					bind:value={linkInputValue}
+					placeholder="https://example.com"
+					onkeydown={(e) => {
+						if (e.key === 'Enter') applyLink();
+						if (e.key === 'Escape') {
+							showLinkInput = false;
+							linkInputValue = '';
+						}
+					}}
+					class="flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+				/>
 				<button
 					type="button"
-					onclick={discard}
-					class="text-xs text-zinc-500 hover:text-zinc-300"
+					onclick={applyLink}
+					class="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-500">Apply</button
 				>
-					Discard
+				<button
+					type="button"
+					onclick={() => {
+						showLinkInput = false;
+						linkInputValue = '';
+					}}
+					class="text-zinc-500 hover:text-zinc-300"
+				>
+					<X size={13} />
 				</button>
 			</div>
 		{/if}
-	</div>
+
+		<!-- Editor -->
+		<div class="composer-editor-wrap flex-1 overflow-y-auto">
+			<div bind:this={editorEl}></div>
+		</div>
+
+		<!-- Footer -->
+		<div
+			class="flex shrink-0 items-center justify-between border-t border-white/8 bg-[#16161a] px-4 py-2.5"
+		>
+			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					disabled={sending || !composer.to || !composer.subject}
+					onclick={send}
+					class="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+				>
+					<Send size={14} />
+					{sending ? 'Sending…' : 'Send'}
+				</button>
+				{#if sendError}
+					<p class="text-xs text-rose-400">{sendError}</p>
+				{/if}
+			</div>
+			<button type="button" onclick={discard} class="text-xs text-zinc-500 hover:text-zinc-300">
+				Discard
+			</button>
+		</div>
+	{/if}
+</div>
 
 <style>
 	:global(.composer-editor-wrap .ProseMirror) {

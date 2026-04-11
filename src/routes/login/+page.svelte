@@ -39,7 +39,9 @@
 	<div class="relative w-full max-w-sm">
 		<!-- Logo -->
 		<div class="mb-8 flex flex-col items-center gap-3">
-			<div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600/15 ring-1 ring-blue-500/20">
+			<div
+				class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600/15 ring-1 ring-blue-500/20"
+			>
 				<img src={favicon} alt="" class="h-6 w-6" />
 			</div>
 			<div class="text-center">
@@ -58,15 +60,22 @@
 			>
 				{#if loading}
 					<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
+						></circle>
 						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
 					</svg>
 					Redirecting…
 				{:else}
-					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-						<polyline points="10 17 15 12 10 7"/>
-						<line x1="15" y1="12" x2="3" y2="12"/>
+					<svg
+						class="h-4 w-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+					>
+						<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+						<polyline points="10 17 15 12 10 7" />
+						<line x1="15" y1="12" x2="3" y2="12" />
 					</svg>
 					Continue with SSO
 				{/if}

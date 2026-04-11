@@ -157,7 +157,7 @@ export async function getDisplayConfig() {
 			discoveryUrl: row?.oidcDiscoveryUrl ?? env.OIDC_DISCOVERY_URL ?? '',
 			clientId: row?.oidcClientId ?? env.OIDC_CLIENT_ID ?? '',
 			clientSecret: row?.oidcClientSecret ? '••••••••' : env.OIDC_CLIENT_SECRET ? '••••••••' : '',
-			source: (row?.oidcDiscoveryUrl || row?.oidcClientId) ? 'db' : 'env'
+			source: row?.oidcDiscoveryUrl || row?.oidcClientId ? 'db' : 'env'
 		}
 	};
 }

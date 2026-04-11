@@ -24,7 +24,9 @@
 		<!-- Header -->
 		<div class="mb-8">
 			<h1 class="text-2xl font-semibold text-white">First-time setup</h1>
-			<p class="mt-1 text-sm text-zinc-400">Configure your mail server and identity provider to get started.</p>
+			<p class="mt-1 text-sm text-zinc-400">
+				Configure your mail server and identity provider to get started.
+			</p>
 		</div>
 
 		<form
@@ -40,11 +42,15 @@
 		>
 			<!-- OIDC -->
 			<section class="space-y-4">
-				<h2 class="text-xs font-semibold uppercase tracking-widest text-zinc-500">Identity Provider (OIDC)</h2>
+				<h2 class="text-xs font-semibold tracking-widest text-zinc-500 uppercase">
+					Identity Provider (OIDC)
+				</h2>
 
 				<div class="space-y-3">
 					<div>
-						<label class="mb-1 block text-xs text-zinc-400" for="discoveryUrl">Discovery URL <span class="text-red-400">*</span></label>
+						<label class="mb-1 block text-xs text-zinc-400" for="discoveryUrl"
+							>Discovery URL <span class="text-red-400">*</span></label
+						>
 						<input
 							id="discoveryUrl"
 							name="discoveryUrl"
@@ -56,7 +62,9 @@
 					</div>
 					<div class="grid grid-cols-2 gap-3">
 						<div>
-							<label class="mb-1 block text-xs text-zinc-400" for="clientId">Client ID <span class="text-red-400">*</span></label>
+							<label class="mb-1 block text-xs text-zinc-400" for="clientId"
+								>Client ID <span class="text-red-400">*</span></label
+							>
 							<input
 								id="clientId"
 								name="clientId"
@@ -67,7 +75,9 @@
 							/>
 						</div>
 						<div>
-							<label class="mb-1 block text-xs text-zinc-400" for="clientSecret">Client Secret <span class="text-red-400">*</span></label>
+							<label class="mb-1 block text-xs text-zinc-400" for="clientSecret"
+								>Client Secret <span class="text-red-400">*</span></label
+							>
 							<input
 								id="clientSecret"
 								name="clientSecret"
@@ -80,7 +90,9 @@
 						</div>
 					</div>
 					<p class="text-xs text-zinc-600">
-						Redirect URI: <span class="font-mono text-zinc-500">{data.origin}/api/auth/oauth2/callback/oidc</span>
+						Redirect URI: <span class="font-mono text-zinc-500"
+							>{data.origin}/api/auth/oauth2/callback/oidc</span
+						>
 					</p>
 				</div>
 			</section>
@@ -89,7 +101,11 @@
 
 			<!-- IMAP -->
 			<section class="space-y-4">
-				<h2 class="text-xs font-semibold uppercase tracking-widest text-zinc-500">IMAP — Incoming Mail <span class="ml-1 text-zinc-600 normal-case tracking-normal">(optional)</span></h2>
+				<h2 class="text-xs font-semibold tracking-widest text-zinc-500 uppercase">
+					IMAP — Incoming Mail <span class="ml-1 tracking-normal text-zinc-600 normal-case"
+						>(optional)</span
+					>
+				</h2>
 
 				<div class="grid grid-cols-2 gap-3">
 					<div class="col-span-2 sm:col-span-1">
@@ -137,7 +153,8 @@
 						/>
 					</div>
 					<div>
-						<label class="mb-1 block text-xs text-zinc-400" for="imapMailbox">Default mailbox</label>
+						<label class="mb-1 block text-xs text-zinc-400" for="imapMailbox">Default mailbox</label
+						>
 						<input
 							id="imapMailbox"
 							name="imapMailbox"
@@ -147,7 +164,9 @@
 						/>
 					</div>
 					<div>
-						<label class="mb-1 block text-xs text-zinc-400" for="imapPollSeconds">Poll interval (s)</label>
+						<label class="mb-1 block text-xs text-zinc-400" for="imapPollSeconds"
+							>Poll interval (s)</label
+						>
 						<input
 							id="imapPollSeconds"
 							name="imapPollSeconds"
@@ -165,9 +184,15 @@
 							role="switch"
 							aria-checked={imapSecure}
 							onclick={() => (imapSecure = !imapSecure)}
-							class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition {imapSecure ? 'bg-blue-600' : 'bg-zinc-700'}"
+							class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition {imapSecure
+								? 'bg-blue-600'
+								: 'bg-zinc-700'}"
 						>
-							<span class="inline-block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow transition {imapSecure ? 'translate-x-4' : ''}"></span>
+							<span
+								class="inline-block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow transition {imapSecure
+									? 'translate-x-4'
+									: ''}"
+							></span>
 						</button>
 						<span class="text-sm text-zinc-300">TLS / SSL</span>
 					</div>
@@ -178,7 +203,11 @@
 
 			<!-- SMTP -->
 			<section class="space-y-4">
-				<h2 class="text-xs font-semibold uppercase tracking-widest text-zinc-500">SMTP — Outgoing Mail <span class="ml-1 text-zinc-600 normal-case tracking-normal">(optional)</span></h2>
+				<h2 class="text-xs font-semibold tracking-widest text-zinc-500 uppercase">
+					SMTP — Outgoing Mail <span class="ml-1 tracking-normal text-zinc-600 normal-case"
+						>(optional)</span
+					>
+				</h2>
 
 				<div class="grid grid-cols-2 gap-3">
 					<div class="col-span-2 sm:col-span-1">
@@ -242,9 +271,15 @@
 							role="switch"
 							aria-checked={smtpSecure}
 							onclick={() => (smtpSecure = !smtpSecure)}
-							class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition {smtpSecure ? 'bg-blue-600' : 'bg-zinc-700'}"
+							class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition {smtpSecure
+								? 'bg-blue-600'
+								: 'bg-zinc-700'}"
 						>
-							<span class="inline-block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow transition {smtpSecure ? 'translate-x-4' : ''}"></span>
+							<span
+								class="inline-block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow transition {smtpSecure
+									? 'translate-x-4'
+									: ''}"
+							></span>
 						</button>
 						<span class="text-sm text-zinc-300">TLS / SSL</span>
 					</div>

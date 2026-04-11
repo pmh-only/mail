@@ -39,4 +39,4 @@ export const POST: RequestHandler = async ({ request }) => {
 		const message = err instanceof Error ? err.message : String(err);
 		return error(500, `Failed to send: ${message}`);
 	}
-}
+};

@@ -18,7 +18,12 @@
 			config: {
 				imap: ConfigSection & { mailbox: string; pollSeconds: number };
 				smtp: ConfigSection & { from: string };
-				oidc: { discoveryUrl: string; clientId: string; clientSecret: string; source: 'db' | 'env' };
+				oidc: {
+					discoveryUrl: string;
+					clientId: string;
+					clientSecret: string;
+					source: 'db' | 'env';
+				};
 			};
 			origin: string;
 		};
@@ -77,7 +82,10 @@
 				body: JSON.stringify({ imap })
 			});
 			const data = await res.json();
-			imapTestResult = { ok: res.ok, message: data.message ?? (res.ok ? 'Connected successfully' : 'Connection failed') };
+			imapTestResult = {
+				ok: res.ok,
+				message: data.message ?? (res.ok ? 'Connected successfully' : 'Connection failed')
+			};
 		} catch (err) {
 			imapTestResult = { ok: false, message: err instanceof Error ? err.message : String(err) };
 		} finally {
@@ -95,7 +103,10 @@
 				body: JSON.stringify({ smtp })
 			});
 			const data = await res.json();
-			smtpTestResult = { ok: res.ok, message: data.message ?? (res.ok ? 'Connected successfully' : 'Connection failed') };
+			smtpTestResult = {
+				ok: res.ok,
+				message: data.message ?? (res.ok ? 'Connected successfully' : 'Connection failed')
+			};
 		} catch (err) {
 			smtpTestResult = { ok: false, message: err instanceof Error ? err.message : String(err) };
 		} finally {
@@ -116,11 +127,17 @@
 		<!-- IMAP -->
 		<section class="space-y-4">
 			<div class="flex items-center justify-between">
-				<h2 class="text-sm font-semibold uppercase tracking-widest text-zinc-500">IMAP — Incoming Mail</h2>
+				<h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
+					IMAP — Incoming Mail
+				</h2>
 				{#if data.config.imap.source === 'db'}
-					<span class="rounded-full bg-blue-600/20 px-2 py-0.5 text-xs font-medium text-blue-400">saved</span>
+					<span class="rounded-full bg-blue-600/20 px-2 py-0.5 text-xs font-medium text-blue-400"
+						>saved</span
+					>
 				{:else if data.config.imap.host}
-					<span class="rounded-full bg-zinc-700/60 px-2 py-0.5 text-xs font-medium text-zinc-400">from env</span>
+					<span class="rounded-full bg-zinc-700/60 px-2 py-0.5 text-xs font-medium text-zinc-400"
+						>from env</span
+					>
 				{/if}
 			</div>
 
@@ -130,7 +147,9 @@
 					<input
 						id="imap-host"
 						type="text"
-						placeholder={data.config.imap.source === 'env' ? data.config.imap.host || 'e.g. imap.gmail.com' : 'e.g. imap.gmail.com'}
+						placeholder={data.config.imap.source === 'env'
+							? data.config.imap.host || 'e.g. imap.gmail.com'
+							: 'e.g. imap.gmail.com'}
 						bind:value={imap.host}
 						class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
 					/>
@@ -179,7 +198,9 @@
 					/>
 				</div>
 				<div>
-					<label class="mb-1 block text-xs text-zinc-400" for="imap-poll">Poll interval (seconds)</label>
+					<label class="mb-1 block text-xs text-zinc-400" for="imap-poll"
+						>Poll interval (seconds)</label
+					>
 					<input
 						id="imap-poll"
 						type="number"
@@ -191,7 +212,9 @@
 				<div class="col-span-2 flex items-center gap-2">
 					<label class="relative inline-flex cursor-pointer items-center gap-2">
 						<input type="checkbox" bind:checked={imap.secure} class="peer sr-only" />
-						<div class="h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"></div>
+						<div
+							class="h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"
+						></div>
 						<span class="text-sm text-zinc-300">TLS / SSL</span>
 					</label>
 				</div>
@@ -219,11 +242,17 @@
 		<!-- SMTP -->
 		<section class="space-y-4">
 			<div class="flex items-center justify-between">
-				<h2 class="text-sm font-semibold uppercase tracking-widest text-zinc-500">SMTP — Outgoing Mail</h2>
+				<h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
+					SMTP — Outgoing Mail
+				</h2>
 				{#if data.config.smtp.source === 'db'}
-					<span class="rounded-full bg-blue-600/20 px-2 py-0.5 text-xs font-medium text-blue-400">saved</span>
+					<span class="rounded-full bg-blue-600/20 px-2 py-0.5 text-xs font-medium text-blue-400"
+						>saved</span
+					>
 				{:else if data.config.smtp.host}
-					<span class="rounded-full bg-zinc-700/60 px-2 py-0.5 text-xs font-medium text-zinc-400">from env</span>
+					<span class="rounded-full bg-zinc-700/60 px-2 py-0.5 text-xs font-medium text-zinc-400"
+						>from env</span
+					>
 				{/if}
 			</div>
 
@@ -272,7 +301,9 @@
 					/>
 				</div>
 				<div class="col-span-2">
-					<label class="mb-1 block text-xs text-zinc-400" for="smtp-from">From address (optional)</label>
+					<label class="mb-1 block text-xs text-zinc-400" for="smtp-from"
+						>From address (optional)</label
+					>
 					<input
 						id="smtp-from"
 						type="text"
@@ -284,7 +315,9 @@
 				<div class="col-span-2 flex items-center gap-2">
 					<label class="relative inline-flex cursor-pointer items-center gap-2">
 						<input type="checkbox" bind:checked={smtp.secure} class="peer sr-only" />
-						<div class="h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"></div>
+						<div
+							class="h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"
+						></div>
 						<span class="text-sm text-zinc-300">TLS / SSL</span>
 					</label>
 				</div>
@@ -312,11 +345,17 @@
 		<!-- OIDC -->
 		<section class="space-y-4">
 			<div class="flex items-center justify-between">
-				<h2 class="text-sm font-semibold uppercase tracking-widest text-zinc-500">OIDC — Authentication</h2>
+				<h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
+					OIDC — Authentication
+				</h2>
 				{#if data.config.oidc.source === 'db'}
-					<span class="rounded-full bg-blue-600/20 px-2 py-0.5 text-xs font-medium text-blue-400">saved</span>
+					<span class="rounded-full bg-blue-600/20 px-2 py-0.5 text-xs font-medium text-blue-400"
+						>saved</span
+					>
 				{:else if data.config.oidc.discoveryUrl || data.config.oidc.clientId}
-					<span class="rounded-full bg-zinc-700/60 px-2 py-0.5 text-xs font-medium text-zinc-400">from env</span>
+					<span class="rounded-full bg-zinc-700/60 px-2 py-0.5 text-xs font-medium text-zinc-400"
+						>from env</span
+					>
 				{/if}
 			</div>
 
@@ -342,7 +381,9 @@
 					/>
 				</div>
 				<div>
-					<label class="mb-1 block text-xs text-zinc-400" for="oidc-client-secret">Client Secret</label>
+					<label class="mb-1 block text-xs text-zinc-400" for="oidc-client-secret"
+						>Client Secret</label
+					>
 					<input
 						id="oidc-client-secret"
 						type="password"
@@ -353,7 +394,9 @@
 					/>
 				</div>
 				<p class="text-xs text-zinc-500">
-					Redirect URI to register with your provider: <span class="font-mono text-zinc-400">{data.origin}/api/auth/oauth2/callback/oidc</span>
+					Redirect URI to register with your provider: <span class="font-mono text-zinc-400"
+						>{data.origin}/api/auth/oauth2/callback/oidc</span
+					>
 				</p>
 			</div>
 		</section>
