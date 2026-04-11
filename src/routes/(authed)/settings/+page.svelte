@@ -18,7 +18,9 @@
 			config: {
 				imap: ConfigSection & { mailbox: string; pollSeconds: number };
 				smtp: ConfigSection & { from: string };
+				oidc: { discoveryUrl: string; clientId: string; clientSecret: string; source: 'db' | 'env' };
 			};
+			origin: string;
 		};
 	};
 
@@ -27,6 +29,7 @@
 	// Editable form state
 	let imap = $state({ ...data.config.imap, password: '' });
 	let smtp = $state({ ...data.config.smtp, password: '' });
+	let oidc = $state({ ...data.config.oidc, clientSecret: '' });
 
 	let saving = $state(false);
 	let testingImap = $state(false);
@@ -44,7 +47,7 @@
 			const res = await fetch('/api/settings', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ imap, smtp })
+				body: JSON.stringify({ imap, smtp, oidc })
 			});
 			if (!res.ok) {
 				const text = await res.text();
@@ -54,6 +57,7 @@
 				// Clear passwords after save so they show as bullets again
 				imap.password = '';
 				smtp.password = '';
+				oidc.clientSecret = '';
 				await invalidateAll();
 			}
 		} catch (err) {
@@ -300,6 +304,57 @@
 						{smtpTestResult.message}
 					</span>
 				{/if}
+			</div>
+		</section>
+
+		<div class="border-t border-white/8"></div>
+
+		<!-- OIDC -->
+		<section class="space-y-4">
+			<div class="flex items-center justify-between">
+				<h2 class="text-sm font-semibold uppercase tracking-widest text-zinc-500">OIDC — Authentication</h2>
+				{#if data.config.oidc.source === 'db'}
+					<span class="rounded-full bg-blue-600/20 px-2 py-0.5 text-xs font-medium text-blue-400">saved</span>
+				{:else if data.config.oidc.discoveryUrl || data.config.oidc.clientId}
+					<span class="rounded-full bg-zinc-700/60 px-2 py-0.5 text-xs font-medium text-zinc-400">from env</span>
+				{/if}
+			</div>
+
+			<div class="space-y-3">
+				<div>
+					<label class="mb-1 block text-xs text-zinc-400" for="oidc-discovery">Discovery URL</label>
+					<input
+						id="oidc-discovery"
+						type="url"
+						placeholder="https://auth.example.com/…/.well-known/openid-configuration"
+						bind:value={oidc.discoveryUrl}
+						class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+					/>
+				</div>
+				<div>
+					<label class="mb-1 block text-xs text-zinc-400" for="oidc-client-id">Client ID</label>
+					<input
+						id="oidc-client-id"
+						type="text"
+						placeholder="your-client-id"
+						bind:value={oidc.clientId}
+						class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+					/>
+				</div>
+				<div>
+					<label class="mb-1 block text-xs text-zinc-400" for="oidc-client-secret">Client Secret</label>
+					<input
+						id="oidc-client-secret"
+						type="password"
+						autocomplete="new-password"
+						placeholder={data.config.oidc.clientSecret ? '(unchanged)' : 'Enter client secret'}
+						bind:value={oidc.clientSecret}
+						class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+					/>
+				</div>
+				<p class="text-xs text-zinc-500">
+					Redirect URI to register with your provider: <span class="font-mono text-zinc-400">{data.origin}/api/auth/oauth2/callback/oidc</span>
+				</p>
 			</div>
 		</section>
 

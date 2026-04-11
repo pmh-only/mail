@@ -4,6 +4,7 @@ import { db } from '$lib/server/db';
 import { mailConfig } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { getDisplayConfig, invalidateConfigCache } from '$lib/server/config';
+import { invalidateAuth } from '$lib/server/auth';
 
 export const GET: RequestHandler = async () => {
 	const config = await getDisplayConfig();
@@ -46,6 +47,16 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (typeof smtp.from === 'string') values.smtpFrom = smtp.from.trim() || null;
 	}
 
+	// OIDC fields
+	if (body.oidc) {
+		const oidc = body.oidc as Record<string, unknown>;
+		if (typeof oidc.discoveryUrl === 'string') values.oidcDiscoveryUrl = oidc.discoveryUrl.trim() || null;
+		if (typeof oidc.clientId === 'string') values.oidcClientId = oidc.clientId.trim() || null;
+		if (typeof oidc.clientSecret === 'string' && oidc.clientSecret.trim() && oidc.clientSecret !== '••••••••') {
+			values.oidcClientSecret = oidc.clientSecret;
+		}
+	}
+
 	try {
 		await db
 			.insert(mailConfig)
@@ -56,6 +67,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			});
 
 		invalidateConfigCache();
+		invalidateAuth();
 		return json({ success: true });
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

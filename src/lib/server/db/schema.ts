@@ -17,6 +17,9 @@ export const mailConfig = sqliteTable('mail_config', {
 	smtpUser: text('smtp_user'),
 	smtpPassword: text('smtp_password'),
 	smtpFrom: text('smtp_from'),
+	oidcDiscoveryUrl: text('oidc_discovery_url'),
+	oidcClientId: text('oidc_client_id'),
+	oidcClientSecret: text('oidc_client_secret'),
 	updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
 });
 

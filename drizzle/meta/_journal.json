@@ -71,6 +71,20 @@
 			"when": 1744315209000,
 			"tag": "0009_mail_config",
 			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1744315210000,
+			"tag": "0010_oidc_config",
+			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "7",
+			"when": 1744315211000,
+			"tag": "0011_auth_tables",
+			"breakpoints": true
 		}
 	]
 }

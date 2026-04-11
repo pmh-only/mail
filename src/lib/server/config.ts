@@ -26,6 +26,12 @@ export type SmtpConfig = {
 	from: string;
 };
 
+export type OidcConfig = {
+	discoveryUrl: string;
+	clientId: string;
+	clientSecret: string;
+};
+
 export type MailConfigRow = typeof mailConfig.$inferSelect;
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
@@ -109,6 +115,20 @@ export async function getSmtpConfig(): Promise<SmtpConfig | { missing: string[] 
 	};
 }
 
+export async function getOidcConfig(): Promise<OidcConfig> {
+	const row = await getRow();
+	return {
+		discoveryUrl: row?.oidcDiscoveryUrl || env.OIDC_DISCOVERY_URL || '',
+		clientId: row?.oidcClientId || env.OIDC_CLIENT_ID || '',
+		clientSecret: row?.oidcClientSecret || env.OIDC_CLIENT_SECRET || ''
+	};
+}
+
+export async function isOidcConfigured(): Promise<boolean> {
+	const oidc = await getOidcConfig();
+	return !!(oidc.discoveryUrl && oidc.clientId && oidc.clientSecret);
+}
+
 /** Returns the effective values shown in the settings UI (masks password). */
 export async function getDisplayConfig() {
 	const row = await getRow();
@@ -132,6 +152,12 @@ export async function getDisplayConfig() {
 			password: row?.smtpPassword ? '••••••••' : env.SMTP_PASSWORD ? '••••••••' : '',
 			from: row?.smtpFrom ?? env.SMTP_FROM ?? '',
 			source: row?.smtpHost ? 'db' : 'env'
+		},
+		oidc: {
+			discoveryUrl: row?.oidcDiscoveryUrl ?? env.OIDC_DISCOVERY_URL ?? '',
+			clientId: row?.oidcClientId ?? env.OIDC_CLIENT_ID ?? '',
+			clientSecret: row?.oidcClientSecret ? '••••••••' : env.OIDC_CLIENT_SECRET ? '••••••••' : '',
+			source: (row?.oidcDiscoveryUrl || row?.oidcClientId) ? 'db' : 'env'
 		}
 	};
 }
