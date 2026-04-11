@@ -354,7 +354,9 @@ async function runSyncAll(config: ImapConfig): Promise<void> {
 	}
 
 	// Sync mailboxes sequentially — many IMAP servers reject multiple simultaneous connections
+	// Skip \Noselect folders (container-only folders that can't be opened)
 	for (const mb of listed) {
+		if (mb.flags?.has('\\Noselect')) continue;
 		await syncOneMailbox(config, mb.path, pollMs);
 	}
 }
@@ -385,9 +387,19 @@ export async function getSyncSummary(): Promise<{
 	}
 
 	const rows = await db.select().from(mailboxSync);
-	const hasError = rows.some((r) => r.lastError);
-	const errorMessage = rows.find((r) => r.lastError)?.lastError ?? null;
-	const latest = rows.reduce<Date | null>((max, r) => {
+
+	// Only consider rows that have actually been synced (have a lastSyncedAt)
+	const syncedRows = rows.filter((r) => r.lastSyncedAt !== null);
+	const errorRows = syncedRows.filter((r) => r.lastError);
+	const okRows = syncedRows.filter((r) => !r.lastError);
+
+	// Report an error only when no mailbox synced successfully, or inbox specifically failed
+	const hasError =
+		errorRows.length > 0 &&
+		(okRows.length === 0 || errorRows.some((r) => /inbox/i.test(r.mailbox)));
+
+	const errorMessage = errorRows[0]?.lastError ?? null;
+	const latest = syncedRows.reduce<Date | null>((max, r) => {
 		if (!r.lastSyncedAt) return max;
 		return !max || r.lastSyncedAt > max ? r.lastSyncedAt : max;
 	}, null);
