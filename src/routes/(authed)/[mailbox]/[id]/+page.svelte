@@ -91,6 +91,9 @@
 *::-webkit-scrollbar-track{background:transparent}
 *::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.18);border-radius:999px}
 *::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.32)}
+:root {
+	padding: 12px;
+}
 </style>`;
 
 	const BASE_TARGET = '<base target="_blank" rel="noopener noreferrer">';
@@ -300,7 +303,7 @@
 				title={`Email body for ${subjectLabel(message.subject)}`}
 				sandbox="allow-popups"
 				{srcdoc}
-				class="block h-full w-full bg-white p-3"
+				class="block h-full w-full bg-white"
 			></iframe>
 		{:else}
 			<div class="space-y-6 p-4 text-[15px] leading-8 text-zinc-200">
