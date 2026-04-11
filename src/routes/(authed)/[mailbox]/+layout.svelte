@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { pathToSlug } from '$lib/mailbox';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -105,11 +106,13 @@
 		const month = 30 * day;
 		const year = 365 * day;
 
-		if (Math.abs(diffMs) >= year) return relativeFormatter.format(Math.round(diffMs / year), 'year');
+		if (Math.abs(diffMs) >= year)
+			return relativeFormatter.format(Math.round(diffMs / year), 'year');
 		if (Math.abs(diffMs) >= month)
 			return relativeFormatter.format(Math.round(diffMs / month), 'month');
 		if (Math.abs(diffMs) >= day) return relativeFormatter.format(Math.round(diffMs / day), 'day');
-		if (Math.abs(diffMs) >= hour) return relativeFormatter.format(Math.round(diffMs / hour), 'hour');
+		if (Math.abs(diffMs) >= hour)
+			return relativeFormatter.format(Math.round(diffMs / hour), 'hour');
 		return relativeFormatter.format(Math.round(diffMs / minute), 'minute');
 	}
 
@@ -153,7 +156,9 @@
 		const requestId = ++syncRequestId;
 
 		try {
-			const response = await fetch(`/api/messages?offset=0&limit=${targetCount}&mailbox=${mailbox}`);
+			const response = await fetch(
+				`/api/messages?offset=0&limit=${targetCount}&mailbox=${mailbox}`
+			);
 			if (!response.ok) throw new Error('Failed to refresh loaded messages.');
 
 			const payload = (await response.json()) as { messages: Message[]; hasMore: boolean };
@@ -180,7 +185,9 @@
 		loadMoreError = null;
 
 		try {
-			const response = await fetch(`/api/messages?offset=${messages.length}&limit=${pageSize}&mailbox=${mailbox}`);
+			const response = await fetch(
+				`/api/messages?offset=${messages.length}&limit=${pageSize}&mailbox=${mailbox}`
+			);
 			if (!response.ok) throw new Error('Failed to load more messages.');
 
 			const payload = (await response.json()) as { messages: Message[]; hasMore: boolean };
@@ -201,7 +208,7 @@
 				m.id === message.id ? { ...m, flags: [...m.flags, '\\Seen'] } : m
 			);
 		}
-		goto(`/${mailbox}/${message.id}`);
+		goto(resolve(`/${mailbox}/${message.id}`));
 	}
 
 	$effect(() => {
@@ -281,7 +288,10 @@
 </svelte:head>
 
 <div class="flex h-full" class:cursor-col-resize={resizing} class:select-none={resizing}>
-	<section style="width: {listWidth}px; min-width: {listWidth}px" class="flex flex-col overflow-x-hidden border-r border-white/8 bg-[#0d0d10]">
+	<section
+		style="width: {listWidth}px; min-width: {listWidth}px"
+		class="flex flex-col overflow-x-hidden border-r border-white/8 bg-[#0d0d10]"
+	>
 		<div class="border-b border-white/8 p-4 sm:p-5">
 			<div class="flex items-center justify-between gap-3">
 				<h1 class="text-2xl font-semibold tracking-tight text-white">{folderDisplayName}</h1>
@@ -363,7 +373,9 @@
 			{:else}
 				<div class="p-8 text-center">
 					<p class="text-lg font-semibold text-white">No messages found</p>
-					<p class="mt-2 text-sm text-zinc-500">Try a different search or wait for the next sync.</p>
+					<p class="mt-2 text-sm text-zinc-500">
+						Try a different search or wait for the next sync.
+					</p>
 				</div>
 			{/each}
 
@@ -401,7 +413,9 @@
 		class="group relative z-10 w-2 shrink-0 cursor-col-resize"
 		onpointerdown={startResize}
 	>
-		<div class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/8 transition-colors group-hover:bg-white/25"></div>
+		<div
+			class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/8 transition-colors group-hover:bg-white/25"
+		></div>
 	</div>
 
 	<section class="min-w-0 flex-1 overflow-hidden bg-[#0b0b0e]">

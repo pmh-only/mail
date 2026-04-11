@@ -2,14 +2,13 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { mailConfig } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
 import { getDisplayConfig, invalidateConfigCache } from '$lib/server/config';
 import { invalidateAuth } from '$lib/server/auth';
 
 export const GET: RequestHandler = async () => {
 	const config = await getDisplayConfig();
 	return json(config);
-}
+};
 
 export const POST: RequestHandler = async ({ request }) => {
 	const body = await request.json();
@@ -31,7 +30,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			values.imapPassword = imap.password;
 		}
 		if (typeof imap.mailbox === 'string') values.imapMailbox = imap.mailbox.trim() || null;
-		if (typeof imap.pollSeconds === 'number') values.imapPollSeconds = imap.pollSeconds > 0 ? imap.pollSeconds : null;
+		if (typeof imap.pollSeconds === 'number')
+			values.imapPollSeconds = imap.pollSeconds > 0 ? imap.pollSeconds : null;
 	}
 
 	// SMTP fields
@@ -50,21 +50,23 @@ export const POST: RequestHandler = async ({ request }) => {
 	// OIDC fields
 	if (body.oidc) {
 		const oidc = body.oidc as Record<string, unknown>;
-		if (typeof oidc.discoveryUrl === 'string') values.oidcDiscoveryUrl = oidc.discoveryUrl.trim() || null;
+		if (typeof oidc.discoveryUrl === 'string')
+			values.oidcDiscoveryUrl = oidc.discoveryUrl.trim() || null;
 		if (typeof oidc.clientId === 'string') values.oidcClientId = oidc.clientId.trim() || null;
-		if (typeof oidc.clientSecret === 'string' && oidc.clientSecret.trim() && oidc.clientSecret !== '••••••••') {
+		if (
+			typeof oidc.clientSecret === 'string' &&
+			oidc.clientSecret.trim() &&
+			oidc.clientSecret !== '••••••••'
+		) {
 			values.oidcClientSecret = oidc.clientSecret;
 		}
 	}
 
 	try {
-		await db
-			.insert(mailConfig)
-			.values(values)
-			.onConflictDoUpdate({
-				target: mailConfig.id,
-				set: values
-			});
+		await db.insert(mailConfig).values(values).onConflictDoUpdate({
+			target: mailConfig.id,
+			set: values
+		});
 
 		invalidateConfigCache();
 		invalidateAuth();
@@ -73,4 +75,4 @@ export const POST: RequestHandler = async ({ request }) => {
 		const message = err instanceof Error ? err.message : String(err);
 		return error(500, `Failed to save settings: ${message}`);
 	}
-}
+};

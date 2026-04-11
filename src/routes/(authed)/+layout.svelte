@@ -2,8 +2,19 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { Inbox, Send, FileText, Trash2, ArchiveX, Archive, Folder, Pencil, Settings } from 'lucide-svelte';
+	import {
+		Inbox,
+		Send,
+		FileText,
+		Trash2,
+		ArchiveX,
+		Archive,
+		Folder,
+		Pencil,
+		Settings
+	} from 'lucide-svelte';
 	import type { Component } from 'svelte';
+	import { resolve } from '$app/paths';
 	import { pathToSlug } from '$lib/mailbox';
 	import Composer from '$lib/components/Composer.svelte';
 	import { openCompose } from '$lib/composer.svelte';
@@ -128,7 +139,10 @@
 	class:select-none={resizing}
 	style="opacity: {ready ? 1 : 0}"
 >
-	<aside style="width: {sidebarWidth}px; min-width: {sidebarWidth}px" class="flex flex-col bg-[#0a0a0d]">
+	<aside
+		style="width: {sidebarWidth}px; min-width: {sidebarWidth}px"
+		class="flex flex-col bg-[#0a0a0d]"
+	>
 		<div class="flex flex-1 flex-col overflow-hidden p-3 sm:p-4">
 			<div class="mb-3 px-1">
 				<button
@@ -140,11 +154,13 @@
 					Compose
 				</button>
 			</div>
-			<p class="px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-widest text-zinc-500">Mail</p>
+			<p class="px-3 pt-1 pb-2 text-xs font-semibold tracking-widest text-zinc-500 uppercase">
+				Mail
+			</p>
 			<nav class="space-y-1.5 overflow-y-auto">
 				{#each mailboxes as mb (mb.slug)}
 					<a
-						href="/{mb.slug}"
+						href={resolve(`/${mb.slug}`)}
 						class={[
 							'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition',
 							mailbox === mb.slug
@@ -160,7 +176,7 @@
 
 			<div class="mt-auto space-y-1 pt-4">
 				<a
-					href="/settings"
+					href={resolve('/settings')}
 					class={[
 						'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition',
 						page.url.pathname === '/settings'
@@ -182,10 +198,14 @@
 								<span class="text-xs text-zinc-600">Mail not configured</span>
 							{:else if sync.hasError}
 								<span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
-								<span class="truncate text-xs text-red-400" title={sync.errorMessage ?? ''}>Sync error</span>
+								<span class="truncate text-xs text-red-400" title={sync.errorMessage ?? ''}
+									>Sync error</span
+								>
 							{:else if sync.syncing}
 								<span class="relative flex h-1.5 w-1.5">
-									<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
+									<span
+										class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"
+									></span>
 									<span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-500"></span>
 								</span>
 								<span class="text-xs text-zinc-500">Syncing…</span>
@@ -201,11 +221,15 @@
 					<!-- User -->
 					{#if data.user}
 						<div class="flex items-center gap-2.5 px-3 py-1">
-							<div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-[10px] font-semibold text-zinc-300">
+							<div
+								class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-[10px] font-semibold text-zinc-300"
+							>
 								{userInitials()}
 							</div>
 							<div class="min-w-0">
-								<p class="truncate text-xs font-medium text-zinc-400">{data.user.name || data.user.email}</p>
+								<p class="truncate text-xs font-medium text-zinc-400">
+									{data.user.name || data.user.email}
+								</p>
 							</div>
 						</div>
 					{/if}
@@ -222,7 +246,9 @@
 		class="group relative z-10 w-2 shrink-0 cursor-col-resize"
 		onpointerdown={startResize}
 	>
-		<div class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/8 transition-colors group-hover:bg-white/25"></div>
+		<div
+			class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/8 transition-colors group-hover:bg-white/25"
+		></div>
 	</div>
 
 	<div class="min-w-0 flex-1 overflow-hidden">

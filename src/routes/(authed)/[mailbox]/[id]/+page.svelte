@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Archive, Trash2, ShieldAlert, Reply, ReplyAll, Forward } from 'lucide-svelte';
 	import { goto, invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { openReply, openReplyAll, openForward } from '$lib/composer.svelte';
 
@@ -38,7 +39,7 @@
 			});
 			if (res.ok) {
 				await invalidateAll();
-				await goto(`/${page.params.mailbox}`);
+				await goto(resolve(`/${page.params.mailbox}`));
 			}
 		} finally {
 			acting = false;
