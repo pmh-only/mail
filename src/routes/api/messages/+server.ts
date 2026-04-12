@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
-import { listImapMailboxes, listStoredMessages } from '$lib/server/mail'
+import { listImapMailboxes, listStoredMessages, searchMessages } from '$lib/server/mail'
 import { slugToPath } from '$lib/mailbox'
 
 const DEFAULT_LIMIT = 50
@@ -11,7 +11,10 @@ function parsePositiveInt(value: string | null, fallback: number) {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback
 }
 
-function serializeMessage(message: Awaited<ReturnType<typeof listStoredMessages>>[number]) {
+function serializeMessage(
+  message: Awaited<ReturnType<typeof listStoredMessages>>[number],
+  includeMailbox = false
+) {
   return {
     id: message.id,
     uid: message.uid,
@@ -21,11 +24,28 @@ function serializeMessage(message: Awaited<ReturnType<typeof listStoredMessages>
     preview: message.preview,
     textContent: message.textContent,
     flags: JSON.parse(message.flags) as string[],
-    receivedAt: message.receivedAt?.toISOString() ?? null
+    receivedAt: message.receivedAt?.toISOString() ?? null,
+    ...(includeMailbox ? { mailbox: message.mailbox } : {})
   }
 }
 
 export const GET: RequestHandler = async ({ url }) => {
+  const q = url.searchParams.get('q')?.trim() ?? ''
+
+  if (q) {
+    const offset = parsePositiveInt(url.searchParams.get('offset'), 0)
+    const requestedLimit = parsePositiveInt(url.searchParams.get('limit'), DEFAULT_LIMIT)
+    const limit = Math.min(Math.max(requestedLimit, 1), MAX_LIMIT)
+
+    const messages = await searchMessages(q, limit + 1, offset)
+    const hasMore = messages.length > limit
+
+    return json({
+      messages: messages.slice(0, limit).map((m) => serializeMessage(m, true)),
+      hasMore
+    })
+  }
+
   const offset = parsePositiveInt(url.searchParams.get('offset'), 0)
   const requestedLimit = parsePositiveInt(url.searchParams.get('limit'), DEFAULT_LIMIT)
   const limit = Math.min(Math.max(requestedLimit, 1), MAX_LIMIT)
@@ -37,7 +57,7 @@ export const GET: RequestHandler = async ({ url }) => {
   const hasMore = messages.length > limit
 
   return json({
-    messages: messages.slice(0, limit).map(serializeMessage),
+    messages: messages.slice(0, limit).map((m) => serializeMessage(m)),
     hasMore
   })
 }

@@ -85,6 +85,13 @@
 			"when": 1744315211000,
 			"tag": "0011_auth_tables",
 			"breakpoints": true
+		},
+		{
+			"idx": 12,
+			"version": "7",
+			"when": 1744315212000,
+			"tag": "0012_fts",
+			"breakpoints": true
 		}
 	]
 }

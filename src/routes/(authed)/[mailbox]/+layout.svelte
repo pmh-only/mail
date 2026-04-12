@@ -28,6 +28,7 @@
     textContent: string | null
     flags: string[]
     receivedAt: string | null
+    mailbox?: string
   }
 
   type ImapMailbox = {
@@ -76,6 +77,13 @@
   let loadedCount = 0
   let syncRequestId = 0
 
+  let searchResults = $state<Message[]>([])
+  let isSearching = $state(false)
+  let searchRequestId = 0
+  let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+  const isSearchMode = $derived(searchQuery.trim().length > 0)
+
   const relativeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
 
   const folderDisplayName = $derived.by(() => {
@@ -84,23 +92,49 @@
   })
 
   const visibleMessages = $derived.by(() => {
-    const query = searchQuery.trim().toLowerCase()
-
     return messages.filter((message) => {
       if (activeFilter === 'unread' && !isUnread(message.flags)) return false
-
-      if (!query) return true
-
-      const haystack = [
-        senderLabel(message.from),
-        subjectLabel(message.subject),
-        previewLabel(message.preview, message.textContent)
-      ]
-        .join(' ')
-        .toLowerCase()
-
-      return haystack.includes(query)
+      return true
     })
+  })
+
+  $effect(() => {
+    const query = searchQuery.trim()
+
+    if (searchTimer !== null) {
+      clearTimeout(searchTimer)
+      searchTimer = null
+    }
+
+    if (!query) {
+      searchResults = []
+      isSearching = false
+      return
+    }
+
+    isSearching = true
+    const requestId = ++searchRequestId
+
+    searchTimer = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/messages?q=${encodeURIComponent(query)}&limit=50`
+        )
+        if (!response.ok) throw new Error('Search failed')
+
+        const payload = (await response.json()) as { messages: Message[] }
+
+        if (requestId !== searchRequestId) return
+        searchResults = payload.messages
+      } catch {
+        if (requestId !== searchRequestId) return
+        searchResults = []
+      } finally {
+        if (requestId === searchRequestId) {
+          isSearching = false
+        }
+      }
+    }, 300)
   })
 
   function formatRelativeTime(value: string | null | undefined) {
@@ -145,6 +179,12 @@
     textContent: string | null | undefined
   ) {
     return preview || textContent || 'No preview available.'
+  }
+
+  function mailboxLabel(mailboxPath: string | undefined) {
+    if (!mailboxPath) return ''
+    const match = data.imapMailboxes.find((mb) => mb.path === mailboxPath)
+    return match?.name ?? mailboxPath
   }
 
   async function syncVisibleMessages() {
@@ -356,76 +396,136 @@
     </div>
 
     <div class="flex-1 overflow-y-auto">
-      {#each visibleMessages as message (message.id)}
-        <button
-          type="button"
-          class={[
-            'block w-full border-b border-white/8 px-4 py-4 text-left transition sm:px-5',
-            selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
-          ]}
-          onclick={() => selectMessage(message)}
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <p
-                  class={[
-                    'truncate text-sm',
-                    isUnread(message.flags) ? 'font-semibold text-white' : 'text-zinc-300'
-                  ]}
-                >
-                  {senderName(message.from)}
-                </p>
-                {#if isUnread(message.flags)}
-                  <span class="h-2 w-2 rounded-full bg-sky-400"></span>
-                {/if}
+      {#if isSearchMode}
+        {#if isSearching}
+          <div class="p-8 text-center">
+            <p class="text-sm text-zinc-500">Searching…</p>
+          </div>
+        {:else if searchResults.length === 0}
+          <div class="p-8 text-center">
+            <p class="text-lg font-semibold text-white">No results</p>
+            <p class="mt-2 text-sm text-zinc-500">No messages matched your search.</p>
+          </div>
+        {:else}
+          {#each searchResults as message (message.id)}
+            <button
+              type="button"
+              class={[
+                'block w-full border-b border-white/8 px-4 py-4 text-left transition sm:px-5',
+                selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
+              ]}
+              onclick={() => selectMessage(message)}
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <p
+                      class={[
+                        'truncate text-sm',
+                        isUnread(message.flags) ? 'font-semibold text-white' : 'text-zinc-300'
+                      ]}
+                    >
+                      {senderName(message.from)}
+                    </p>
+                    {#if isUnread(message.flags)}
+                      <span class="h-2 w-2 rounded-full bg-sky-400"></span>
+                    {/if}
+                  </div>
+
+                  <p class="mt-1 truncate text-sm font-medium text-zinc-200">
+                    {subjectLabel(message.subject)}
+                  </p>
+                </div>
+
+                <div class="flex shrink-0 flex-col items-end gap-1">
+                  <p class="text-xs text-zinc-500">{formatRelativeTime(message.receivedAt)}</p>
+                  {#if message.mailbox}
+                    <p class="rounded bg-white/6 px-1.5 py-0.5 text-xs text-zinc-400">
+                      {mailboxLabel(message.mailbox)}
+                    </p>
+                  {/if}
+                </div>
               </div>
 
-              <p class="mt-1 truncate text-sm font-medium text-zinc-200">
-                {subjectLabel(message.subject)}
+              <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
+                {previewLabel(message.preview, message.textContent)}
+              </p>
+            </button>
+          {/each}
+          <div class="px-4 py-5 text-center text-sm text-zinc-500 sm:px-5">
+            {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
+          </div>
+        {/if}
+      {:else}
+        {#each visibleMessages as message (message.id)}
+          <button
+            type="button"
+            class={[
+              'block w-full border-b border-white/8 px-4 py-4 text-left transition sm:px-5',
+              selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
+            ]}
+            onclick={() => selectMessage(message)}
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <p
+                    class={[
+                      'truncate text-sm',
+                      isUnread(message.flags) ? 'font-semibold text-white' : 'text-zinc-300'
+                    ]}
+                  >
+                    {senderName(message.from)}
+                  </p>
+                  {#if isUnread(message.flags)}
+                    <span class="h-2 w-2 rounded-full bg-sky-400"></span>
+                  {/if}
+                </div>
+
+                <p class="mt-1 truncate text-sm font-medium text-zinc-200">
+                  {subjectLabel(message.subject)}
+                </p>
+              </div>
+
+              <p class="shrink-0 text-xs text-zinc-500">
+                {formatRelativeTime(message.receivedAt)}
               </p>
             </div>
 
-            <p class="shrink-0 text-xs text-zinc-500">
-              {formatRelativeTime(message.receivedAt)}
+            <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
+              {previewLabel(message.preview, message.textContent)}
             </p>
+          </button>
+        {:else}
+          <div class="p-8 text-center">
+            <p class="text-lg font-semibold text-white">No messages found</p>
+            <p class="mt-2 text-sm text-zinc-500">Wait for the next sync.</p>
           </div>
+        {/each}
 
-          <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
-            {previewLabel(message.preview, message.textContent)}
-          </p>
-        </button>
-      {:else}
-        <div class="p-8 text-center">
-          <p class="text-lg font-semibold text-white">No messages found</p>
-          <p class="mt-2 text-sm text-zinc-500">
-            Try a different search or wait for the next sync.
-          </p>
-        </div>
-      {/each}
+        {#if visibleMessages.length > 0}
+          <div class="px-4 py-5 sm:px-5">
+            {#if loadMoreError}
+              <p class="text-sm text-rose-300">{loadMoreError}</p>
+            {/if}
 
-      {#if visibleMessages.length > 0}
-        <div class="px-4 py-5 sm:px-5">
-          {#if loadMoreError}
-            <p class="text-sm text-rose-300">{loadMoreError}</p>
-          {/if}
-
-          {#if hasMore}
-            <div bind:this={sentinel} class="h-1 w-full"></div>
-            <div class="flex justify-center">
-              <button
-                type="button"
-                class="rounded-xl border border-white/8 bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60"
-                onclick={() => void loadMoreMessages()}
-                disabled={isLoadingMore}
-              >
-                {isLoadingMore ? 'Loading...' : 'Load more'}
-              </button>
-            </div>
-          {:else}
-            <p class="text-center text-sm text-zinc-500">All stored messages are loaded.</p>
-          {/if}
-        </div>
+            {#if hasMore}
+              <div bind:this={sentinel} class="h-1 w-full"></div>
+              <div class="flex justify-center">
+                <button
+                  type="button"
+                  class="rounded-xl border border-white/8 bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60"
+                  onclick={() => void loadMoreMessages()}
+                  disabled={isLoadingMore}
+                >
+                  {isLoadingMore ? 'Loading...' : 'Load more'}
+                </button>
+              </div>
+            {:else}
+              <p class="text-center text-sm text-zinc-500">All stored messages are loaded.</p>
+            {/if}
+          </div>
+        {/if}
       {/if}
     </div>
   </section>

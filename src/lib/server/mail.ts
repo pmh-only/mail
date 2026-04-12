@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from 'drizzle-orm'
+import { desc, eq, inArray, sql } from 'drizzle-orm'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import { db } from '$lib/server/db'
@@ -565,6 +565,49 @@ export async function listStoredMessages(mailboxPath: string, limit = 100, offse
     .orderBy(desc(mailMessage.receivedAt), desc(mailMessageMailbox.uid))
     .offset(offset)
     .limit(limit)
+}
+
+function buildFtsQuery(userQuery: string): string {
+  return userQuery
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((term) => `"${term.replace(/"/g, '')}"*`)
+    .join(' ')
+}
+
+export async function searchMessages(query: string, limit: number, offset: number) {
+  const ftsQuery = buildFtsQuery(query)
+  if (!ftsQuery) return []
+
+  let ftsRows: { rowid: number }[]
+  try {
+    ftsRows = db.all<{ rowid: number }>(
+      sql`SELECT rowid FROM mail_message_fts WHERE mail_message_fts MATCH ${ftsQuery} ORDER BY rank LIMIT ${limit + offset}`
+    )
+  } catch {
+    return []
+  }
+
+  if (!ftsRows.length) return []
+
+  const pageIds = ftsRows.slice(offset, offset + limit).map((r) => r.rowid)
+  if (!pageIds.length) return []
+
+  const rows = await db
+    .select(joinedSelect)
+    .from(mailMessage)
+    .innerJoin(mailMessageMailbox, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .where(inArray(mailMessage.id, pageIds))
+    .orderBy(desc(mailMessage.receivedAt))
+
+  // Deduplicate: a message may appear in multiple mailboxes — keep first occurrence
+  const seen = new Set<string>()
+  return rows.filter((row) => {
+    if (seen.has(row.messageId)) return false
+    seen.add(row.messageId)
+    return true
+  })
 }
 
 export async function getStoredMessageById(id: string | number): Promise<MailRow | null> {
