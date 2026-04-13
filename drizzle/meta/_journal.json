@@ -134,6 +134,13 @@
 			"when": 1744315218000,
 			"tag": "0018_push_subscriptions",
 			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "7",
+			"when": 1744315219000,
+			"tag": "0019_draft_attachments",
+			"breakpoints": true
 		}
 	]
 }
