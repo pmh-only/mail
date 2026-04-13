@@ -5,6 +5,32 @@ import { db, client as sqliteClient } from '$lib/server/db'
 import { mailboxSync, mailMessage, mailMessageMailbox } from '$lib/server/db/schema'
 import { enqueueMarkRead, enqueueMoveMessage, registerImapConfig } from '$lib/server/imap-queue'
 import { getImapConfig, type ImapConfig } from '$lib/server/config'
+import { withRetry } from '$lib/server/retry'
+
+const IMAP_CONNECT_TIMEOUT_MS = 20_000
+
+async function connectImap(config: ImapConfig, label: string): Promise<ImapFlow> {
+  return withRetry(
+    async () => {
+      const client = new ImapFlow({
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        auth: { user: config.user, pass: config.password },
+        logger: false,
+        connectionTimeout: IMAP_CONNECT_TIMEOUT_MS
+      })
+      try {
+        await client.connect()
+        return client
+      } catch (err) {
+        try { client.close() } catch { /* ignore */ }
+        throw err
+      }
+    },
+    { label, maxAttempts: 3, baseDelayMs: 2000 }
+  )
+}
 
 // Joined row returned by list/get queries
 export type MailRow = {
@@ -220,14 +246,6 @@ async function syncOneMailbox(
 
   if (lastSyncedAt && Date.now() - lastSyncedAt < pollMs) return
 
-  const client = new ImapFlow({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: { user: config.user, pass: config.password },
-    logger: false
-  })
-
   const historyComplete = state?.historyComplete ?? false
   let nextLastUid = state?.lastUid ?? 0
   let fetchedCount = 0
@@ -240,8 +258,9 @@ async function syncOneMailbox(
   console.log(
     `[sync] ${mailboxPath}: starting (lastUid=${nextLastUid}, historyComplete=${historyComplete})`
   )
+  let client: ImapFlow | null = null
   try {
-    await client.connect()
+    client = await connectImap(config, `${mailboxPath} sync`)
     console.log(`[sync] ${mailboxPath}: connected (${elapsed()})`)
     const lock = await client.getMailboxLock(mailboxPath)
     try {
@@ -429,30 +448,24 @@ async function syncOneMailbox(
       lastError: getErrorMessage(error)
     })
   } finally {
-    try {
-      await client.logout()
-    } catch {
-      /* ignore */
+    if (client) {
+      try {
+        await client.logout()
+      } catch {
+        /* ignore */
+      }
     }
   }
 }
 
 async function runSyncAll(config: ImapConfig): Promise<void> {
-  // Use a single connection just to list mailboxes
-  const listClient = new ImapFlow({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: { user: config.user, pass: config.password },
-    logger: false
-  })
-
   const pollMs = config.pollSeconds * 1000
-  let listed: Awaited<ReturnType<typeof listClient.list>>
+  let listed: { path: string; name: string; delimiter?: string; flags?: Set<string> }[]
 
   console.log(`[sync] listing mailboxes on ${config.host}`)
+  let listClient: ImapFlow | null = null
   try {
-    await listClient.connect()
+    listClient = await connectImap(config, 'list mailboxes')
     listed = await listClient.list()
     cachedMailboxes = listed.map((mb) => ({
       path: mb.path,
@@ -464,10 +477,12 @@ async function runSyncAll(config: ImapConfig): Promise<void> {
       `[sync] found ${listed.length} mailboxes (${selectable.length} selectable): ${selectable.map((mb) => mb.path).join(', ')}`
     )
   } finally {
-    try {
-      await listClient.logout()
-    } catch {
-      /* ignore */
+    if (listClient) {
+      try {
+        await listClient.logout()
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -625,16 +640,9 @@ async function refreshMailboxCache(): Promise<void> {
   const config = await getImapConfig()
   if ('missing' in config) return
 
-  const client = new ImapFlow({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: { user: config.user, pass: config.password },
-    logger: false
-  })
-
+  let client: ImapFlow | null = null
   try {
-    await client.connect()
+    client = await connectImap(config, 'mailbox cache refresh')
     const tree = await client.list()
     await client.logout()
 
@@ -644,7 +652,7 @@ async function refreshMailboxCache(): Promise<void> {
       delimiter: mb.delimiter ?? '/'
     }))
   } catch {
-    // keep existing cache on failure
+    // keep existing cache on failure — retries exhausted or auth failure
   }
 }
 

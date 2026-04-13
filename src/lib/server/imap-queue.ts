@@ -1,4 +1,30 @@
 import { ImapFlow } from 'imapflow'
+import { withRetry } from '$lib/server/retry'
+
+const IMAP_CONNECT_TIMEOUT_MS = 20_000
+
+async function connectImap(config: MailConfig, label: string): Promise<ImapFlow> {
+  return withRetry(
+    async () => {
+      const client = new ImapFlow({
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        auth: { user: config.user, pass: config.password },
+        logger: false,
+        connectionTimeout: IMAP_CONNECT_TIMEOUT_MS
+      })
+      try {
+        await client.connect()
+        return client
+      } catch (err) {
+        try { client.close() } catch { /* ignore */ }
+        throw err
+      }
+    },
+    { label, maxAttempts: 3, baseDelayMs: 1000 }
+  )
+}
 
 type MailConfig = {
   host: string
@@ -104,26 +130,21 @@ async function flushQueue() {
 }
 
 async function runMarkRead(config: MailConfig, mailbox: string, uids: number[]) {
-  const client = new ImapFlow({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: { user: config.user, pass: config.password },
-    logger: false
-  })
-
+  let client: ImapFlow | null = null
   try {
-    await client.connect()
+    client = await connectImap(config, `mark-read ${mailbox}`)
     const lock = await client.getMailboxLock(mailbox)
     try {
-      const uidSet = uids.join(',')
-      await client.messageFlagsAdd(uidSet, ['\\Seen'], { uid: true })
+      await client.messageFlagsAdd(uids.join(','), ['\\Seen'], { uid: true })
     } finally {
       lock.release()
-      await client.logout()
     }
   } catch {
-    // Jobs are dropped on failure; the DB was already updated optimistically
+    // Jobs are dropped after retries are exhausted; DB was already updated optimistically
+  } finally {
+    if (client) {
+      try { await client.logout() } catch { /* ignore */ }
+    }
   }
 }
 
@@ -133,25 +154,20 @@ async function runMove(
   targetMailbox: string,
   uids: number[]
 ) {
-  const client = new ImapFlow({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: { user: config.user, pass: config.password },
-    logger: false
-  })
-
+  let client: ImapFlow | null = null
   try {
-    await client.connect()
+    client = await connectImap(config, `move ${sourceMailbox}→${targetMailbox}`)
     const lock = await client.getMailboxLock(sourceMailbox)
     try {
-      const uidSet = uids.join(',')
-      await client.messageMove(uidSet, targetMailbox, { uid: true })
+      await client.messageMove(uids.join(','), targetMailbox, { uid: true })
     } finally {
       lock.release()
-      await client.logout()
     }
   } catch {
-    // Jobs are dropped on failure; DB was already updated optimistically
+    // Jobs are dropped after retries are exhausted; DB was already updated optimistically
+  } finally {
+    if (client) {
+      try { await client.logout() } catch { /* ignore */ }
+    }
   }
 }

@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import nodemailer from 'nodemailer'
 import { getSmtpConfig } from '$lib/server/config'
+import { withRetry } from '$lib/server/retry'
 
 export const POST: RequestHandler = async ({ request }) => {
   const smtpConfig = await getSmtpConfig()
@@ -25,15 +26,19 @@ export const POST: RequestHandler = async ({ request }) => {
   })
 
   try {
-    await transporter.sendMail({
-      from: smtpConfig.from,
-      to,
-      cc: cc || undefined,
-      bcc: bcc || undefined,
-      subject,
-      html,
-      inReplyTo: inReplyTo || undefined
-    })
+    await withRetry(
+      () =>
+        transporter.sendMail({
+          from: smtpConfig.from,
+          to,
+          cc: cc || undefined,
+          bcc: bcc || undefined,
+          subject,
+          html,
+          inReplyTo: inReplyTo || undefined
+        }),
+      { label: 'smtp sendMail', maxAttempts: 3, baseDelayMs: 1000 }
+    )
     return json({ success: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

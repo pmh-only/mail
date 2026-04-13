@@ -9,6 +9,14 @@ import { startMailboxSync } from '$lib/server/mail'
 
 // Warm up eagerly so the first request doesn't pay initialization costs
 if (!building) {
+  // Prevent connection errors or uncaught rejections from killing the process
+  process.on('uncaughtException', (err) => {
+    console.error('[crash] uncaughtException:', err)
+  })
+  process.on('unhandledRejection', (reason) => {
+    console.error('[crash] unhandledRejection:', reason)
+  })
+
   void getAuth()
   void startMailboxSync()
 }
