@@ -19,6 +19,7 @@
   import { pathToSlug } from '$lib/mailbox'
   import Composer from '$lib/components/Composer.svelte'
   import { openCompose, openDraft, type DraftRow } from '$lib/composer.svelte'
+  import type { ComposerAttachmentSummary } from '$lib/mail-attachments'
   import { goto } from '$app/navigation'
   import { keyboard } from '$lib/keyboard.svelte'
 
@@ -34,6 +35,18 @@
   type Props = {
     data: { imapMailboxes: ImapMailbox[]; user: { name: string; email: string } | null }
     children: import('svelte').Snippet
+  }
+  type DraftListRow = {
+    id: number
+    toAddr: string
+    cc: string
+    bcc: string
+    subject: string
+    html: string
+    attachments: ComposerAttachmentSummary[]
+    attachmentError: string | null
+    inReplyTo: string | null
+    updatedAt: string
   }
 
   let { data, children }: Props = $props()
@@ -75,7 +88,8 @@
   let ready = $state(false)
   let sync = $state<SyncStatus | null>(null)
   let refreshing = $state(false)
-  let drafts = $state<DraftRow[]>([])
+  let drafts = $state<DraftListRow[]>([])
+  let draftsError = $state<string | null>(null)
   let unreadCount = $state(0)
 
   function formatRelative(isoString: string): string {
@@ -100,10 +114,27 @@
       const res = await fetch('/api/drafts')
       if (res.ok) {
         const data = await res.json()
-        drafts = data.drafts as DraftRow[]
+        drafts = data.drafts as DraftListRow[]
+        draftsError = null
       }
     } catch {
       // ignore
+    }
+  }
+
+  async function openDraftById(id: number) {
+    try {
+      const res = await fetch(`/api/drafts/${id}`)
+      if (!res.ok) {
+        draftsError = await res.text()
+        return
+      }
+
+      const data = await res.json()
+      draftsError = null
+      openDraft(data.draft as DraftRow)
+    } catch {
+      draftsError = 'Failed to open draft.'
     }
   }
 
@@ -321,7 +352,7 @@
             {#each drafts as draft (draft.id)}
               <button
                 type="button"
-                onclick={() => openDraft(draft)}
+                onclick={() => void openDraftById(draft.id)}
                 class="flex w-full items-start gap-2 border-b border-white/6 px-3 py-2 text-left text-xs first:rounded-t-lg last:rounded-b-lg last:border-b-0 hover:bg-white/5"
               >
                 <FileText size={12} class="mt-0.5 shrink-0 text-zinc-500" />
@@ -332,6 +363,10 @@
               </button>
             {/each}
           </div>
+        {/if}
+
+        {#if draftsError}
+          <p class="mt-2 px-1 text-xs text-rose-400">{draftsError}</p>
         {/if}
       </div>
 

@@ -1,3 +1,5 @@
+import type { ComposerAttachment } from '$lib/mail-attachments'
+
 export type ComposerMode = 'compose' | 'reply' | 'reply-all' | 'forward'
 
 export type ComposerMessage = {
@@ -18,6 +20,7 @@ export type DraftRow = {
   bcc: string
   subject: string
   html: string
+  attachments: ComposerAttachment[]
   inReplyTo: string | null
   updatedAt: string
 }
@@ -32,6 +35,7 @@ type ComposerState = {
   bcc: string
   subject: string
   initialHtml: string
+  attachments: ComposerAttachment[]
   inReplyTo: string | null
   draftId: number | null
   lastSavedAt: number
@@ -47,6 +51,7 @@ export const composer = $state<ComposerState>({
   bcc: '',
   subject: '',
   initialHtml: '',
+  attachments: [],
   inReplyTo: null as string | null,
   draftId: null as number | null,
   lastSavedAt: 0
@@ -133,6 +138,7 @@ export async function openCompose() {
   composer.bcc = ''
   composer.subject = ''
   composer.initialHtml = sig ? `<p></p>${sig}` : ''
+  composer.attachments = []
   composer.inReplyTo = null
   composer.draftId = null
   composer.lastSavedAt = 0
@@ -148,6 +154,7 @@ export function openReply(msg: ComposerMessage) {
   composer.bcc = ''
   composer.subject = msg.subject?.startsWith('Re:') ? msg.subject : `Re: ${msg.subject ?? ''}`
   composer.initialHtml = buildReplyQuote(msg)
+  composer.attachments = []
   composer.inReplyTo = msg.messageId ?? null
   composer.draftId = null
   composer.lastSavedAt = 0
@@ -168,6 +175,7 @@ export function openReplyAll(msg: ComposerMessage) {
   composer.bcc = ''
   composer.subject = msg.subject?.startsWith('Re:') ? msg.subject : `Re: ${msg.subject ?? ''}`
   composer.initialHtml = buildReplyQuote(msg)
+  composer.attachments = []
   composer.inReplyTo = msg.messageId ?? null
   composer.draftId = null
   composer.lastSavedAt = 0
@@ -183,6 +191,7 @@ export function openForward(msg: ComposerMessage) {
   composer.bcc = ''
   composer.subject = msg.subject?.startsWith('Fwd:') ? msg.subject : `Fwd: ${msg.subject ?? ''}`
   composer.initialHtml = buildForwardBody(msg)
+  composer.attachments = []
   composer.inReplyTo = null
   composer.draftId = null
   composer.lastSavedAt = 0
@@ -198,6 +207,7 @@ export function openDraft(draft: DraftRow) {
   composer.bcc = draft.bcc
   composer.subject = draft.subject
   composer.initialHtml = draft.html // signature already embedded in saved html
+  composer.attachments = draft.attachments
   composer.inReplyTo = draft.inReplyTo
   composer.draftId = draft.id
   composer.lastSavedAt = Date.parse(draft.updatedAt)
@@ -209,5 +219,6 @@ export function openDraft(draft: DraftRow) {
 export function closeComposer() {
   composer.fullscreen = false
   composer.open = false
+  composer.attachments = []
   composer.draftId = null
 }

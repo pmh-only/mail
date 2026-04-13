@@ -107,6 +107,7 @@ export const mailDraft = sqliteTable('mail_draft', {
   bcc: text('bcc').notNull().default(''),
   subject: text('subject').notNull().default(''),
   html: text('html').notNull().default(''),
+  attachments: text('attachments').notNull().default('[]'),
   inReplyTo: text('in_reply_to')
 })
 

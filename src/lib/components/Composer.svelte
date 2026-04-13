@@ -30,21 +30,33 @@
     Heading1,
     Heading2,
     Heading3,
-    Minus as HrIcon
+    Minus as HrIcon,
+    Paperclip,
+    FileText,
+    Trash2
   } from 'lucide-svelte'
   import { composer, closeComposer } from '$lib/composer.svelte'
   import AddressInput from '$lib/components/AddressInput.svelte'
+  import {
+    attachmentSignature,
+    MAX_ATTACHMENT_COUNT,
+    MAX_ATTACHMENT_SIZE_BYTES,
+    MAX_TOTAL_ATTACHMENT_SIZE_BYTES,
+    type ComposerAttachment
+  } from '$lib/mail-attachments'
 
   let editorEl = $state<HTMLElement | undefined>(undefined)
   let editor: Editor | null = null
   let sending = $state(false)
   let sendError = $state<string | null>(null)
+  let attachmentError = $state<string | null>(null)
   let showCc = $state(false)
   let showBcc = $state(false)
   let showLinkInput = $state(false)
   let linkInputValue = $state('')
   let editorTick = $state(0) // increments on editor transactions to force re-render
   let showDiscardDialog = $state(false)
+  let attachmentInput = $state<HTMLInputElement | undefined>(undefined)
 
   // Create the editor once when the element is first available
   $effect(() => {
@@ -77,7 +89,10 @@
       editor.commands.focus('end')
       showCc = !!composer.cc
       showBcc = !!composer.bcc
+      lastSavedContent = draftSnapshot(composer.initialHtml || '<p></p>')
+      attachmentError = null
     }
+    if (!composer.open && prevOpen) lastSavedContent = ''
     prevOpen = composer.open
   })
 
@@ -85,12 +100,19 @@
   let saveDraftTimer: ReturnType<typeof setInterval> | null = null
   let lastSavedContent = ''
 
+  function draftSnapshot(html: string) {
+    return `${composer.to}|${composer.cc}|${composer.bcc}|${composer.subject}|${html}|${attachmentSignature(composer.attachments)}`
+  }
+
+  function isDirty(html: string) {
+    return draftSnapshot(html) !== lastSavedContent
+  }
+
   async function saveDraft() {
     if (!composer.open || !editor) return
     const html = editor.getHTML()
-    const key = `${composer.to}|${composer.cc}|${composer.bcc}|${composer.subject}|${html}`
+    const key = draftSnapshot(html)
     if (key === lastSavedContent) return // nothing changed
-    lastSavedContent = key
 
     try {
       const res = await fetch('/api/drafts', {
@@ -103,6 +125,7 @@
           bcc: composer.bcc,
           subject: composer.subject,
           html,
+          attachments: composer.attachments,
           inReplyTo: composer.inReplyTo
         })
       })
@@ -110,6 +133,7 @@
         const data = await res.json()
         composer.draftId = data.id
         composer.lastSavedAt = Date.now()
+        lastSavedContent = key
       }
     } catch {
       // silent — draft save failures shouldn't interrupt composition
@@ -129,9 +153,16 @@
   onMount(() => {
     saveDraftTimer = setInterval(saveDraft, 30_000)
 
-    const handleBeforeUnload = () => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!composer.open || !editor) return
       const html = editor.getHTML()
+
+      if (composer.attachments.length > 0 && isDirty(html)) {
+        event.preventDefault()
+        event.returnValue = ''
+        return ''
+      }
+
       const payload = JSON.stringify({
         id: composer.draftId ?? undefined,
         to: composer.to,
@@ -200,6 +231,7 @@
       bcc: composer.bcc || null,
       subject: composer.subject,
       html,
+      attachments: composer.attachments,
       inReplyTo: composer.inReplyTo
     }
     sending = true
@@ -259,6 +291,82 @@
     if (composer.mode === 'reply' || composer.mode === 'reply-all') return 'Reply'
     if (composer.mode === 'forward') return 'Forward'
     return 'New Message'
+  }
+
+  function formatBytes(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  function arrayBufferToBase64(buffer: ArrayBuffer) {
+    const bytes = new Uint8Array(buffer)
+    const chunkSize = 0x8000
+    let binary = ''
+
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+    }
+
+    return btoa(binary)
+  }
+
+  async function fileToAttachment(file: File): Promise<ComposerAttachment> {
+    const buffer = await file.arrayBuffer()
+
+    return {
+      name: file.name,
+      contentType: file.type || 'application/octet-stream',
+      size: file.size,
+      contentBase64: arrayBufferToBase64(buffer)
+    }
+  }
+
+  async function handleAttachmentChange(event: Event) {
+    const input = event.currentTarget as HTMLInputElement
+    const files = Array.from(input.files ?? [])
+    input.value = ''
+
+    if (files.length === 0) return
+
+    attachmentError = null
+
+    if (composer.attachments.length + files.length > MAX_ATTACHMENT_COUNT) {
+      attachmentError = `You can attach up to ${MAX_ATTACHMENT_COUNT} files.`
+      return
+    }
+
+    const currentTotal = composer.attachments.reduce(
+      (sum: number, attachment: ComposerAttachment) => sum + attachment.size,
+      0
+    )
+    const newTotal = files.reduce((sum, file) => sum + file.size, 0)
+
+    if (files.some((file) => file.size > MAX_ATTACHMENT_SIZE_BYTES)) {
+      attachmentError = `Each file must be ${formatBytes(MAX_ATTACHMENT_SIZE_BYTES)} or smaller.`
+      return
+    }
+
+    if (currentTotal + newTotal > MAX_TOTAL_ATTACHMENT_SIZE_BYTES) {
+      attachmentError = `Attachments can total up to ${formatBytes(MAX_TOTAL_ATTACHMENT_SIZE_BYTES)}.`
+      return
+    }
+
+    try {
+      const attachments = await Promise.all(files.map((file) => fileToAttachment(file)))
+      composer.attachments = [...composer.attachments, ...attachments]
+      await saveDraft()
+    } catch (error) {
+      attachmentError = error instanceof Error ? error.message : 'Failed to attach file.'
+    }
+  }
+
+  async function removeAttachment(index: number) {
+    composer.attachments = composer.attachments.filter(
+      (_attachment: ComposerAttachment, attachmentIndex: number) => attachmentIndex !== index
+    )
+    attachmentError = null
+    await saveDraft()
   }
 </script>
 
@@ -600,11 +708,50 @@
       <div bind:this={editorEl}></div>
     </div>
 
+    {#if composer.attachments.length > 0 || attachmentError}
+      <div class="border-t border-white/8 bg-[#16161a] px-4 py-3">
+        {#if composer.attachments.length > 0}
+          <div class="flex flex-wrap gap-2">
+            {#each composer.attachments as attachment, index (`${attachment.name}-${attachment.size}-${index}`)}
+              <div
+                class="flex min-w-0 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300"
+              >
+                <FileText size={14} class="shrink-0 text-zinc-400" />
+                <div class="min-w-0">
+                  <p class="truncate font-medium text-zinc-200">{attachment.name}</p>
+                  <p class="text-zinc-500">{formatBytes(attachment.size)}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label={`Remove ${attachment.name}`}
+                  onclick={() => removeAttachment(index)}
+                  class="rounded p-1 text-zinc-500 transition hover:bg-white/8 hover:text-rose-400"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+
+        {#if attachmentError}
+          <p class="mt-2 text-xs text-rose-400">{attachmentError}</p>
+        {/if}
+      </div>
+    {/if}
+
     <!-- Footer -->
     <div
       class="flex shrink-0 items-center justify-between border-t border-white/8 bg-[#16161a] px-4 py-2.5"
     >
       <div class="flex items-center gap-2">
+        <input
+          bind:this={attachmentInput}
+          type="file"
+          multiple
+          class="hidden"
+          onchange={handleAttachmentChange}
+        />
         <button
           type="button"
           disabled={sending || !composer.to || !composer.subject}
@@ -613,6 +760,15 @@
         >
           <Send size={14} />
           {sending ? 'Sending…' : 'Send'}
+        </button>
+        <button
+          type="button"
+          disabled={sending}
+          onclick={() => attachmentInput?.click()}
+          class="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Paperclip size={14} />
+          Attach
         </button>
         {#if sendError}
           <p class="text-xs text-rose-400">{sendError}</p>
