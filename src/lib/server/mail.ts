@@ -3,7 +3,7 @@ import { desc, eq, inArray, sql } from 'drizzle-orm'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import { db, client as sqliteClient } from '$lib/server/db'
-import { mailboxSync, mailMessage, mailMessageMailbox, mailShare } from '$lib/server/db/schema'
+import { mailboxSync, mailMessage, mailMessageMailbox, mailShare, mailAttachment } from '$lib/server/db/schema'
 import { enqueueMarkRead, enqueueMoveMessage, registerImapConfig } from '$lib/server/imap-queue'
 import { getImapConfig, type ImapConfig } from '$lib/server/config'
 import { withRetry } from '$lib/server/retry'
@@ -47,7 +47,10 @@ export type MailRow = {
   textContent: string
   htmlContent: string | null
   receivedAt: Date | null
+  threadId: string | null
 }
+
+export type ThreadRow = MailRow & { threadCount: number }
 
 export type SyncResult = {
   mailbox: string
@@ -186,29 +189,86 @@ async function saveSyncState(mailbox: string, values: Partial<typeof mailboxSync
     })
 }
 
+// Resolve a thread ID by walking In-Reply-To / References chains
+async function resolveThreadId(
+  references: string[],
+  inReplyTo: string | null,
+  ownId: string
+): Promise<string> {
+  const candidates = [...references, inReplyTo].filter((x): x is string => !!x)
+  if (candidates.length === 0) return ownId
+  const [existing] = await db
+    .select({ threadId: mailMessage.threadId })
+    .from(mailMessage)
+    .where(inArray(mailMessage.messageId, candidates))
+    .limit(1)
+  return existing?.threadId ?? candidates[0] ?? ownId
+}
+
 // Store or skip message content (skipped if message_id already exists)
+// Returns true if a new message was inserted (false = already existed)
 async function storeMessageContent(
   effectiveMessageId: string,
   message: Awaited<ReturnType<typeof simpleParser>>,
   internalDate?: Date
-) {
+): Promise<boolean> {
   const receivedAt = message.date ?? internalDate ?? null
   const textContent = message.text?.trim() ?? ''
   const htmlContent = typeof message.html === 'string' ? message.html : null
 
-  await db
+  // Parse threading headers
+  const inReplyTo = message.inReplyTo ?? null
+  const references = Array.isArray(message.references)
+    ? message.references.join(' ')
+    : (message.references as string | undefined) ?? null
+  const cc = summarizeAddresses(message.cc as Parameters<typeof summarizeAddresses>[0])
+
+  // Resolve thread ID
+  const refList = references ? references.split(/\s+/).filter(Boolean) : []
+  const threadId = await resolveThreadId(refList, inReplyTo, effectiveMessageId)
+
+  const result = await db
     .insert(mailMessage)
     .values({
       messageId: effectiveMessageId,
       subject: message.subject?.trim() ?? '(no subject)',
       from: summarizeAddresses(message.from),
       to: summarizeAddresses(message.to),
+      cc,
       preview: createPreview(textContent),
       textContent,
       htmlContent,
+      inReplyTo,
+      references,
+      threadId,
       receivedAt
     })
     .onConflictDoNothing()
+    .returning({ id: mailMessage.id })
+
+  const isNew = result.length > 0
+
+  // Store attachments for newly inserted messages only
+  if (isNew && message.attachments?.length) {
+    for (const att of message.attachments) {
+      // Skip inline images — they're already embedded in htmlContent
+      if (att.contentDisposition === 'inline') continue
+      if (!att.content) continue
+      try {
+        await db.insert(mailAttachment).values({
+          messageId: effectiveMessageId,
+          filename: att.filename ?? 'attachment',
+          contentType: att.contentType ?? 'application/octet-stream',
+          size: att.size ?? att.content.length,
+          content: att.content
+        })
+      } catch {
+        // Ignore duplicate attachment errors
+      }
+    }
+  }
+
+  return isNew
 }
 
 // Insert or update the per-mailbox entry for a message
@@ -388,6 +448,7 @@ async function syncOneMailbox(
         }
 
         // Phase 3b: fetch source newest-first, in batches so recent mail lands in DB first
+        const newlyStoredMessageIds: string[] = []
         if (needsSourceItems.length > 0) {
           const BATCH_SIZE = 150
           // Sort descending so batches go from highest UID (newest) to lowest (oldest)
@@ -406,7 +467,8 @@ async function syncOneMailbox(
               const item = itemByUid.get(fetchItem.uid)
               if (!item) continue
               const parsed = await simpleParser(fetchItem.source)
-              await storeMessageContent(item.effectiveMessageId, parsed, item.internalDate)
+              const isNew = await storeMessageContent(item.effectiveMessageId, parsed, item.internalDate)
+              if (isNew) newlyStoredMessageIds.push(item.effectiveMessageId)
               await storeMailboxEntry(item.effectiveMessageId, mailboxPath, item.uid, item.flags)
               storedCount += 1
               if (activeSyncProgress) activeSyncProgress.stored = storedCount
@@ -418,6 +480,33 @@ async function syncOneMailbox(
             }
             // Yield between batches so HTTP requests can be served
             await yieldToEventLoop()
+          }
+        }
+
+        // Run filter rules on newly stored messages
+        if (newlyStoredMessageIds.length > 0) {
+          const { runFiltersOnMessages } = await import('$lib/server/filters')
+          await runFiltersOnMessages(newlyStoredMessageIds)
+
+          // Send push notifications for new messages
+          try {
+            const { sendPushToAll } = await import('$lib/server/push')
+            const newMsgs = await db
+              .select({ subject: mailMessage.subject, from: mailMessage.from })
+              .from(mailMessage)
+              .where(inArray(mailMessage.messageId, newlyStoredMessageIds))
+              .limit(5)
+            for (const msg of newMsgs) {
+              const senderMatch = msg.from?.match(/^([^<]+)</)
+              const sender = senderMatch ? senderMatch[1].trim() : (msg.from ?? 'Unknown')
+              await sendPushToAll({
+                title: msg.subject ?? '(no subject)',
+                body: `From: ${sender}`,
+                url: `/${encodeURIComponent(mailboxPath)}`
+              })
+            }
+          } catch {
+            // push is optional — never fail sync
           }
         }
       }
@@ -681,7 +770,8 @@ const joinedSelect = {
   preview: mailMessage.preview,
   textContent: mailMessage.textContent,
   htmlContent: mailMessage.htmlContent,
-  receivedAt: mailMessage.receivedAt
+  receivedAt: mailMessage.receivedAt,
+  threadId: mailMessage.threadId
 }
 
 export async function listStoredMessages(mailboxPath: string, limit = 100, offset = 0) {
@@ -693,6 +783,103 @@ export async function listStoredMessages(mailboxPath: string, limit = 100, offse
     .orderBy(desc(mailMessage.receivedAt), desc(mailMessageMailbox.uid))
     .offset(offset)
     .limit(limit)
+}
+
+// Returns one representative message per thread, ordered by most recent activity.
+// Uses MAX(uid) within each thread group as the representative mailbox entry.
+export function listStoredThreads(mailboxPath: string, limit = 100, offset = 0): ThreadRow[] {
+  type RawRow = {
+    id: number
+    messageId: string
+    mailbox: string
+    uid: number
+    flags: string
+    subject: string
+    from: string
+    to: string
+    preview: string
+    textContent: string
+    htmlContent: string | null
+    receivedAt: number | null
+    threadId: string | null
+    threadCount: number
+  }
+
+  const rows = sqliteClient
+    .prepare(
+      `SELECT
+         mmb.id,
+         m.message_id        AS messageId,
+         mmb.mailbox,
+         mmb.uid,
+         mmb.flags,
+         m.subject,
+         m."from",
+         m."to",
+         m.preview,
+         m.text_content      AS textContent,
+         m.html_content      AS htmlContent,
+         m.received_at       AS receivedAt,
+         COALESCE(m.thread_id, m.message_id) AS threadId,
+         grp.thread_count    AS threadCount
+       FROM mail_message_mailbox mmb
+       JOIN mail_message m ON mmb.message_id = m.message_id
+       JOIN (
+         SELECT
+           COALESCE(m2.thread_id, m2.message_id) AS thr,
+           COUNT(*)  AS thread_count,
+           MAX(mmb2.uid) AS max_uid
+         FROM mail_message_mailbox mmb2
+         JOIN mail_message m2 ON mmb2.message_id = m2.message_id
+         WHERE mmb2.mailbox = ?
+         GROUP BY thr
+       ) grp
+         ON COALESCE(m.thread_id, m.message_id) = grp.thr
+        AND mmb.uid = grp.max_uid
+       WHERE mmb.mailbox = ?
+       ORDER BY m.received_at DESC, mmb.uid DESC
+       LIMIT ? OFFSET ?`
+    )
+    .all(mailboxPath, mailboxPath, limit, offset) as RawRow[]
+
+  return rows.map((row) => ({
+    ...row,
+    receivedAt: row.receivedAt != null ? new Date(row.receivedAt) : null
+  }))
+}
+
+// Returns all messages belonging to a thread, ordered oldest-first.
+export function getMessagesInThread(threadId: string, mailboxPath: string): MailRow[] {
+  type RawRow = Omit<MailRow, 'receivedAt'> & { receivedAt: number | null }
+
+  const rows = sqliteClient
+    .prepare(
+      `SELECT
+         mmb.id,
+         m.message_id   AS messageId,
+         mmb.mailbox,
+         mmb.uid,
+         mmb.flags,
+         m.subject,
+         m."from",
+         m."to",
+         m.preview,
+         m.text_content AS textContent,
+         m.html_content AS htmlContent,
+         m.received_at  AS receivedAt,
+         COALESCE(m.thread_id, m.message_id) AS threadId
+       FROM mail_message_mailbox mmb
+       JOIN mail_message m ON mmb.message_id = m.message_id
+       WHERE mmb.mailbox = ?
+         AND COALESCE(m.thread_id, m.message_id) = ?
+       ORDER BY m.received_at ASC, mmb.uid ASC`
+    )
+    .all(mailboxPath, threadId) as RawRow[]
+
+  return rows.map((row) => ({
+    ...row,
+    receivedAt: row.receivedAt != null ? new Date(row.receivedAt) : null
+  }))
 }
 
 function buildFtsQuery(userQuery: string): string {

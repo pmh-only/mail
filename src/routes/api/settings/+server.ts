@@ -5,6 +5,7 @@ import { mailConfig } from '$lib/server/db/schema'
 import { getDisplayConfig, invalidateConfigCache } from '$lib/server/config'
 import { invalidateAuth } from '$lib/server/auth'
 import { startMailboxSync } from '$lib/server/mail'
+// Note: signature cache invalidation is client-side only (composer.svelte.ts)
 
 export const GET: RequestHandler = async () => {
   const config = await getDisplayConfig()
@@ -46,6 +47,11 @@ export const POST: RequestHandler = async ({ request }) => {
       values.smtpPassword = smtp.password
     }
     if (typeof smtp.from === 'string') values.smtpFrom = smtp.from.trim() || null
+  }
+
+  // Signature
+  if (typeof body.signature === 'string') {
+    values.signature = body.signature
   }
 
   // OIDC fields

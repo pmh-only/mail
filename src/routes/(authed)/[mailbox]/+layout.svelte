@@ -4,7 +4,9 @@
   import { pathToSlug } from '$lib/mailbox'
   import { page } from '$app/state'
   import { onMount } from 'svelte'
-  import { RefreshCw } from 'lucide-svelte'
+  import { RefreshCw, CheckSquare, Square, Archive, Trash2, MailOpen, ShieldAlert, X, Layers } from 'lucide-svelte'
+  import { openCompose } from '$lib/composer.svelte'
+  import { keyboard, setupKeyboardHandler } from '$lib/keyboard.svelte'
 
   type SyncData = {
     mailbox: string
@@ -29,7 +31,11 @@
     flags: string[]
     receivedAt: string | null
     mailbox?: string
+    threadId?: string | null
+    threadCount?: number
   }
+
+  let threadedMode = $state(false)
 
   type ImapMailbox = {
     path: string
@@ -82,6 +88,11 @@
   let searchRequestId = 0
   let searchTimer: ReturnType<typeof setTimeout> | null = null
 
+  // Bulk selection
+  let selectedIds = $state(new Set<number>())
+  const selectionMode = $derived(selectedIds.size > 0)
+  let bulkActionPending = $state(false)
+
   const isSearchMode = $derived(searchQuery.trim().length > 0)
 
   const relativeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
@@ -97,6 +108,12 @@
       return true
     })
   })
+
+  // Message rows shown in the current view (for keyboard navigation)
+  const listMessages = $derived(isSearchMode ? searchResults : visibleMessages)
+
+  // Row elements for scrollIntoView
+  let rowEls = $state<Map<number, HTMLElement>>(new Map())
 
   $effect(() => {
     const query = searchQuery.trim()
@@ -135,6 +152,15 @@
         }
       }
     }, 300)
+  })
+
+  // Scroll focused row into view when keyboard.focusedIndex changes
+  $effect(() => {
+    const idx = keyboard.focusedIndex
+    const msg = listMessages[idx]
+    if (!msg) return
+    const el = rowEls.get(msg.id)
+    el?.scrollIntoView({ block: 'nearest' })
   })
 
   function formatRelativeTime(value: string | null | undefined) {
@@ -187,10 +213,20 @@
     return match?.name ?? mailboxPath
   }
 
+  function messagesUrl(offset: number, limit: number) {
+    const params = new URLSearchParams({
+      offset: String(offset),
+      limit: String(limit),
+      mailbox
+    })
+    if (threadedMode) params.set('threaded', '1')
+    return `/api/messages?${params}`
+  }
+
   async function syncVisibleMessages() {
     const targetCount = Math.max(loadedCount, data.messages.length)
 
-    if (targetCount <= data.messages.length) {
+    if (targetCount <= data.messages.length && !threadedMode) {
       messages = data.messages
       hasMore = data.hasMore
       loadedCount = data.messages.length
@@ -201,7 +237,7 @@
     const requestId = ++syncRequestId
 
     try {
-      const response = await fetch(`/api/messages?offset=0&limit=${targetCount}&mailbox=${mailbox}`)
+      const response = await fetch(messagesUrl(0, targetCount))
       if (!response.ok) throw new Error('Failed to refresh loaded messages.')
 
       const payload = (await response.json()) as { messages: Message[]; hasMore: boolean }
@@ -228,9 +264,7 @@
     loadMoreError = null
 
     try {
-      const response = await fetch(
-        `/api/messages?offset=${messages.length}&limit=${pageSize}&mailbox=${mailbox}`
-      )
+      const response = await fetch(messagesUrl(messages.length, pageSize))
       if (!response.ok) throw new Error('Failed to load more messages.')
 
       const payload = (await response.json()) as { messages: Message[]; hasMore: boolean }
@@ -251,14 +285,73 @@
         m.id === message.id ? { ...m, flags: [...m.flags, '\\Seen'] } : m
       )
     }
-    goto(resolve(`/${mailbox}/${message.id}`))
+    if (threadedMode && message.threadId) {
+      goto(resolve(`/${mailbox}/thread/${encodeURIComponent(message.threadId)}`))
+    } else {
+      goto(resolve(`/${mailbox}/${message.id}`))
+    }
+  }
+
+  let lastSelectedIndex: number | null = null
+
+  function toggleSelection(id: number, index: number, shiftKey = false) {
+    const list = isSearchMode ? searchResults : visibleMessages
+    const next = new Set(selectedIds)
+
+    if (shiftKey && lastSelectedIndex !== null) {
+      const lo = Math.min(lastSelectedIndex, index)
+      const hi = Math.max(lastSelectedIndex, index)
+      for (let i = lo; i <= hi; i++) {
+        if (list[i]) next.add(list[i].id)
+      }
+    } else {
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      lastSelectedIndex = index
+    }
+
+    selectedIds = next
+  }
+
+  function selectAll() {
+    selectedIds = new Set(listMessages.map((m) => m.id))
+  }
+
+  function clearSelection() {
+    selectedIds = new Set()
+  }
+
+  async function bulkAction(action: string) {
+    if (bulkActionPending || selectedIds.size === 0) return
+    bulkActionPending = true
+    try {
+      await fetch('/api/messages/bulk', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [...selectedIds], action })
+      })
+      clearSelection()
+      await invalidateAll()
+    } finally {
+      bulkActionPending = false
+    }
   }
 
   $effect(() => {
     void syncVisibleMessages()
   })
 
+  async function toggleThreadedMode() {
+    threadedMode = !threadedMode
+    messages = []
+    loadedCount = 0
+    await syncVisibleMessages()
+  }
+
   onMount(() => {
+    keyboard.context = 'list'
+    keyboard.panel = 'list'
+
     const intervalMs = refreshIntervalMs
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
@@ -266,8 +359,86 @@
       }
     }, intervalMs)
 
-    return () => clearInterval(interval)
+    const teardown = setupKeyboardHandler({
+      j: () => {
+        const next = Math.min(keyboard.focusedIndex + 1, listMessages.length - 1)
+        keyboard.focusedIndex = next
+        const msg = listMessages[next]
+        if (msg) selectMessage(msg)
+      },
+      ArrowDown: () => {
+        const next = Math.min(keyboard.focusedIndex + 1, listMessages.length - 1)
+        keyboard.focusedIndex = next
+        const msg = listMessages[next]
+        if (msg) selectMessage(msg)
+      },
+      k: () => {
+        const next = Math.max(keyboard.focusedIndex - 1, 0)
+        keyboard.focusedIndex = next
+        const msg = listMessages[next]
+        if (msg) selectMessage(msg)
+      },
+      ArrowUp: () => {
+        const next = Math.max(keyboard.focusedIndex - 1, 0)
+        keyboard.focusedIndex = next
+        const msg = listMessages[next]
+        if (msg) selectMessage(msg)
+      },
+      Enter: () => {
+        const msg = listMessages[keyboard.focusedIndex]
+        if (msg) selectMessage(msg)
+      },
+      o: () => {
+        const msg = listMessages[keyboard.focusedIndex]
+        if (msg) selectMessage(msg)
+      },
+      e: () => {
+        if (selectionMode) void bulkAction('archive')
+        else {
+          const msg = listMessages[keyboard.focusedIndex]
+          if (msg) void archiveMessage(msg.id)
+        }
+      },
+      '#': () => {
+        if (selectionMode) void bulkAction('trash')
+        else {
+          const msg = listMessages[keyboard.focusedIndex]
+          if (msg) void trashMessage(msg.id)
+        }
+      },
+      c: () => void openCompose(),
+      x: () => {
+        const msg = listMessages[keyboard.focusedIndex]
+        if (msg) toggleSelection(msg.id, keyboard.focusedIndex)
+      },
+      '*a': () => selectAll(),
+      '*n': () => clearSelection(),
+      Escape: () => clearSelection()
+    })
+
+    return () => {
+      clearInterval(interval)
+      teardown()
+    }
   })
+
+  async function archiveMessage(id: number) {
+    await fetch(`/api/messages/${id}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'archive' })
+    })
+    await invalidateAll()
+  }
+
+  async function trashMessage(id: number) {
+    await fetch(`/api/messages/${id}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'trash' })
+    })
+    await invalidateAll()
+  }
 
   $effect(() => {
     if (!sentinel) return
@@ -333,6 +504,28 @@
     handle.addEventListener('pointerup', stop)
     handle.addEventListener('pointercancel', stop)
   }
+
+  // Derived so Svelte tracks keyboard.focusedIndex as a reactive dependency
+  const focusedIndex = $derived(keyboard.focusedIndex)
+
+  function messageRowClass(message: Message, index: number) {
+    const isFocused = focusedIndex === index && !isSearchMode
+    const isSelected = selectedMessageId === message.id
+    return [
+      'block w-full border-b border-white/8 px-4 py-4 text-left transition sm:px-5',
+      isSelected ? 'bg-white/6' : isFocused ? 'bg-white/4 ring-1 ring-inset ring-blue-500/40' : 'hover:bg-white/3'
+    ].join(' ')
+  }
+
+  // Svelte action to track row elements for scroll-into-view
+  function registerRow(el: HTMLElement, params: { id: number; map: Map<number, HTMLElement> }) {
+    params.map.set(params.id, el)
+    return {
+      destroy() {
+        params.map.delete(params.id)
+      }
+    }
+  }
 </script>
 
 <svelte:head>
@@ -342,7 +535,12 @@
 <div class="flex h-full" class:cursor-col-resize={resizing} class:select-none={resizing}>
   <section
     style="width: {listWidth}px; min-width: {listWidth}px"
-    class="flex flex-col overflow-x-hidden border-r border-white/8 bg-[#0d0d10]"
+    class={[
+      'flex flex-col overflow-x-hidden border-r bg-[#0d0d10]',
+      keyboard.panel === 'list' ? 'border-blue-500/40' : 'border-white/8'
+    ]}
+    role="region"
+    aria-label="Message list"
   >
     <div class="border-b border-white/8 p-4 sm:p-5">
       <div class="flex items-center justify-between gap-3">
@@ -358,6 +556,17 @@
             title="Refresh"
           >
             <RefreshCw size={15} />
+          </button>
+          <button
+            type="button"
+            onclick={() => void toggleThreadedMode()}
+            class={[
+              'transition',
+              threadedMode ? 'text-sky-400' : 'text-zinc-600 hover:text-zinc-400'
+            ]}
+            title={threadedMode ? 'Threaded view (on)' : 'Threaded view (off)'}
+          >
+            <Layers size={15} />
           </button>
           <div class="rounded-xl border border-white/8 bg-white/3 p-1 text-sm">
             <button
@@ -395,6 +604,59 @@
       </label>
     </div>
 
+    <!-- Bulk action toolbar -->
+    {#if selectionMode}
+      <div class="flex shrink-0 items-center gap-2 border-b border-white/8 bg-[#0d0d10] px-4 py-2">
+        <span class="text-xs text-zinc-400">{selectedIds.size} selected</span>
+        <div class="flex flex-1 items-center gap-1">
+          <button
+            type="button"
+            title="Archive"
+            onclick={() => void bulkAction('archive')}
+            disabled={bulkActionPending}
+            class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+          >
+            <Archive size={13} /> Archive
+          </button>
+          <button
+            type="button"
+            title="Trash"
+            onclick={() => void bulkAction('trash')}
+            disabled={bulkActionPending}
+            class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+          >
+            <Trash2 size={13} /> Trash
+          </button>
+          <button
+            type="button"
+            title="Spam"
+            onclick={() => void bulkAction('spam')}
+            disabled={bulkActionPending}
+            class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+          >
+            <ShieldAlert size={13} /> Spam
+          </button>
+          <button
+            type="button"
+            title="Mark read"
+            onclick={() => void bulkAction('mark_read')}
+            disabled={bulkActionPending}
+            class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+          >
+            <MailOpen size={13} /> Mark read
+          </button>
+        </div>
+        <button
+          type="button"
+          onclick={clearSelection}
+          class="text-zinc-500 hover:text-zinc-300"
+          title="Clear selection"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    {/if}
+
     <div class="flex-1 overflow-y-auto">
       {#if isSearchMode}
         {#if isSearching}
@@ -407,16 +669,106 @@
             <p class="mt-2 text-sm text-zinc-500">No messages matched your search.</p>
           </div>
         {:else}
-          {#each searchResults as message (message.id)}
+          {#each searchResults as message, index (message.id)}
+            <div
+              class="group relative"
+              use:registerRow={{ id: message.id, map: rowEls }}
+            >
+              <!-- Checkbox -->
+              <button
+                type="button"
+                aria-label={selectedIds.has(message.id) ? 'Deselect' : 'Select'}
+                onclick={(e) => { e.stopPropagation(); toggleSelection(message.id, index, e.shiftKey) }}
+                class={[
+                  'absolute top-1/2 left-2 -translate-y-1/2 z-10 transition',
+                  selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                ].join(' ')}
+              >
+                {#if selectedIds.has(message.id)}
+                  <CheckSquare size={16} class="text-blue-400" />
+                {:else}
+                  <Square size={16} class="text-zinc-600" />
+                {/if}
+              </button>
+              <button
+                type="button"
+                class={[
+                  'block w-full border-b border-white/8 py-4 text-left transition',
+                  selectionMode ? 'pl-9 pr-4 sm:pl-10 sm:pr-5' : 'px-4 sm:px-5',
+                  selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
+                ].join(' ')}
+                onclick={() => selectMessage(message)}
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                      <p
+                        class={[
+                          'truncate text-sm',
+                          isUnread(message.flags) ? 'font-semibold text-white' : 'text-zinc-300'
+                        ]}
+                      >
+                        {senderName(message.from)}
+                      </p>
+                      {#if isUnread(message.flags)}
+                        <span class="h-2 w-2 rounded-full bg-sky-400"></span>
+                      {/if}
+                    </div>
+
+                    <p class="mt-1 truncate text-sm font-medium text-zinc-200">
+                      {subjectLabel(message.subject)}
+                    </p>
+                  </div>
+
+                  <div class="flex shrink-0 flex-col items-end gap-1">
+                    <p class="text-xs text-zinc-500">{formatRelativeTime(message.receivedAt)}</p>
+                    {#if message.mailbox}
+                      <p class="rounded bg-white/6 px-1.5 py-0.5 text-xs text-zinc-400">
+                        {mailboxLabel(message.mailbox)}
+                      </p>
+                    {/if}
+                  </div>
+                </div>
+
+                <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
+                  {previewLabel(message.preview, message.textContent)}
+                </p>
+              </button>
+            </div>
+          {/each}
+          <div class="px-4 py-5 text-center text-sm text-zinc-500 sm:px-5">
+            {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
+          </div>
+        {/if}
+      {:else}
+        {#each visibleMessages as message, index (message.id)}
+          <div
+            class="group relative"
+            use:registerRow={{ id: message.id, map: rowEls }}
+          >
+            <!-- Checkbox -->
             <button
               type="button"
+              aria-label={selectedIds.has(message.id) ? 'Deselect' : 'Select'}
+              onclick={(e) => { e.stopPropagation(); toggleSelection(message.id, index, e.shiftKey) }}
               class={[
-                'block w-full border-b border-white/8 px-4 py-4 text-left transition sm:px-5',
-                selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
-              ]}
+                'absolute top-1/2 left-2 -translate-y-1/2 z-10 transition',
+                selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              ].join(' ')}
+            >
+              {#if selectedIds.has(message.id)}
+                <CheckSquare size={16} class="text-blue-400" />
+              {:else}
+                <Square size={16} class="text-zinc-600" />
+              {/if}
+            </button>
+            <button
+              type="button"
+              aria-selected={selectedMessageId === message.id}
+              class={messageRowClass(message, index)}
               onclick={() => selectMessage(message)}
             >
-              <div class="flex items-start justify-between gap-3">
+              <div class={['flex items-start justify-between gap-3', selectionMode ? 'pl-5' : ''].join(' ')}>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
                     <p
@@ -430,6 +782,11 @@
                     {#if isUnread(message.flags)}
                       <span class="h-2 w-2 rounded-full bg-sky-400"></span>
                     {/if}
+                    {#if threadedMode && message.threadCount && message.threadCount > 1}
+                      <span class="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-xs text-zinc-400">
+                        {message.threadCount}
+                      </span>
+                    {/if}
                   </div>
 
                   <p class="mt-1 truncate text-sm font-medium text-zinc-200">
@@ -437,65 +794,16 @@
                   </p>
                 </div>
 
-                <div class="flex shrink-0 flex-col items-end gap-1">
-                  <p class="text-xs text-zinc-500">{formatRelativeTime(message.receivedAt)}</p>
-                  {#if message.mailbox}
-                    <p class="rounded bg-white/6 px-1.5 py-0.5 text-xs text-zinc-400">
-                      {mailboxLabel(message.mailbox)}
-                    </p>
-                  {/if}
-                </div>
-              </div>
-
-              <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
-                {previewLabel(message.preview, message.textContent)}
-              </p>
-            </button>
-          {/each}
-          <div class="px-4 py-5 text-center text-sm text-zinc-500 sm:px-5">
-            {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
-          </div>
-        {/if}
-      {:else}
-        {#each visibleMessages as message (message.id)}
-          <button
-            type="button"
-            class={[
-              'block w-full border-b border-white/8 px-4 py-4 text-left transition sm:px-5',
-              selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
-            ]}
-            onclick={() => selectMessage(message)}
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2">
-                  <p
-                    class={[
-                      'truncate text-sm',
-                      isUnread(message.flags) ? 'font-semibold text-white' : 'text-zinc-300'
-                    ]}
-                  >
-                    {senderName(message.from)}
-                  </p>
-                  {#if isUnread(message.flags)}
-                    <span class="h-2 w-2 rounded-full bg-sky-400"></span>
-                  {/if}
-                </div>
-
-                <p class="mt-1 truncate text-sm font-medium text-zinc-200">
-                  {subjectLabel(message.subject)}
+                <p class="shrink-0 text-xs text-zinc-500">
+                  {formatRelativeTime(message.receivedAt)}
                 </p>
               </div>
 
-              <p class="shrink-0 text-xs text-zinc-500">
-                {formatRelativeTime(message.receivedAt)}
+              <p class={['mt-3 line-clamp-2 text-sm leading-6 text-zinc-400', selectionMode ? 'pl-5' : ''].join(' ')}>
+                {previewLabel(message.preview, message.textContent)}
               </p>
-            </div>
-
-            <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
-              {previewLabel(message.preview, message.textContent)}
-            </p>
-          </button>
+            </button>
+          </div>
         {:else}
           <div class="p-8 text-center">
             <p class="text-lg font-semibold text-white">No messages found</p>
@@ -547,3 +855,4 @@
     {@render children()}
   </section>
 </div>
+

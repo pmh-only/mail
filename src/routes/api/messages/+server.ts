@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
-import { listImapMailboxes, listStoredMessages, searchMessages } from '$lib/server/mail'
+import { listImapMailboxes, listStoredMessages, listStoredThreads, searchMessages } from '$lib/server/mail'
 import { slugToPath } from '$lib/mailbox'
 
 const DEFAULT_LIMIT = 50
@@ -12,7 +12,7 @@ function parsePositiveInt(value: string | null, fallback: number) {
 }
 
 function serializeMessage(
-  message: Awaited<ReturnType<typeof listStoredMessages>>[number],
+  message: Awaited<ReturnType<typeof listStoredMessages>>[number] & { threadCount?: number },
   includeMailbox = false
 ) {
   return {
@@ -25,6 +25,8 @@ function serializeMessage(
     textContent: message.textContent,
     flags: JSON.parse(message.flags) as string[],
     receivedAt: message.receivedAt?.toISOString() ?? null,
+    threadId: message.threadId ?? null,
+    ...(message.threadCount !== undefined ? { threadCount: message.threadCount } : {}),
     ...(includeMailbox ? { mailbox: message.mailbox } : {})
   }
 }
@@ -50,8 +52,18 @@ export const GET: RequestHandler = async ({ url }) => {
   const requestedLimit = parsePositiveInt(url.searchParams.get('limit'), DEFAULT_LIMIT)
   const limit = Math.min(Math.max(requestedLimit, 1), MAX_LIMIT)
   const mailboxSlug = url.searchParams.get('mailbox') ?? 'inbox'
+  const threaded = url.searchParams.get('threaded') === '1'
 
   const mailboxPath = slugToPath(mailboxSlug, listImapMailboxes())
+
+  if (threaded) {
+    const threads = listStoredThreads(mailboxPath, limit + 1, offset)
+    const hasMore = threads.length > limit
+    return json({
+      messages: threads.slice(0, limit).map((m) => serializeMessage(m)),
+      hasMore
+    })
+  }
 
   const messages = await listStoredMessages(mailboxPath, limit + 1, offset)
   const hasMore = messages.length > limit

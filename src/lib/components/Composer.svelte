@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import { Editor } from '@tiptap/core'
   import StarterKit from '@tiptap/starter-kit'
   import Underline from '@tiptap/extension-underline'
@@ -32,6 +33,7 @@
     Minus as HrIcon
   } from 'lucide-svelte'
   import { composer, closeComposer } from '$lib/composer.svelte'
+  import AddressInput from '$lib/components/AddressInput.svelte'
 
   let editorEl = $state<HTMLElement | undefined>(undefined)
   let editor: Editor | null = null
@@ -42,6 +44,7 @@
   let showLinkInput = $state(false)
   let linkInputValue = $state('')
   let editorTick = $state(0) // increments on editor transactions to force re-render
+  let showDiscardDialog = $state(false)
 
   // Create the editor once when the element is first available
   $effect(() => {
@@ -72,8 +75,80 @@
     if (composer.open && !prevOpen && editor) {
       editor.commands.setContent(composer.initialHtml || '<p></p>')
       editor.commands.focus('end')
+      showCc = !!composer.cc
+      showBcc = !!composer.bcc
     }
     prevOpen = composer.open
+  })
+
+  // Draft auto-save — every 30 seconds
+  let saveDraftTimer: ReturnType<typeof setInterval> | null = null
+  let lastSavedContent = ''
+
+  async function saveDraft() {
+    if (!composer.open || !editor) return
+    const html = editor.getHTML()
+    const key = `${composer.to}|${composer.cc}|${composer.bcc}|${composer.subject}|${html}`
+    if (key === lastSavedContent) return // nothing changed
+    lastSavedContent = key
+
+    try {
+      const res = await fetch('/api/drafts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: composer.draftId ?? undefined,
+          to: composer.to,
+          cc: composer.cc,
+          bcc: composer.bcc,
+          subject: composer.subject,
+          html,
+          inReplyTo: composer.inReplyTo
+        })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        composer.draftId = data.id
+        composer.lastSavedAt = Date.now()
+      }
+    } catch {
+      // silent — draft save failures shouldn't interrupt composition
+    }
+  }
+
+  async function deleteDraft() {
+    if (!composer.draftId) return
+    try {
+      await fetch(`/api/drafts/${composer.draftId}`, { method: 'DELETE' })
+    } catch {
+      // ignore
+    }
+    composer.draftId = null
+  }
+
+  onMount(() => {
+    saveDraftTimer = setInterval(saveDraft, 30_000)
+
+    const handleBeforeUnload = () => {
+      if (!composer.open || !editor) return
+      const html = editor.getHTML()
+      const payload = JSON.stringify({
+        id: composer.draftId ?? undefined,
+        to: composer.to,
+        cc: composer.cc,
+        bcc: composer.bcc,
+        subject: composer.subject,
+        html,
+        inReplyTo: composer.inReplyTo
+      })
+      navigator.sendBeacon('/api/drafts', new Blob([payload], { type: 'application/json' }))
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      if (saveDraftTimer) clearInterval(saveDraftTimer)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
   })
 
   function isActive(name: string, attrs?: Record<string, unknown>) {
@@ -135,6 +210,7 @@
         body: JSON.stringify(payload)
       })
       if (res.ok) {
+        await deleteDraft()
         closeComposer()
       } else {
         const text = await res.text()
@@ -148,6 +224,19 @@
   }
 
   function discard() {
+    // If there's content and no draft yet saved, ask; otherwise just close
+    showDiscardDialog = true
+  }
+
+  async function discardAndDelete() {
+    await deleteDraft()
+    showDiscardDialog = false
+    closeComposer()
+  }
+
+  async function saveDraftAndClose() {
+    await saveDraft()
+    showDiscardDialog = false
     closeComposer()
   }
 
@@ -229,13 +318,11 @@
     <div class="shrink-0 border-b border-white/8">
       <!-- To -->
       <div class="flex items-center border-b border-white/8 px-4">
-        <label for="composer-to" class="w-10 shrink-0 text-xs font-medium text-zinc-500">To</label>
-        <input
+        <AddressInput
           id="composer-to"
-          type="text"
+          label="To"
           bind:value={composer.to}
           placeholder="recipients@example.com"
-          class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
         />
         <div class="flex gap-1 text-xs text-zinc-500">
           {#if !showCc}
@@ -253,29 +340,22 @@
 
       {#if showCc}
         <div class="flex items-center border-b border-white/8 px-4">
-          <label for="composer-cc" class="w-10 shrink-0 text-xs font-medium text-zinc-500">Cc</label
-          >
-          <input
+          <AddressInput
             id="composer-cc"
-            type="text"
+            label="Cc"
             bind:value={composer.cc}
             placeholder="cc@example.com"
-            class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
           />
         </div>
       {/if}
 
       {#if showBcc}
         <div class="flex items-center border-b border-white/8 px-4">
-          <label for="composer-bcc" class="w-10 shrink-0 text-xs font-medium text-zinc-500"
-            >Bcc</label
-          >
-          <input
+          <AddressInput
             id="composer-bcc"
-            type="text"
+            label="Bcc"
             bind:value={composer.bcc}
             placeholder="bcc@example.com"
-            class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
           />
         </div>
       {/if}
@@ -541,6 +621,38 @@
       <button type="button" onclick={discard} class="text-xs text-zinc-500 hover:text-zinc-300">
         Discard
       </button>
+    </div>
+  {/if}
+
+  <!-- Discard dialog -->
+  {#if showDiscardDialog}
+    <div
+      class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-[#18181c]/95"
+    >
+      <p class="text-sm text-zinc-300">Save this draft?</p>
+      <div class="flex gap-3">
+        <button
+          type="button"
+          onclick={saveDraftAndClose}
+          class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+        >
+          Save draft
+        </button>
+        <button
+          type="button"
+          onclick={discardAndDelete}
+          class="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 hover:bg-white/10"
+        >
+          Discard
+        </button>
+        <button
+          type="button"
+          onclick={() => (showDiscardDialog = false)}
+          class="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 hover:bg-white/10"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   {/if}
 </div>

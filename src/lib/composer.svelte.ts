@@ -11,6 +11,17 @@ export type ComposerMessage = {
   receivedAt: string | null
 }
 
+export type DraftRow = {
+  id: number
+  toAddr: string
+  cc: string
+  bcc: string
+  subject: string
+  html: string
+  inReplyTo: string | null
+  updatedAt: string
+}
+
 type ComposerState = {
   open: boolean
   minimized: boolean
@@ -22,6 +33,8 @@ type ComposerState = {
   subject: string
   initialHtml: string
   inReplyTo: string | null
+  draftId: number | null
+  lastSavedAt: number
 }
 
 export const composer = $state<ComposerState>({
@@ -34,8 +47,33 @@ export const composer = $state<ComposerState>({
   bcc: '',
   subject: '',
   initialHtml: '',
-  inReplyTo: null as string | null
+  inReplyTo: null as string | null,
+  draftId: null as number | null,
+  lastSavedAt: 0
 })
+
+// Cached signature — fetched once from the server, invalidated on settings save
+let cachedSignature: string | null = null
+
+export function invalidateSignatureCache() {
+  cachedSignature = null
+}
+
+async function fetchSignature(): Promise<string> {
+  if (cachedSignature !== null) return cachedSignature
+  try {
+    const res = await fetch('/api/settings')
+    if (res.ok) {
+      const data = await res.json()
+      cachedSignature = (data.signature as string) ?? ''
+    } else {
+      cachedSignature = ''
+    }
+  } catch {
+    cachedSignature = ''
+  }
+  return cachedSignature
+}
 
 function extractEmail(addr: string | null): string {
   if (!addr) return ''
@@ -87,14 +125,17 @@ function buildForwardBody(msg: ComposerMessage): string {
 ${body}`
 }
 
-export function openCompose() {
+export async function openCompose() {
+  const sig = await fetchSignature()
   composer.mode = 'compose'
   composer.to = ''
   composer.cc = ''
   composer.bcc = ''
   composer.subject = ''
-  composer.initialHtml = ''
+  composer.initialHtml = sig ? `<p></p>${sig}` : ''
   composer.inReplyTo = null
+  composer.draftId = null
+  composer.lastSavedAt = 0
   composer.minimized = false
   composer.fullscreen = false
   composer.open = true
@@ -107,7 +148,9 @@ export function openReply(msg: ComposerMessage) {
   composer.bcc = ''
   composer.subject = msg.subject?.startsWith('Re:') ? msg.subject : `Re: ${msg.subject ?? ''}`
   composer.initialHtml = buildReplyQuote(msg)
-  composer.inReplyTo = null
+  composer.inReplyTo = msg.messageId ?? null
+  composer.draftId = null
+  composer.lastSavedAt = 0
   composer.minimized = false
   composer.fullscreen = false
   composer.open = true
@@ -125,7 +168,9 @@ export function openReplyAll(msg: ComposerMessage) {
   composer.bcc = ''
   composer.subject = msg.subject?.startsWith('Re:') ? msg.subject : `Re: ${msg.subject ?? ''}`
   composer.initialHtml = buildReplyQuote(msg)
-  composer.inReplyTo = null
+  composer.inReplyTo = msg.messageId ?? null
+  composer.draftId = null
+  composer.lastSavedAt = 0
   composer.minimized = false
   composer.fullscreen = false
   composer.open = true
@@ -139,6 +184,23 @@ export function openForward(msg: ComposerMessage) {
   composer.subject = msg.subject?.startsWith('Fwd:') ? msg.subject : `Fwd: ${msg.subject ?? ''}`
   composer.initialHtml = buildForwardBody(msg)
   composer.inReplyTo = null
+  composer.draftId = null
+  composer.lastSavedAt = 0
+  composer.minimized = false
+  composer.fullscreen = false
+  composer.open = true
+}
+
+export function openDraft(draft: DraftRow) {
+  composer.mode = 'compose'
+  composer.to = draft.toAddr
+  composer.cc = draft.cc
+  composer.bcc = draft.bcc
+  composer.subject = draft.subject
+  composer.initialHtml = draft.html // signature already embedded in saved html
+  composer.inReplyTo = draft.inReplyTo
+  composer.draftId = draft.id
+  composer.lastSavedAt = new Date(draft.updatedAt).getTime()
   composer.minimized = false
   composer.fullscreen = false
   composer.open = true
@@ -147,4 +209,5 @@ export function openForward(msg: ComposerMessage) {
 export function closeComposer() {
   composer.fullscreen = false
   composer.open = false
+  composer.draftId = null
 }

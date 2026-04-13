@@ -1,5 +1,7 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation'
+  import { onMount } from 'svelte'
+  import { Trash2, Plus, GripVertical } from 'lucide-svelte'
 
   type ConfigSection = {
     host: string
@@ -16,6 +18,7 @@
   type Props = {
     data: {
       config: {
+        signature: string
         imap: ConfigSection & { mailbox: string; pollSeconds: number }
         smtp: ConfigSection & { from: string }
         oidc: {
@@ -37,11 +40,13 @@
     imap = $state({} as ImapForm)
     smtp = $state({} as SmtpForm)
     oidc = $state({} as OidcForm)
+    signature = $state('')
 
     constructor(config: Props['data']['config']) {
       this.imap = { ...config.imap, password: '' }
       this.smtp = { ...config.smtp, password: '' }
       this.oidc = { ...config.oidc, clientSecret: '' }
+      this.signature = config.signature
     }
   }
 
@@ -52,6 +57,97 @@
   let imap = $derived(form.imap)
   let smtp = $derived(form.smtp)
   let oidc = $derived(form.oidc)
+  let signature = $derived(form.signature)
+
+  type Filter = {
+    id: number
+    field: string
+    operator: string
+    value: string
+    action: string
+    target: string | null
+    enabled: boolean
+    sortOrder: number
+  }
+
+  let filters = $state<Filter[]>([])
+  let imapMailboxes = $state<{ path: string; name: string }[]>([])
+  let showAddFilter = $state(false)
+  let newFilter = $state({ field: 'from', operator: 'contains', value: '', action: 'mark_read', target: '' })
+
+  async function loadFilters() {
+    const res = await fetch('/api/filters')
+    if (res.ok) {
+      const data = await res.json()
+      filters = data.filters as Filter[]
+    }
+  }
+
+  async function loadMailboxes() {
+    const res = await fetch('/api/sync-status')
+    if (res.ok) {
+      // Mailboxes come from layout data — use a simpler approach: fetch from messages endpoint headers
+      // Actually we'll rely on the sync-status or expose a mailboxes endpoint
+    }
+  }
+
+  async function addFilter() {
+    if (!newFilter.value.trim()) return
+    const res = await fetch('/api/filters', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        field: newFilter.field,
+        operator: newFilter.operator,
+        value: newFilter.value,
+        action: newFilter.action,
+        target: newFilter.action === 'move' ? newFilter.target : null,
+        sort_order: filters.length
+      })
+    })
+    if (res.ok) {
+      await loadFilters()
+      showAddFilter = false
+      newFilter = { field: 'from', operator: 'contains', value: '', action: 'mark_read', target: '' }
+    }
+  }
+
+  async function deleteFilter(id: number) {
+    await fetch(`/api/filters/${id}`, { method: 'DELETE' })
+    await loadFilters()
+  }
+
+  async function toggleFilter(filter: Filter) {
+    await fetch(`/api/filters/${filter.id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: !filter.enabled })
+    })
+    await loadFilters()
+  }
+
+  onMount(() => {
+    void loadFilters()
+  })
+
+  let notifStatus = $state<'idle' | 'generating' | 'done' | 'error'>('idle')
+  let notifPublicKey = $state('')
+
+  async function generateVapid() {
+    notifStatus = 'generating'
+    try {
+      const res = await fetch('/api/push/generate-vapid', { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        notifPublicKey = data.publicKey
+        notifStatus = 'done'
+      } else {
+        notifStatus = 'error'
+      }
+    } catch {
+      notifStatus = 'error'
+    }
+  }
 
   let saving = $state(false)
   let testingImap = $state(false)
@@ -69,7 +165,7 @@
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ imap, smtp, oidc })
+        body: JSON.stringify({ imap, smtp, oidc, signature: form.signature })
       })
       if (!res.ok) {
         const text = await res.text()
@@ -416,6 +512,155 @@
           >
         </p>
       </div>
+    </section>
+
+    <div class="border-t border-white/8"></div>
+
+    <!-- Signature -->
+    <section class="space-y-4">
+      <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Signature</h2>
+      <div class="space-y-2">
+        <label class="block text-xs text-zinc-400" for="signature-input">
+          Appended to new messages (HTML)
+        </label>
+        <textarea
+          id="signature-input"
+          rows="4"
+          placeholder="-- {'\n'}Your Name"
+          bind:value={form.signature}
+          class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-mono text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+        ></textarea>
+        <p class="text-xs text-zinc-600">Accepts plain text or HTML.</p>
+      </div>
+    </section>
+
+    <div class="border-t border-white/8"></div>
+
+    <!-- Notifications -->
+    <section class="space-y-4">
+      <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Push Notifications</h2>
+      <p class="text-sm text-zinc-500">
+        Generate VAPID keys to enable browser push notifications for new mail. Keys are stored in the database and only need to be generated once.
+      </p>
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          onclick={() => void generateVapid()}
+          disabled={notifStatus === 'generating'}
+          class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-white/10 disabled:opacity-50"
+        >
+          {notifStatus === 'generating' ? 'Generating…' : 'Generate VAPID keys'}
+        </button>
+        {#if notifStatus === 'done'}
+          <span class="text-sm text-emerald-400">Keys generated. Reload to activate push.</span>
+        {:else if notifStatus === 'error'}
+          <span class="text-sm text-red-400">Failed to generate keys.</span>
+        {/if}
+      </div>
+      {#if notifPublicKey}
+        <p class="break-all font-mono text-xs text-zinc-600">{notifPublicKey}</p>
+      {/if}
+    </section>
+
+    <div class="border-t border-white/8"></div>
+
+    <!-- Filters -->
+    <section class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Filters</h2>
+        <button
+          type="button"
+          onclick={() => (showAddFilter = !showAddFilter)}
+          class="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-zinc-300 hover:bg-white/10"
+        >
+          <Plus size={12} /> Add rule
+        </button>
+      </div>
+
+      {#if filters.length === 0 && !showAddFilter}
+        <p class="text-sm text-zinc-600">No filters configured. Filters auto-process incoming mail.</p>
+      {/if}
+
+      {#each filters as filter (filter.id)}
+        <div class="flex items-center gap-3 rounded-lg border border-white/8 bg-white/3 px-3 py-2">
+          <GripVertical size={14} class="shrink-0 cursor-grab text-zinc-600" />
+          <div class="min-w-0 flex-1">
+            <p class="text-xs text-zinc-300">
+              <span class="text-zinc-500">If</span>
+              <span class="font-medium text-zinc-200">{filter.field}</span>
+              <span class="text-zinc-500">{filter.operator}</span>
+              <span class="font-mono text-zinc-200">"{filter.value}"</span>
+              <span class="text-zinc-500">→</span>
+              <span class="font-medium text-zinc-200">
+                {filter.action === 'mark_read' ? 'Mark as read' : filter.action === 'trash' ? 'Move to trash' : `Move to ${filter.target}`}
+              </span>
+            </p>
+          </div>
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input type="checkbox" checked={filter.enabled} onchange={() => void toggleFilter(filter)} class="peer sr-only" />
+            <div class="h-4 w-7 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:top-0.5 after:left-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-3"></div>
+          </label>
+          <button
+            type="button"
+            onclick={() => void deleteFilter(filter.id)}
+            class="shrink-0 text-zinc-600 hover:text-rose-400"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      {/each}
+
+      {#if showAddFilter}
+        <div class="rounded-lg border border-white/10 bg-white/3 p-4 space-y-3">
+          <h3 class="text-xs font-medium text-zinc-400">New rule</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="mb-1 block text-xs text-zinc-500">Field</label>
+              <select bind:value={newFilter.field} class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                <option value="from">From</option>
+                <option value="to">To</option>
+                <option value="subject">Subject</option>
+                <option value="cc">CC</option>
+              </select>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs text-zinc-500">Condition</label>
+              <select bind:value={newFilter.operator} class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                <option value="contains">contains</option>
+                <option value="equals">equals</option>
+                <option value="starts_with">starts with</option>
+                <option value="ends_with">ends with</option>
+              </select>
+            </div>
+            <div class="col-span-2">
+              <label class="mb-1 block text-xs text-zinc-500">Value</label>
+              <input type="text" bind:value={newFilter.value} placeholder="e.g. newsletter@example.com" class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs text-zinc-500">Action</label>
+              <select bind:value={newFilter.action} class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                <option value="mark_read">Mark as read</option>
+                <option value="trash">Move to trash</option>
+                <option value="move">Move to folder…</option>
+              </select>
+            </div>
+            {#if newFilter.action === 'move'}
+              <div>
+                <label class="mb-1 block text-xs text-zinc-500">Target folder</label>
+                <input type="text" bind:value={newFilter.target} placeholder="e.g. INBOX.Newsletters" class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none" />
+              </div>
+            {/if}
+          </div>
+          <div class="flex gap-2">
+            <button type="button" onclick={addFilter} class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500">
+              Add filter
+            </button>
+            <button type="button" onclick={() => (showAddFilter = false)} class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10">
+              Cancel
+            </button>
+          </div>
+        </div>
+      {/if}
     </section>
 
     <div class="border-t border-white/8"></div>

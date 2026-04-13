@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { blob, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 // Stores IMAP and SMTP configuration (single row, id=1).
 // Values here take priority over environment variables.
@@ -20,6 +20,10 @@ export const mailConfig = sqliteTable('mail_config', {
   oidcDiscoveryUrl: text('oidc_discovery_url'),
   oidcClientId: text('oidc_client_id'),
   oidcClientSecret: text('oidc_client_secret'),
+  signature: text('signature'),
+  vapidPublicKey: text('vapid_public_key'),
+  vapidPrivateKey: text('vapid_private_key'),
+  vapidSubject: text('vapid_subject'),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
 })
 
@@ -40,9 +44,13 @@ export const mailMessage = sqliteTable('mail_message', {
   subject: text('subject').notNull().default(''),
   from: text('from').notNull().default(''),
   to: text('to').notNull().default(''),
+  cc: text('cc').notNull().default(''),
   preview: text('preview').notNull().default(''),
   textContent: text('text_content').notNull().default(''),
   htmlContent: text('html_content'),
+  inReplyTo: text('in_reply_to'),
+  references: text('references'),
+  threadId: text('thread_id'),
   receivedAt: integer('received_at', { mode: 'timestamp_ms' })
 })
 
@@ -68,6 +76,56 @@ export const mailMessageMailbox = sqliteTable(
 export const mailShare = sqliteTable('mail_share', {
   token: text('token').primaryKey(),
   messageId: text('message_id').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date())
+})
+
+export const mailAttachment = sqliteTable(
+  'mail_attachment',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    messageId: text('message_id').notNull(),
+    filename: text('filename').notNull().default(''),
+    contentType: text('content_type').notNull().default('application/octet-stream'),
+    size: integer('size').notNull().default(0),
+    content: blob('content').notNull()
+  },
+  (table) => [index('mail_attachment_message_id_idx').on(table.messageId)]
+)
+
+export const mailDraft = sqliteTable('mail_draft', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  toAddr: text('to_addr').notNull().default(''),
+  cc: text('cc').notNull().default(''),
+  bcc: text('bcc').notNull().default(''),
+  subject: text('subject').notNull().default(''),
+  html: text('html').notNull().default(''),
+  inReplyTo: text('in_reply_to')
+})
+
+export const mailFilter = sqliteTable('mail_filter', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  sortOrder: integer('sort_order').notNull().default(0),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  field: text('field').notNull(), // 'from' | 'to' | 'subject' | 'cc'
+  operator: text('operator').notNull(), // 'contains' | 'equals' | 'starts_with'
+  value: text('value').notNull(),
+  action: text('action').notNull(), // 'move' | 'mark_read' | 'trash'
+  target: text('target') // target mailbox path for 'move'
+})
+
+export const mailPushSubscription = sqliteTable('mail_push_subscription', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  endpoint: text('endpoint').notNull().unique(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' })
     .notNull()
     .$defaultFn(() => new Date())

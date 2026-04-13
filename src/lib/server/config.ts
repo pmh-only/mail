@@ -129,10 +129,16 @@ export async function isOidcConfigured(): Promise<boolean> {
   return !!(oidc.discoveryUrl && oidc.clientId && oidc.clientSecret)
 }
 
+export async function getSignature(): Promise<string> {
+  const row = await getRow()
+  return row?.signature ?? ''
+}
+
 /** Returns the effective values shown in the settings UI (masks password). */
 export async function getDisplayConfig() {
   const row = await getRow()
   return {
+    signature: row?.signature ?? '',
     imap: {
       host: row?.imapHost ?? env.IMAP_HOST ?? '',
       port: row?.imapPort ?? parseNumber(env.IMAP_PORT, 993),

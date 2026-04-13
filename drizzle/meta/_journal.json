@@ -99,6 +99,41 @@
 			"when": 1744315213000,
 			"tag": "0013_mail_share",
 			"breakpoints": true
+		},
+		{
+			"idx": 14,
+			"version": "7",
+			"when": 1744315214000,
+			"tag": "0014_threading_attachments_headers",
+			"breakpoints": true
+		},
+		{
+			"idx": 15,
+			"version": "7",
+			"when": 1744315215000,
+			"tag": "0015_drafts",
+			"breakpoints": true
+		},
+		{
+			"idx": 16,
+			"version": "7",
+			"when": 1744315216000,
+			"tag": "0016_filters",
+			"breakpoints": true
+		},
+		{
+			"idx": 17,
+			"version": "7",
+			"when": 1744315217000,
+			"tag": "0017_signature",
+			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "7",
+			"when": 1744315218000,
+			"tag": "0018_push_subscriptions",
+			"breakpoints": true
 		}
 	]
 }

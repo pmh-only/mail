@@ -17,7 +17,9 @@
   import { resolve } from '$app/paths'
   import { pathToSlug } from '$lib/mailbox'
   import Composer from '$lib/components/Composer.svelte'
-  import { openCompose } from '$lib/composer.svelte'
+  import { openCompose, openDraft, type DraftRow } from '$lib/composer.svelte'
+  import { goto } from '$app/navigation'
+  import { keyboard } from '$lib/keyboard.svelte'
 
   type ImapMailbox = { path: string; name: string; delimiter: string }
   type SyncStatus = {
@@ -72,6 +74,8 @@
   let ready = $state(false)
   let sync = $state<SyncStatus | null>(null)
   let refreshing = $state(false)
+  let drafts = $state<DraftRow[]>([])
+  let unreadCount = $state(0)
 
   function formatRelative(isoString: string): string {
     const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000)
@@ -90,6 +94,75 @@
     }
   }
 
+  async function fetchDrafts() {
+    try {
+      const res = await fetch('/api/drafts')
+      if (res.ok) {
+        const data = await res.json()
+        drafts = data.drafts as DraftRow[]
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  async function fetchUnreadCount() {
+    try {
+      const res = await fetch('/api/unread-count')
+      if (res.ok) {
+        const data = await res.json()
+        unreadCount = data.count as number
+        updateFaviconAndTitle(unreadCount)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  let faviconLinkEl: HTMLLinkElement | null = null
+  let originalTitle = ''
+
+  function updateFaviconAndTitle(count: number) {
+    // Update page title
+    const base = document.title.replace(/^\(\d+\)\s*/, '')
+    document.title = count > 0 ? `(${count}) ${base}` : base
+
+    // Update favicon badge
+    const canvas = document.createElement('canvas')
+    canvas.width = 32
+    canvas.height = 32
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Draw base favicon
+    const img = new Image()
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, 32, 32)
+      if (count > 0) {
+        // Draw badge
+        const badgeRadius = 9
+        ctx.beginPath()
+        ctx.arc(24, 8, badgeRadius, 0, Math.PI * 2)
+        ctx.fillStyle = '#ef4444'
+        ctx.fill()
+        // Draw count
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 10px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(count > 99 ? '99+' : String(count), 24, 8)
+      }
+      // Update favicon
+      if (!faviconLinkEl) {
+        faviconLinkEl = document.querySelector('link[rel="icon"]')
+      }
+      if (faviconLinkEl) {
+        faviconLinkEl.href = canvas.toDataURL()
+      }
+    }
+    img.src = favicon
+  }
+
   async function handleRefresh() {
     if (refreshing) return
     refreshing = true
@@ -98,11 +171,85 @@
     refreshing = false
   }
 
+  let mailboxNavEl = $state<HTMLElement | null>(null)
+
+  // Keep keyboard state in sync with the mailboxes list
+  $effect(() => {
+    keyboard.mailboxCount = mailboxes.length
+  })
+
+  $effect(() => {
+    // Sync focused mailbox index to the current active mailbox on navigation
+    const idx = mailboxes.findIndex((mb) => mb.slug === mailbox)
+    if (idx >= 0) keyboard.focusedMailboxIndex = idx
+  })
+
+  $effect(() => {
+    // Register select callback so the keyboard module can trigger navigation
+    keyboard.onMailboxSelect = () => {
+      const mb = mailboxes[keyboard.focusedMailboxIndex]
+      if (mb) void goto(resolve(`/${mb.slug}`))
+    }
+    return () => {
+      keyboard.onMailboxSelect = null
+    }
+  })
+
+  // Scroll focused mailbox item into view when navigating with arrow keys
+  $effect(() => {
+    const idx = keyboard.focusedMailboxIndex
+    if (keyboard.panel !== 'mailboxes' || !mailboxNavEl) return
+    const items = mailboxNavEl.querySelectorAll('[data-mailbox-item]')
+    items[idx]?.scrollIntoView({ block: 'nearest' })
+  })
+
+  async function registerPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    try {
+      const res = await fetch('/api/push/vapid-public-key')
+      const { publicKey } = await res.json()
+      if (!publicKey) return
+
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') return
+
+      const reg = await navigator.serviceWorker.register('/sw.js')
+      await navigator.serviceWorker.ready
+
+      const existing = await reg.pushManager.getSubscription()
+      if (existing) return // already subscribed
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: publicKey
+      })
+
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(sub.toJSON())
+      })
+    } catch {
+      // push is optional
+    }
+  }
+
   onMount(() => {
     ready = true
     void fetchSyncStatus()
-    const interval = setInterval(fetchSyncStatus, 5000)
-    return () => clearInterval(interval)
+    void fetchDrafts()
+    void fetchUnreadCount()
+    void registerPush()
+
+    const syncInterval = setInterval(fetchSyncStatus, 5000)
+    const draftsInterval = setInterval(fetchDrafts, 30_000)
+    const unreadInterval = setInterval(fetchUnreadCount, 30_000)
+
+    return () => {
+      clearInterval(syncInterval)
+      clearInterval(draftsInterval)
+      clearInterval(unreadInterval)
+    }
   })
 
   function startResize(e: PointerEvent) {
@@ -157,25 +304,53 @@
       <div class="mb-3 px-1">
         <button
           type="button"
-          onclick={openCompose}
+          onclick={() => void openCompose()}
           class="flex w-full items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500"
         >
           <Pencil size={14} />
           Compose
+          {#if drafts.length > 0}
+            <span class="ml-auto rounded-full bg-blue-500 px-1.5 py-0.5 text-xs">{drafts.length}</span>
+          {/if}
         </button>
+
+        <!-- Drafts list -->
+        {#if drafts.length > 0}
+          <div class="mt-1 rounded-lg border border-white/8 bg-white/3">
+            {#each drafts as draft (draft.id)}
+              <button
+                type="button"
+                onclick={() => openDraft(draft)}
+                class="flex w-full items-start gap-2 px-3 py-2 text-left text-xs hover:bg-white/5 first:rounded-t-lg last:rounded-b-lg border-b border-white/6 last:border-b-0"
+              >
+                <FileText size={12} class="mt-0.5 shrink-0 text-zinc-500" />
+                <div class="min-w-0">
+                  <p class="truncate text-zinc-300">{draft.subject || '(no subject)'}</p>
+                  <p class="truncate text-zinc-600">{draft.toAddr || 'No recipient'}</p>
+                </div>
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
+
       <p class="px-3 pt-1 pb-2 text-xs font-semibold tracking-widest text-zinc-500 uppercase">
         Mail
       </p>
-      <nav class="space-y-1.5 overflow-y-auto">
-        {#each mailboxes as mb (mb.slug)}
+      <nav bind:this={mailboxNavEl} class="space-y-1.5 overflow-y-auto">
+        {#each mailboxes as mb, i (mb.slug)}
           <a
             href={resolve(`/${mb.slug}`)}
+            data-mailbox-item
+            onclick={() => { keyboard.panel = 'list' }}
             class={[
               'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition',
               mailbox === mb.slug
                 ? 'bg-white/8 font-medium text-white'
-                : 'text-zinc-400 hover:bg-white/4 hover:text-zinc-200'
+                : 'text-zinc-400 hover:bg-white/4 hover:text-zinc-200',
+              keyboard.panel === 'mailboxes' && keyboard.focusedMailboxIndex === i
+                ? 'ring-1 ring-inset ring-blue-500/50'
+                : ''
             ]}
           >
             <mb.icon size={15} />

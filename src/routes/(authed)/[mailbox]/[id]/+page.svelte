@@ -1,13 +1,16 @@
 <script lang="ts">
-  import { Archive, Trash2, ShieldAlert, Reply, ReplyAll, Forward, Share2, Check } from 'lucide-svelte'
+  import { Archive, Trash2, ShieldAlert, Reply, ReplyAll, Forward, Share2, Check, Paperclip, Download, FileText, FileVideo, FileImage, X, ChevronLeft, ChevronRight } from 'lucide-svelte'
   import { goto, invalidateAll } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { page } from '$app/state'
+  import { onMount } from 'svelte'
   import { openReply, openReplyAll, openForward } from '$lib/composer.svelte'
+  import { keyboard, setupKeyboardHandler } from '$lib/keyboard.svelte'
 
   type Message = {
     id: number
     uid: number
+    messageId: string
     subject: string | null
     from: string | null
     to: string | null
@@ -18,8 +21,19 @@
     receivedAt: string | null
   }
 
+  type Attachment = {
+    id: number
+    filename: string
+    contentType: string
+    size: number
+  }
+
   type Props = {
-    data: { message: Message; mailboxRole: 'inbox' | 'archive' | 'trash' | 'spam' | null }
+    data: {
+      message: Message
+      mailboxRole: 'inbox' | 'archive' | 'trash' | 'spam' | null
+      attachments: Attachment[]
+    }
   }
 
   let { data }: Props = $props()
@@ -128,6 +142,91 @@
   }
 
   const srcdoc = $derived(message.htmlContent ? injectScrollbarStyle(message.htmlContent) : null)
+
+  const attachments = $derived(data.attachments)
+
+  function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  function isImage(contentType: string) {
+    return contentType.startsWith('image/')
+  }
+
+  function isPdf(contentType: string) {
+    return contentType === 'application/pdf'
+  }
+
+  function isVideo(contentType: string) {
+    return contentType.startsWith('video/')
+  }
+
+  function isPreviewable(contentType: string) {
+    return isImage(contentType) || isPdf(contentType) || isVideo(contentType)
+  }
+
+  function attachmentIcon(contentType: string) {
+    if (isImage(contentType)) return FileImage
+    if (isPdf(contentType)) return FileText
+    if (isVideo(contentType)) return FileVideo
+    return FileImage
+  }
+
+  // Preview lightbox state
+  let previewIndex = $state<number | null>(null)
+
+  const previewableAttachments = $derived(
+    attachments.filter((a) => isPreviewable(a.contentType))
+  )
+
+  function openPreview(att: typeof attachments[0]) {
+    const idx = previewableAttachments.findIndex((a) => a.id === att.id)
+    if (idx >= 0) previewIndex = idx
+  }
+
+  function closePreview() {
+    previewIndex = null
+  }
+
+  function prevPreview() {
+    if (previewIndex === null) return
+    previewIndex = (previewIndex - 1 + previewableAttachments.length) % previewableAttachments.length
+  }
+
+  function nextPreview() {
+    if (previewIndex === null) return
+    previewIndex = (previewIndex + 1) % previewableAttachments.length
+  }
+
+  function onPreviewKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') closePreview()
+    else if (e.key === 'ArrowLeft') prevPreview()
+    else if (e.key === 'ArrowRight') nextPreview()
+  }
+
+  let iframeEl: HTMLIFrameElement | null = null
+
+  onMount(() => {
+    const prevContext = keyboard.context
+    keyboard.context = 'message'
+
+    const teardown = setupKeyboardHandler({
+      u: () => goto(resolve(`/${page.params.mailbox}`)),
+      r: () => openReply(message),
+      a: () => openReplyAll(message),
+      f: () => openForward(message),
+      e: () => void performAction('archive'),
+      '#': () => void performAction('trash'),
+      Escape: () => goto(resolve(`/${page.params.mailbox}`))
+    })
+
+    return () => {
+      keyboard.context = prevContext
+      teardown()
+    }
+  })
 </script>
 
 <svelte:head>
@@ -339,13 +438,22 @@
     </div>
   </div>
 
-  <div class="flex-1 overflow-y-auto">
+  <div class="flex flex-1 flex-col overflow-y-auto">
     {#if srcdoc}
       <iframe
+        bind:this={iframeEl}
         title={`Email body for ${subjectLabel(message.subject)}`}
-        sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts"
+        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-scripts"
         {srcdoc}
-        class="block h-full w-full bg-white"
+        class="block min-h-[400px] w-full bg-white"
+        onload={(e) => {
+          const iframe = e.currentTarget as HTMLIFrameElement
+          const doc = iframe.contentDocument
+          if (doc) {
+            const h = doc.documentElement.scrollHeight
+            if (h > 50) iframe.style.height = `${h}px`
+          }
+        }}
       ></iframe>
     {:else}
       <div class="space-y-6 p-4 text-[15px] leading-8 text-zinc-200">
@@ -356,5 +464,155 @@
         {/each}
       </div>
     {/if}
+
+    {#if attachments.length > 0}
+      <div class="border-t border-white/8 p-4 sm:p-5">
+        <div class="mb-3 flex items-center gap-2">
+          <Paperclip size={14} class="text-zinc-500" />
+          <span class="text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+            {attachments.length} attachment{attachments.length === 1 ? '' : 's'}
+          </span>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          {#each attachments as att (att.id)}
+            <div class="group relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/3 transition hover:border-white/20">
+              {#if isImage(att.contentType)}
+                <button
+                  type="button"
+                  onclick={() => openPreview(att)}
+                  class="block h-32 w-40 overflow-hidden focus:outline-none"
+                  title="Click to preview"
+                >
+                  <img
+                    src="/api/attachments/{att.id}?inline=1"
+                    alt={att.filename}
+                    class="h-full w-full object-cover transition group-hover:scale-105"
+                  />
+                </button>
+              {:else if isPdf(att.contentType)}
+                <button
+                  type="button"
+                  onclick={() => openPreview(att)}
+                  class="flex h-32 min-w-40 w-full flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none"
+                  title="Click to preview"
+                >
+                  <FileText size={36} />
+                  <span class="text-xs">Preview PDF</span>
+                </button>
+              {:else if isVideo(att.contentType)}
+                <button
+                  type="button"
+                  onclick={() => openPreview(att)}
+                  class="flex h-32 w-40 flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none"
+                  title="Click to preview"
+                >
+                  <FileVideo size={36} />
+                  <span class="text-xs">Play video</span>
+                </button>
+              {:else}
+                <div class="flex h-32 w-40 flex-col items-center justify-center gap-2 text-zinc-600">
+                  <svelte:component this={attachmentIcon(att.contentType)} size={36} />
+                </div>
+              {/if}
+              <div class="flex items-center gap-2 border-t border-white/8 px-2.5 py-2">
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-xs font-medium text-zinc-200">{att.filename}</p>
+                  <p class="text-xs text-zinc-500">{formatBytes(att.size)}</p>
+                </div>
+                <a
+                  href="/api/attachments/{att.id}"
+                  download={att.filename}
+                  class="shrink-0 text-zinc-600 hover:text-zinc-300"
+                  title="Download"
+                >
+                  <Download size={13} />
+                </a>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
   </div>
 </div>
+
+<!-- Preview lightbox -->
+{#if previewIndex !== null}
+  {@const att = previewableAttachments[previewIndex]}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    role="dialog"
+    aria-modal="true"
+    aria-label="Attachment preview"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
+    onclick={(e) => { if (e.target === e.currentTarget) closePreview() }}
+    onkeydown={onPreviewKeydown}
+    tabindex="-1"
+  >
+    <!-- Close -->
+    <button
+      type="button"
+      onclick={closePreview}
+      class="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+      aria-label="Close"
+    >
+      <X size={18} />
+    </button>
+
+    <!-- Prev / Next -->
+    {#if previewableAttachments.length > 1}
+      <button
+        type="button"
+        onclick={prevPreview}
+        class="absolute left-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        aria-label="Previous"
+      >
+        <ChevronLeft size={20} />
+      </button>
+      <button
+        type="button"
+        onclick={nextPreview}
+        class="absolute right-14 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        aria-label="Next"
+      >
+        <ChevronRight size={20} />
+      </button>
+    {/if}
+
+    <!-- Content -->
+    <div class="flex max-h-[90vh] max-w-[90vw] flex-col items-center gap-3">
+      {#if isImage(att.contentType)}
+        <img
+          src="/api/attachments/{att.id}?inline=1"
+          alt={att.filename}
+          class="max-h-[80vh] max-w-[85vw] rounded-lg object-contain shadow-2xl"
+        />
+      {:else if isPdf(att.contentType)}
+        <iframe
+          src="/api/attachments/{att.id}?inline=1"
+          title={att.filename}
+          class="h-[80vh] w-[80vw] rounded-lg bg-white"
+        ></iframe>
+      {:else if isVideo(att.contentType)}
+        <!-- svelte-ignore a11y_media_has_caption -->
+        <video
+          src="/api/attachments/{att.id}?inline=1"
+          controls
+          autoplay
+          class="max-h-[80vh] max-w-[85vw] rounded-lg shadow-2xl"
+        ></video>
+      {/if}
+      <div class="flex items-center gap-3">
+        <p class="text-sm text-zinc-300">{att.filename}</p>
+        <span class="text-xs text-zinc-600">{formatBytes(att.size)}</span>
+        <a
+          href="/api/attachments/{att.id}"
+          download={att.filename}
+          class="flex items-center gap-1 text-xs text-zinc-400 hover:text-white"
+        >
+          <Download size={13} /> Download
+        </a>
+      </div>
+    </div>
+  </div>
+{/if}
