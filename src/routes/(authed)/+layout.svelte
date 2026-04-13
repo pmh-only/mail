@@ -12,6 +12,7 @@
     Folder,
     Pencil,
     Settings,
+    BookOpen,
     RefreshCw
   } from 'lucide-svelte'
   import { resolve } from '$app/paths'
@@ -371,6 +372,18 @@
         >
           <Settings size={15} />
           Settings
+        </a>
+        <a
+          href={resolve('/manual')}
+          class={[
+            'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition',
+            page.url.pathname === '/manual'
+              ? 'bg-white/8 font-medium text-white'
+              : 'text-zinc-400 hover:bg-white/4 hover:text-zinc-200'
+          ]}
+        >
+          <BookOpen size={15} />
+          Manual
         </a>
 
         <!-- Footer -->
