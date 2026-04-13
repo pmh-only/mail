@@ -35,6 +35,14 @@ export type SyncResult = {
 }
 
 let activeSync: Promise<void> | null = null
+let syncTimer: ReturnType<typeof setInterval> | null = null
+
+type ActiveSyncProgress = {
+  mailbox: string
+  stored: number
+  total: number
+}
+let activeSyncProgress: ActiveSyncProgress | null = null
 
 registerImapConfig(async () => {
   const config = await getImapConfig()
@@ -220,14 +228,25 @@ async function syncOneMailbox(
   let fetchedCount = 0
   let storedCount = 0
 
-  console.log(`[sync] ${mailboxPath}: starting`)
+  const t0 = Date.now()
+  const elapsed = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`
+
+  activeSyncProgress = { mailbox: mailboxPath, stored: 0, total: 0 }
+  console.log(
+    `[sync] ${mailboxPath}: starting (lastUid=${nextLastUid}, historyComplete=${historyComplete})`
+  )
   try {
     await client.connect()
+    console.log(`[sync] ${mailboxPath}: connected (${elapsed()})`)
     const lock = await client.getMailboxLock(mailboxPath)
     try {
       const needsInitialBackfill = !historyComplete && nextLastUid === 0
       const range = needsInitialBackfill ? '1:*' : `${nextLastUid + 1}:*`
       const fetchOptions = needsInitialBackfill ? undefined : { uid: true }
+
+      console.log(
+        `[sync] ${mailboxPath}: fetching envelopes range=${range} (${elapsed()})`
+      )
 
       // Phase 1: fetch lightweight envelopes to discover message-ids
       type EnvelopeItem = {
@@ -257,12 +276,20 @@ async function syncOneMailbox(
         envelopeItems.push({ uid: item.uid, effectiveMessageId, flags, internalDate })
         nextLastUid = Math.max(nextLastUid, item.uid)
         fetchedCount += 1
+        if (fetchedCount % 1000 === 0) {
+          console.log(`[sync] ${mailboxPath}: envelopes fetched ${fetchedCount}... (${elapsed()})`)
+        }
       }
+
+      console.log(
+        `[sync] ${mailboxPath}: envelope fetch complete — ${fetchedCount} messages (${elapsed()})`
+      )
 
       if (envelopeItems.length === 0) {
         console.log(`[sync] ${mailboxPath}: no new messages`)
       } else {
         // Phase 2: check which message-ids we already have content for
+        console.log(`[sync] ${mailboxPath}: checking cache for ${fetchedCount} message-ids...`)
         const allMessageIds = envelopeItems.map((i) => i.effectiveMessageId)
         const existingIds = new Set(
           (
@@ -273,40 +300,71 @@ async function syncOneMailbox(
           ).map((r) => r.messageId)
         )
 
-        // Phase 3: fetch full source only for messages we don't have yet
-        const needsSourceUids = envelopeItems
-          .filter((i) => !existingIds.has(i.effectiveMessageId))
-          .map((i) => i.uid)
+        const needsSourceItems = envelopeItems.filter(
+          (i) => !existingIds.has(i.effectiveMessageId)
+        )
+        const cachedItems = envelopeItems.filter((i) => existingIds.has(i.effectiveMessageId))
+        const cachedCount = fetchedCount - needsSourceItems.length
 
-        const sourceByUid = new Map<number, Awaited<ReturnType<typeof simpleParser>>>()
-        if (needsSourceUids.length > 0) {
+        activeSyncProgress = { mailbox: mailboxPath, stored: 0, total: fetchedCount }
+
+        if (needsSourceItems.length === 0) {
           console.log(
-            `[sync] ${mailboxPath}: fetching source for ${needsSourceUids.length}/${fetchedCount} messages (${fetchedCount - needsSourceUids.length} already cached)`
+            `[sync] ${mailboxPath}: all ${fetchedCount} messages already cached — updating mailbox entries only (${elapsed()})`
           )
-          for await (const item of client.fetch(
-            needsSourceUids.join(','),
-            { uid: true, source: true },
-            { uid: true }
-          )) {
-            if (!item.uid || !item.source) continue
-            sourceByUid.set(item.uid, await simpleParser(item.source))
-          }
         } else {
           console.log(
-            `[sync] ${mailboxPath}: all ${fetchedCount} messages already cached, updating mailbox entries only`
+            `[sync] ${mailboxPath}: ${needsSourceItems.length} new, ${cachedCount} cached — fetching source for new messages (${elapsed()})`
           )
         }
 
-        // Store content + mailbox entries
-        for (const item of envelopeItems) {
-          const parsed = sourceByUid.get(item.uid)
-          if (parsed) {
-            await storeMessageContent(item.effectiveMessageId, parsed, item.internalDate)
+        // Phase 3a: update mailbox entries for already-cached messages
+        if (cachedItems.length > 0) {
+          console.log(`[sync] ${mailboxPath}: updating ${cachedItems.length} cached mailbox entries...`)
+          for (const item of cachedItems) {
+            await storeMailboxEntry(item.effectiveMessageId, mailboxPath, item.uid, item.flags)
+            storedCount += 1
+            if (activeSyncProgress) activeSyncProgress.stored = storedCount
+            if (storedCount % 500 === 0) {
+              console.log(
+                `[sync] ${mailboxPath}: updated ${storedCount}/${fetchedCount} entries (${elapsed()})`
+              )
+            }
           }
-          await storeMailboxEntry(item.effectiveMessageId, mailboxPath, item.uid, item.flags)
-          storedCount += 1
-          if (storedCount % 10 === 0) {
-            console.log(`[sync] ${mailboxPath}: stored ${storedCount}/${fetchedCount}...`)
+          console.log(
+            `[sync] ${mailboxPath}: cached entries updated (${elapsed()})`
+          )
+        }
+
+        // Phase 3b: fetch source newest-first, in batches so recent mail lands in DB first
+        if (needsSourceItems.length > 0) {
+          const BATCH_SIZE = 150
+          // Sort descending so batches go from highest UID (newest) to lowest (oldest)
+          const byNewest = [...needsSourceItems].sort((a, b) => b.uid - a.uid)
+
+          for (let batchStart = 0; batchStart < byNewest.length; batchStart += BATCH_SIZE) {
+            const batch = byNewest.slice(batchStart, batchStart + BATCH_SIZE)
+            const itemByUid = new Map(batch.map((i) => [i.uid, i]))
+
+            for await (const fetchItem of client.fetch(
+              batch.map((i) => i.uid).join(','),
+              { uid: true, source: true },
+              { uid: true }
+            )) {
+              if (!fetchItem.uid || !fetchItem.source) continue
+              const item = itemByUid.get(fetchItem.uid)
+              if (!item) continue
+              const parsed = await simpleParser(fetchItem.source)
+              await storeMessageContent(item.effectiveMessageId, parsed, item.internalDate)
+              await storeMailboxEntry(item.effectiveMessageId, mailboxPath, item.uid, item.flags)
+              storedCount += 1
+              if (activeSyncProgress) activeSyncProgress.stored = storedCount
+              if (storedCount % 100 === 0) {
+                console.log(
+                  `[sync] ${mailboxPath}: stored ${storedCount}/${fetchedCount} (${elapsed()})`
+                )
+              }
+            }
           }
         }
       }
@@ -314,7 +372,10 @@ async function syncOneMailbox(
       lock.release()
     }
 
-    console.log(`[sync] ${mailboxPath}: done — ${fetchedCount} fetched, ${storedCount} stored`)
+    activeSyncProgress = null
+    console.log(
+      `[sync] ${mailboxPath}: done — ${fetchedCount} fetched, ${storedCount} stored (${elapsed()})`
+    )
     await saveSyncState(mailboxPath, {
       lastUid: nextLastUid,
       historyComplete: true,
@@ -324,7 +385,8 @@ async function syncOneMailbox(
       lastError: null
     })
   } catch (error) {
-    console.error(`[sync] ${mailboxPath}: error — ${getErrorMessage(error)}`)
+    activeSyncProgress = null
+    console.error(`[sync] ${mailboxPath}: error after ${elapsed()} — ${getErrorMessage(error)}`)
     await saveSyncState(mailboxPath, {
       lastUid: nextLastUid,
       historyComplete,
@@ -355,6 +417,7 @@ async function runSyncAll(config: ImapConfig): Promise<void> {
   const pollMs = config.pollSeconds * 1000
   let listed: Awaited<ReturnType<typeof listClient.list>>
 
+  console.log(`[sync] listing mailboxes on ${config.host}`)
   try {
     await listClient.connect()
     listed = await listClient.list()
@@ -363,6 +426,10 @@ async function runSyncAll(config: ImapConfig): Promise<void> {
       name: mb.name,
       delimiter: mb.delimiter ?? '/'
     }))
+    const selectable = listed.filter((mb) => !mb.flags?.has('\\Noselect'))
+    console.log(
+      `[sync] found ${listed.length} mailboxes (${selectable.length} selectable): ${selectable.map((mb) => mb.path).join(', ')}`
+    )
   } finally {
     try {
       await listClient.logout()
@@ -377,6 +444,20 @@ async function runSyncAll(config: ImapConfig): Promise<void> {
     if (mb.flags?.has('\\Noselect')) continue
     await syncOneMailbox(config, mb.path, pollMs)
   }
+  console.log(`[sync] all mailboxes done`)
+}
+
+function scheduleSyncTimer(pollMs: number) {
+  if (syncTimer) return
+  syncTimer = setInterval(async () => {
+    const cfg = await getImapConfig()
+    if ('missing' in cfg) return
+    if (!activeSync) {
+      activeSync = runSyncAll(cfg).finally(() => {
+        activeSync = null
+      })
+    }
+  }, pollMs)
 }
 
 export async function startMailboxSync() {
@@ -390,6 +471,8 @@ export async function startMailboxSync() {
       activeSync = null
     })
   }
+
+  scheduleSyncTimer(config.pollSeconds * 1000)
 }
 
 export async function getSyncSummary(): Promise<{
@@ -398,6 +481,7 @@ export async function getSyncSummary(): Promise<{
   hasError: boolean
   lastSyncedAt: string | null
   errorMessage: string | null
+  progress: { mailbox: string; stored: number; total: number } | null
 }> {
   const config = await getImapConfig()
   if ('missing' in config) {
@@ -406,7 +490,8 @@ export async function getSyncSummary(): Promise<{
       configured: false,
       hasError: false,
       lastSyncedAt: null,
-      errorMessage: null
+      errorMessage: null,
+      progress: null
     }
   }
 
@@ -432,7 +517,8 @@ export async function getSyncSummary(): Promise<{
     configured: true,
     hasError,
     lastSyncedAt: latest?.toISOString() ?? null,
-    errorMessage
+    errorMessage,
+    progress: activeSyncProgress ? { ...activeSyncProgress } : null
   }
 }
 

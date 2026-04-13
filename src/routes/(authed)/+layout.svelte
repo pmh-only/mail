@@ -26,6 +26,7 @@
     hasError: boolean
     lastSyncedAt: string | null
     errorMessage: string | null
+    progress: { mailbox: string; stored: number; total: number } | null
   }
   type Props = {
     data: { imapMailboxes: ImapMailbox[]; user: { name: string; email: string } | null }
@@ -211,13 +212,19 @@
                   >Sync error</span
                 >
               {:else if sync.syncing}
-                <span class="relative flex h-1.5 w-1.5">
+                <span class="relative flex h-1.5 w-1.5 shrink-0">
                   <span
                     class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"
                   ></span>
                   <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-500"></span>
                 </span>
-                <span class="text-xs text-zinc-500">Syncing…</span>
+                {#if sync.progress && sync.progress.total > 0}
+                  <span class="truncate text-xs text-zinc-500">
+                    {sync.progress.stored}/{sync.progress.total}
+                  </span>
+                {:else}
+                  <span class="text-xs text-zinc-500">Syncing…</span>
+                {/if}
               {:else}
                 <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                 <span class="text-xs text-zinc-600">

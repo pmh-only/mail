@@ -4,6 +4,13 @@ import { building } from '$app/environment'
 import { getAuth } from '$lib/server/auth'
 import { isOidcConfigured } from '$lib/server/config'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
+import { startMailboxSync } from '$lib/server/mail'
+
+// Warm up eagerly so the first request doesn't pay initialization costs
+if (!building) {
+  void getAuth()
+  void startMailboxSync()
+}
 
 const SETUP_PATHS = ['/setup']
 const AUTH_PATHS = ['/login', '/api/auth']
