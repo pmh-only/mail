@@ -21,12 +21,13 @@ export const GET: RequestHandler = async ({ params, url }) => {
     ? 'inline'
     : `attachment; filename="${encodeURIComponent(attachment.filename)}"`
 
-  const body = attachment.content instanceof Buffer
-    ? attachment.content.buffer.slice(
-        attachment.content.byteOffset,
-        attachment.content.byteOffset + attachment.content.byteLength
-      )
-    : attachment.content
+  const body =
+    attachment.content instanceof Buffer
+      ? attachment.content.buffer.slice(
+          attachment.content.byteOffset,
+          attachment.content.byteOffset + attachment.content.byteLength
+        )
+      : attachment.content
 
   return new Response(body as ArrayBuffer, {
     headers: {

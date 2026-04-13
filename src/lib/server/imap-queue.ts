@@ -18,7 +18,11 @@ async function connectImap(config: MailConfig, label: string): Promise<ImapFlow>
         await client.connect()
         return client
       } catch (err) {
-        try { client.close() } catch { /* ignore */ }
+        try {
+          client.close()
+        } catch {
+          /* ignore */
+        }
         throw err
       }
     },
@@ -143,7 +147,11 @@ async function runMarkRead(config: MailConfig, mailbox: string, uids: number[]) 
     // Jobs are dropped after retries are exhausted; DB was already updated optimistically
   } finally {
     if (client) {
-      try { await client.logout() } catch { /* ignore */ }
+      try {
+        await client.logout()
+      } catch {
+        /* ignore */
+      }
     }
   }
 }
@@ -167,7 +175,11 @@ async function runMove(
     // Jobs are dropped after retries are exhausted; DB was already updated optimistically
   } finally {
     if (client) {
-      try { await client.logout() } catch { /* ignore */ }
+      try {
+        await client.logout()
+      } catch {
+        /* ignore */
+      }
     }
   }
 }

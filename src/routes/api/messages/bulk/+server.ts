@@ -3,11 +3,7 @@ import type { RequestHandler } from './$types'
 import { db } from '$lib/server/db'
 import { mailMessageMailbox } from '$lib/server/db/schema'
 import { inArray, eq } from 'drizzle-orm'
-import {
-  getStoredMessageById,
-  moveMessage,
-  type MessageAction
-} from '$lib/server/mail'
+import { getStoredMessageById, moveMessage, type MessageAction } from '$lib/server/mail'
 import { enqueueMarkRead } from '$lib/server/imap-queue'
 
 const VALID_MOVE_ACTIONS = new Set<MessageAction>(['archive', 'trash', 'spam', 'inbox'])

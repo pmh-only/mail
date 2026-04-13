@@ -3,7 +3,6 @@ import type { RequestHandler } from './$types'
 import webpush from 'web-push'
 import { db } from '$lib/server/db'
 import { mailConfig } from '$lib/server/db/schema'
-import { eq } from 'drizzle-orm'
 import { resetPushInit } from '$lib/server/push'
 
 export const POST: RequestHandler = async ({ url }) => {

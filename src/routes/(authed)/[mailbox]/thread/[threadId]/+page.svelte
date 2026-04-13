@@ -1,9 +1,20 @@
 <script lang="ts">
-  import { Archive, Trash2, ShieldAlert, Reply, ReplyAll, ChevronDown, Paperclip, Download, FileImage } from 'lucide-svelte'
+  import {
+    Archive,
+    Trash2,
+    ShieldAlert,
+    Reply,
+    ReplyAll,
+    ChevronDown,
+    Paperclip,
+    Download,
+    FileImage
+  } from 'lucide-svelte'
   import { goto, invalidateAll } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { page } from '$app/state'
   import { onMount } from 'svelte'
+  import { SvelteSet } from 'svelte/reactivity'
   import { openReply, openReplyAll } from '$lib/composer.svelte'
   import { keyboard, setupKeyboardHandler } from '$lib/keyboard.svelte'
 
@@ -46,14 +57,12 @@
   const subject = $derived(messages[0]?.subject ?? '(no subject)')
 
   // Latest message expanded by default
-  let expandedIds = $state<Set<number>>(new Set<number>())
+  let expandedIds = new SvelteSet<number>()
   let acting = $state(false)
 
   function toggleExpanded(id: number) {
-    const next = new Set(expandedIds)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    expandedIds = next
+    if (expandedIds.has(id)) expandedIds.delete(id)
+    else expandedIds.add(id)
   }
 
   async function performThreadAction(action: 'archive' | 'trash' | 'spam' | 'inbox') {
@@ -119,7 +128,9 @@
 :root{padding:12px}
 </style>`
 
-  const LINK_SCRIPT = `<script>document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.protocol!=='javascript:'){e.preventDefault();window.open(a.href,'_blank','noopener,noreferrer');}});<\/script>`
+  const LINK_SCRIPT =
+    `<script>document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.protocol!=='javascript:'){e.preventDefault();window.open(a.href,'_blank','noopener,noreferrer');}});</scr` +
+    `ipt>`
 
   function injectScrollbarStyle(html: string): string {
     const headClose = html.indexOf('</head>')
@@ -137,7 +148,7 @@
   onMount(() => {
     // Expand the latest message by default
     const last = messages[messages.length - 1]
-    if (last) expandedIds = new Set([last.id])
+    if (last) expandedIds.add(last.id)
 
     const prevContext = keyboard.context
     keyboard.context = 'message'
@@ -302,7 +313,7 @@
                   title="Message body"
                   {srcdoc}
                   sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-                  class="w-full min-h-[300px] rounded-lg border border-white/8 bg-white"
+                  class="min-h-[300px] w-full rounded-lg border border-white/8 bg-white"
                   onload={(e) => {
                     const iframe = e.currentTarget as HTMLIFrameElement
                     const doc = iframe.contentDocument
@@ -313,7 +324,7 @@
                   }}
                 ></iframe>
               {:else}
-                <pre class="whitespace-pre-wrap font-sans text-sm leading-relaxed text-zinc-300">
+                <pre class="font-sans text-sm leading-relaxed whitespace-pre-wrap text-zinc-300">
                   {msg.textContent || msg.preview || 'No message body available.'}
                 </pre>
               {/if}
@@ -340,7 +351,7 @@
                           <p class="text-xs text-zinc-500">{formatBytes(att.size)}</p>
                         </div>
                         <a
-                          href="/api/attachments/{att.id}"
+                          href={resolve(`/api/attachments/${att.id}`)}
                           download={att.filename || 'attachment'}
                           class="ml-1 shrink-0 text-zinc-500 transition hover:text-zinc-300"
                           aria-label="Download {att.filename}"

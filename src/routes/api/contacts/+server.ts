@@ -53,7 +53,10 @@ export const GET: RequestHandler = async ({ url }) => {
   for (const row of rows) {
     for (const field of [row.from, row.to, row.cc].filter(Boolean)) {
       for (const c of parseAddresses(field)) {
-        if (!seen.has(c.email) && (c.email.includes(q) || c.name.toLowerCase().includes(q.toLowerCase()))) {
+        if (
+          !seen.has(c.email) &&
+          (c.email.includes(q) || c.name.toLowerCase().includes(q.toLowerCase()))
+        ) {
           seen.set(c.email, c)
         }
       }

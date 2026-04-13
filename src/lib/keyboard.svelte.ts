@@ -3,10 +3,10 @@ export type KeyPanel = 'mailboxes' | 'list'
 
 export const keyboard = $state({
   context: 'none' as KeyContext,
-  focusedIndex: 0,           // focused row in the message list
+  focusedIndex: 0, // focused row in the message list
   panel: 'list' as KeyPanel, // which visual panel has keyboard focus
-  focusedMailboxIndex: 0,    // focused row in the mailbox sidebar
-  mailboxCount: 0,           // total mailboxes (set by sidebar)
+  focusedMailboxIndex: 0, // focused row in the mailbox sidebar
+  mailboxCount: 0, // total mailboxes (set by sidebar)
   onMailboxSelect: null as (() => void) | null
 })
 
@@ -142,4 +142,3 @@ export function setupKeyboardHandler(newHandlers: HandlerMap): () => void {
     handlers = handlerStack[handlerStack.length - 1] ?? {}
   }
 }
-

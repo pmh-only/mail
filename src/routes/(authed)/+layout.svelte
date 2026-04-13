@@ -121,8 +121,6 @@
   }
 
   let faviconLinkEl: HTMLLinkElement | null = null
-  let originalTitle = ''
-
   function updateFaviconAndTitle(count: number) {
     // Update page title
     const base = document.title.replace(/^\(\d+\)\s*/, '')
@@ -311,7 +309,9 @@
           <Pencil size={14} />
           Compose
           {#if drafts.length > 0}
-            <span class="ml-auto rounded-full bg-blue-500 px-1.5 py-0.5 text-xs">{drafts.length}</span>
+            <span class="ml-auto rounded-full bg-blue-500 px-1.5 py-0.5 text-xs"
+              >{drafts.length}</span
+            >
           {/if}
         </button>
 
@@ -322,7 +322,7 @@
               <button
                 type="button"
                 onclick={() => openDraft(draft)}
-                class="flex w-full items-start gap-2 px-3 py-2 text-left text-xs hover:bg-white/5 first:rounded-t-lg last:rounded-b-lg border-b border-white/6 last:border-b-0"
+                class="flex w-full items-start gap-2 border-b border-white/6 px-3 py-2 text-left text-xs first:rounded-t-lg last:rounded-b-lg last:border-b-0 hover:bg-white/5"
               >
                 <FileText size={12} class="mt-0.5 shrink-0 text-zinc-500" />
                 <div class="min-w-0">
@@ -343,14 +343,16 @@
           <a
             href={resolve(`/${mb.slug}`)}
             data-mailbox-item
-            onclick={() => { keyboard.panel = 'list' }}
+            onclick={() => {
+              keyboard.panel = 'list'
+            }}
             class={[
               'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition',
               mailbox === mb.slug
                 ? 'bg-white/8 font-medium text-white'
                 : 'text-zinc-400 hover:bg-white/4 hover:text-zinc-200',
               keyboard.panel === 'mailboxes' && keyboard.focusedMailboxIndex === i
-                ? 'ring-1 ring-inset ring-blue-500/50'
+                ? 'ring-1 ring-blue-500/50 ring-inset'
                 : ''
             ]}
           >

@@ -5,14 +5,18 @@ import { mailConfig } from '$lib/server/db/schema'
 import { getDisplayConfig, invalidateConfigCache } from '$lib/server/config'
 import { invalidateAuth } from '$lib/server/auth'
 import { startMailboxSync } from '$lib/server/mail'
+import { getSimplifiedViewEnabled, setSimplifiedViewEnabled } from '$lib/server/preferences'
 // Note: signature cache invalidation is client-side only (composer.svelte.ts)
 
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ cookies }) => {
   const config = await getDisplayConfig()
-  return json(config)
+  return json({
+    ...config,
+    simplifiedView: getSimplifiedViewEnabled(cookies)
+  })
 }
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, cookies }) => {
   const body = await request.json()
 
   const values: typeof mailConfig.$inferInsert = {
@@ -74,6 +78,10 @@ export const POST: RequestHandler = async ({ request }) => {
       target: mailConfig.id,
       set: values
     })
+
+    if (typeof body.simplifiedView === 'boolean') {
+      setSimplifiedViewEnabled(cookies, body.simplifiedView)
+    }
 
     invalidateConfigCache()
     invalidateAuth()

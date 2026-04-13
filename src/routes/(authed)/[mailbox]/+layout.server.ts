@@ -1,6 +1,7 @@
 import type { LayoutServerLoad } from './$types'
 import { getMailboxSyncStatus, listStoredMessages } from '$lib/server/mail'
 import { slugToPath } from '$lib/mailbox'
+import { getSimplifiedViewEnabled } from '$lib/server/preferences'
 
 const PAGE_SIZE = 50
 
@@ -18,7 +19,7 @@ function serializeMessage(message: Awaited<ReturnType<typeof listStoredMessages>
   }
 }
 
-export const load: LayoutServerLoad = async ({ params, parent }) => {
+export const load: LayoutServerLoad = async ({ params, parent, cookies }) => {
   const { imapMailboxes } = await parent()
   const mailboxPath = slugToPath(params.mailbox, imapMailboxes)
 
@@ -33,6 +34,7 @@ export const load: LayoutServerLoad = async ({ params, parent }) => {
     sync,
     messages: rawMessages.slice(0, PAGE_SIZE).map(serializeMessage),
     hasMore,
-    pageSize: PAGE_SIZE
+    pageSize: PAGE_SIZE,
+    simplifiedView: getSimplifiedViewEnabled(cookies)
   }
 }

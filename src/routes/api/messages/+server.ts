@@ -1,6 +1,11 @@
 import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
-import { listImapMailboxes, listStoredMessages, listStoredThreads, searchMessages } from '$lib/server/mail'
+import {
+  listImapMailboxes,
+  listStoredMessages,
+  listStoredThreads,
+  searchMessages
+} from '$lib/server/mail'
 import { slugToPath } from '$lib/mailbox'
 
 const DEFAULT_LIMIT = 50

@@ -29,6 +29,7 @@
         }
       }
       origin: string
+      simplifiedView: boolean
     }
   }
 
@@ -41,23 +42,25 @@
     smtp = $state({} as SmtpForm)
     oidc = $state({} as OidcForm)
     signature = $state('')
+    simplifiedView = $state(false)
 
-    constructor(config: Props['data']['config']) {
+    constructor(config: Props['data']['config'], simplifiedView: boolean) {
       this.imap = { ...config.imap, password: '' }
       this.smtp = { ...config.smtp, password: '' }
       this.oidc = { ...config.oidc, clientSecret: '' }
       this.signature = config.signature
+      this.simplifiedView = simplifiedView
     }
   }
 
   let { data }: Props = $props()
 
   // Editable form state
-  let form = $derived.by(() => new SettingsFormState(data.config))
+  let form = $derived.by(() => new SettingsFormState(data.config, data.simplifiedView))
   let imap = $derived(form.imap)
   let smtp = $derived(form.smtp)
   let oidc = $derived(form.oidc)
-  let signature = $derived(form.signature)
+  let simplifiedView = $derived(form.simplifiedView)
 
   type Filter = {
     id: number
@@ -71,23 +74,20 @@
   }
 
   let filters = $state<Filter[]>([])
-  let imapMailboxes = $state<{ path: string; name: string }[]>([])
   let showAddFilter = $state(false)
-  let newFilter = $state({ field: 'from', operator: 'contains', value: '', action: 'mark_read', target: '' })
+  let newFilter = $state({
+    field: 'from',
+    operator: 'contains',
+    value: '',
+    action: 'mark_read',
+    target: ''
+  })
 
   async function loadFilters() {
     const res = await fetch('/api/filters')
     if (res.ok) {
       const data = await res.json()
       filters = data.filters as Filter[]
-    }
-  }
-
-  async function loadMailboxes() {
-    const res = await fetch('/api/sync-status')
-    if (res.ok) {
-      // Mailboxes come from layout data — use a simpler approach: fetch from messages endpoint headers
-      // Actually we'll rely on the sync-status or expose a mailboxes endpoint
     }
   }
 
@@ -108,7 +108,13 @@
     if (res.ok) {
       await loadFilters()
       showAddFilter = false
-      newFilter = { field: 'from', operator: 'contains', value: '', action: 'mark_read', target: '' }
+      newFilter = {
+        field: 'from',
+        operator: 'contains',
+        value: '',
+        action: 'mark_read',
+        target: ''
+      }
     }
   }
 
@@ -165,7 +171,7 @@
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ imap, smtp, oidc, signature: form.signature })
+        body: JSON.stringify({ imap, smtp, oidc, signature: form.signature, simplifiedView })
       })
       if (!res.ok) {
         const text = await res.text()
@@ -516,6 +522,32 @@
 
     <div class="border-t border-white/8"></div>
 
+    <!-- Interface -->
+    <section class="space-y-4">
+      <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Interface</h2>
+      <div class="rounded-lg border border-white/8 bg-white/3 p-4">
+        <label class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-medium text-zinc-200">
+              Use simplified mailbox view on page load
+            </p>
+            <p class="mt-1 text-sm text-zinc-500">
+              Open mailbox root pages in the swipeable card view by default.
+            </p>
+          </div>
+
+          <span class="relative inline-flex cursor-pointer items-center">
+            <input type="checkbox" bind:checked={simplifiedView} class="peer sr-only" />
+            <span
+              class="h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"
+            ></span>
+          </span>
+        </label>
+      </div>
+    </section>
+
+    <div class="border-t border-white/8"></div>
+
     <!-- Signature -->
     <section class="space-y-4">
       <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Signature</h2>
@@ -526,7 +558,7 @@
         <textarea
           id="signature-input"
           rows="4"
-          placeholder="-- {'\n'}Your Name"
+          placeholder="--&#10;Your Name"
           bind:value={form.signature}
           class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-mono text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
         ></textarea>
@@ -538,9 +570,12 @@
 
     <!-- Notifications -->
     <section class="space-y-4">
-      <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Push Notifications</h2>
+      <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
+        Push Notifications
+      </h2>
       <p class="text-sm text-zinc-500">
-        Generate VAPID keys to enable browser push notifications for new mail. Keys are stored in the database and only need to be generated once.
+        Generate VAPID keys to enable browser push notifications for new mail. Keys are stored in
+        the database and only need to be generated once.
       </p>
       <div class="flex items-center gap-3">
         <button
@@ -558,7 +593,7 @@
         {/if}
       </div>
       {#if notifPublicKey}
-        <p class="break-all font-mono text-xs text-zinc-600">{notifPublicKey}</p>
+        <p class="font-mono text-xs break-all text-zinc-600">{notifPublicKey}</p>
       {/if}
     </section>
 
@@ -578,7 +613,9 @@
       </div>
 
       {#if filters.length === 0 && !showAddFilter}
-        <p class="text-sm text-zinc-600">No filters configured. Filters auto-process incoming mail.</p>
+        <p class="text-sm text-zinc-600">
+          No filters configured. Filters auto-process incoming mail.
+        </p>
       {/if}
 
       {#each filters as filter (filter.id)}
@@ -592,13 +629,24 @@
               <span class="font-mono text-zinc-200">"{filter.value}"</span>
               <span class="text-zinc-500">→</span>
               <span class="font-medium text-zinc-200">
-                {filter.action === 'mark_read' ? 'Mark as read' : filter.action === 'trash' ? 'Move to trash' : `Move to ${filter.target}`}
+                {filter.action === 'mark_read'
+                  ? 'Mark as read'
+                  : filter.action === 'trash'
+                    ? 'Move to trash'
+                    : `Move to ${filter.target}`}
               </span>
             </p>
           </div>
           <label class="relative inline-flex cursor-pointer items-center">
-            <input type="checkbox" checked={filter.enabled} onchange={() => void toggleFilter(filter)} class="peer sr-only" />
-            <div class="h-4 w-7 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:top-0.5 after:left-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-3"></div>
+            <input
+              type="checkbox"
+              checked={filter.enabled}
+              onchange={() => void toggleFilter(filter)}
+              class="peer sr-only"
+            />
+            <div
+              class="h-4 w-7 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:top-0.5 after:left-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-3"
+            ></div>
           </label>
           <button
             type="button"
@@ -611,12 +659,16 @@
       {/each}
 
       {#if showAddFilter}
-        <div class="rounded-lg border border-white/10 bg-white/3 p-4 space-y-3">
+        <div class="space-y-3 rounded-lg border border-white/10 bg-white/3 p-4">
           <h3 class="text-xs font-medium text-zinc-400">New rule</h3>
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="mb-1 block text-xs text-zinc-500">Field</label>
-              <select bind:value={newFilter.field} class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+              <label class="mb-1 block text-xs text-zinc-500" for="new-filter-field">Field</label>
+              <select
+                id="new-filter-field"
+                bind:value={newFilter.field}
+                class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+              >
                 <option value="from">From</option>
                 <option value="to">To</option>
                 <option value="subject">Subject</option>
@@ -624,8 +676,14 @@
               </select>
             </div>
             <div>
-              <label class="mb-1 block text-xs text-zinc-500">Condition</label>
-              <select bind:value={newFilter.operator} class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+              <label class="mb-1 block text-xs text-zinc-500" for="new-filter-condition"
+                >Condition</label
+              >
+              <select
+                id="new-filter-condition"
+                bind:value={newFilter.operator}
+                class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+              >
                 <option value="contains">contains</option>
                 <option value="equals">equals</option>
                 <option value="starts_with">starts with</option>
@@ -633,12 +691,22 @@
               </select>
             </div>
             <div class="col-span-2">
-              <label class="mb-1 block text-xs text-zinc-500">Value</label>
-              <input type="text" bind:value={newFilter.value} placeholder="e.g. newsletter@example.com" class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none" />
+              <label class="mb-1 block text-xs text-zinc-500" for="new-filter-value">Value</label>
+              <input
+                id="new-filter-value"
+                type="text"
+                bind:value={newFilter.value}
+                placeholder="e.g. newsletter@example.com"
+                class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+              />
             </div>
             <div>
-              <label class="mb-1 block text-xs text-zinc-500">Action</label>
-              <select bind:value={newFilter.action} class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+              <label class="mb-1 block text-xs text-zinc-500" for="new-filter-action">Action</label>
+              <select
+                id="new-filter-action"
+                bind:value={newFilter.action}
+                class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+              >
                 <option value="mark_read">Mark as read</option>
                 <option value="trash">Move to trash</option>
                 <option value="move">Move to folder…</option>
@@ -646,16 +714,32 @@
             </div>
             {#if newFilter.action === 'move'}
               <div>
-                <label class="mb-1 block text-xs text-zinc-500">Target folder</label>
-                <input type="text" bind:value={newFilter.target} placeholder="e.g. INBOX.Newsletters" class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none" />
+                <label class="mb-1 block text-xs text-zinc-500" for="new-filter-target"
+                  >Target folder</label
+                >
+                <input
+                  id="new-filter-target"
+                  type="text"
+                  bind:value={newFilter.target}
+                  placeholder="e.g. INBOX.Newsletters"
+                  class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+                />
               </div>
             {/if}
           </div>
           <div class="flex gap-2">
-            <button type="button" onclick={addFilter} class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500">
+            <button
+              type="button"
+              onclick={addFilter}
+              class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
+            >
               Add filter
             </button>
-            <button type="button" onclick={() => (showAddFilter = false)} class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10">
+            <button
+              type="button"
+              onclick={() => (showAddFilter = false)}
+              class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10"
+            >
               Cancel
             </button>
           </div>

@@ -5,10 +5,7 @@ import { mailDraft } from '$lib/server/db/schema'
 import { desc, eq } from 'drizzle-orm'
 
 export const GET: RequestHandler = async () => {
-  const drafts = await db
-    .select()
-    .from(mailDraft)
-    .orderBy(desc(mailDraft.updatedAt))
+  const drafts = await db.select().from(mailDraft).orderBy(desc(mailDraft.updatedAt))
 
   return json({
     drafts: drafts.map((d) => ({

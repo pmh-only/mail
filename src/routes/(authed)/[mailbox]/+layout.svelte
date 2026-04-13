@@ -4,7 +4,20 @@
   import { pathToSlug } from '$lib/mailbox'
   import { page } from '$app/state'
   import { onMount } from 'svelte'
-  import { RefreshCw, CheckSquare, Square, Archive, Trash2, MailOpen, ShieldAlert, X, Layers } from 'lucide-svelte'
+  import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity'
+  import {
+    RefreshCw,
+    CheckSquare,
+    Square,
+    Archive,
+    Trash2,
+    MailOpen,
+    ShieldAlert,
+    X,
+    Layers,
+    ChevronLeft,
+    ChevronRight
+  } from 'lucide-svelte'
   import { openCompose } from '$lib/composer.svelte'
   import { keyboard, setupKeyboardHandler } from '$lib/keyboard.svelte'
 
@@ -50,6 +63,7 @@
       hasMore: boolean
       pageSize: number
       imapMailboxes: ImapMailbox[]
+      simplifiedView: boolean
     }
     children: import('svelte').Snippet
   }
@@ -59,6 +73,8 @@
   const sync = $derived(data.sync)
   const pageSize = $derived(data.pageSize)
   const mailbox = $derived(page.params.mailbox ?? 'inbox')
+  const simplifiedViewEnabled = $derived(data.simplifiedView)
+  const isMailboxRoot = $derived(!page.params.id && !page.params.threadId)
   const selectedMessageId: number | null = $derived.by(() => {
     const id = page.params.id
     if (!id) return null
@@ -89,7 +105,7 @@
   let searchTimer: ReturnType<typeof setTimeout> | null = null
 
   // Bulk selection
-  let selectedIds = $state(new Set<number>())
+  let selectedIds = $state(new SvelteSet<number>())
   const selectionMode = $derived(selectedIds.size > 0)
   let bulkActionPending = $state(false)
 
@@ -114,6 +130,21 @@
 
   // Row elements for scrollIntoView
   let rowEls = $state<Map<number, HTMLElement>>(new Map())
+  let simplifiedCardIndex = $state(0)
+  let simplifiedDragOffsetX = $state(0)
+  let simplifiedDragPointerId = $state<number | null>(null)
+  let simplifiedDragging = $state(false)
+  let simplifiedDragStartX = 0
+  let simplifiedModeOverride = $state<boolean | null>(null)
+  let lastSimplifiedModeKey = ''
+  const simplifiedMode = $derived(simplifiedModeOverride ?? data.simplifiedView)
+  const showSimplifiedMailboxView = $derived(
+    simplifiedViewEnabled && isMailboxRoot && simplifiedMode
+  )
+  const simplifiedCards = $derived(listMessages)
+  const activeSimplifiedMessage = $derived(simplifiedCards[simplifiedCardIndex] ?? null)
+  const canShowPreviousCard = $derived(simplifiedCardIndex > 0)
+  const canShowNextCard = $derived(simplifiedCardIndex < simplifiedCards.length - 1)
 
   $effect(() => {
     const query = searchQuery.trim()
@@ -134,9 +165,7 @@
 
     searchTimer = setTimeout(async () => {
       try {
-        const response = await fetch(
-          `/api/messages?q=${encodeURIComponent(query)}&limit=50`
-        )
+        const response = await fetch(`/api/messages?q=${encodeURIComponent(query)}&limit=50`)
         if (!response.ok) throw new Error('Search failed')
 
         const payload = (await response.json()) as { messages: Message[] }
@@ -161,6 +190,36 @@
     if (!msg) return
     const el = rowEls.get(msg.id)
     el?.scrollIntoView({ block: 'nearest' })
+  })
+
+  $effect(() => {
+    const nextModeKey = `${mailbox}:${simplifiedViewEnabled ? '1' : '0'}`
+    if (nextModeKey === lastSimplifiedModeKey) return
+
+    lastSimplifiedModeKey = nextModeKey
+    simplifiedModeOverride = null
+    simplifiedCardIndex = 0
+    simplifiedDragOffsetX = 0
+    simplifiedDragging = false
+    simplifiedDragPointerId = null
+  })
+
+  $effect(() => {
+    if (!showSimplifiedMailboxView) {
+      simplifiedDragOffsetX = 0
+      simplifiedDragging = false
+      simplifiedDragPointerId = null
+      return
+    }
+
+    if (simplifiedCards.length === 0) {
+      simplifiedCardIndex = 0
+      return
+    }
+
+    if (simplifiedCardIndex > simplifiedCards.length - 1) {
+      simplifiedCardIndex = simplifiedCards.length - 1
+    }
   })
 
   function formatRelativeTime(value: string | null | undefined) {
@@ -214,7 +273,7 @@
   }
 
   function messagesUrl(offset: number, limit: number) {
-    const params = new URLSearchParams({
+    const params = new SvelteURLSearchParams({
       offset: String(offset),
       limit: String(limit),
       mailbox
@@ -292,11 +351,104 @@
     }
   }
 
+  function showPreviousSimplifiedCard() {
+    if (!canShowPreviousCard) {
+      simplifiedDragOffsetX = 0
+      return
+    }
+
+    simplifiedCardIndex -= 1
+    simplifiedDragOffsetX = 0
+  }
+
+  function showNextSimplifiedCard() {
+    if (!canShowNextCard) {
+      simplifiedDragOffsetX = 0
+      return
+    }
+
+    simplifiedCardIndex += 1
+    simplifiedDragOffsetX = 0
+  }
+
+  function openSimplifiedMessage() {
+    const message = activeSimplifiedMessage
+    if (message) selectMessage(message)
+  }
+
+  function enableSimplifiedMode() {
+    clearSelection()
+    simplifiedCardIndex = 0
+    simplifiedDragOffsetX = 0
+    simplifiedModeOverride = true
+  }
+
+  function disableSimplifiedMode() {
+    clearSelection()
+    simplifiedDragOffsetX = 0
+    simplifiedModeOverride = false
+  }
+
+  function handleSimplifiedCardPointerDown(event: PointerEvent) {
+    if (!activeSimplifiedMessage || simplifiedCards.length <= 1) return
+
+    const card = event.currentTarget as HTMLElement
+    simplifiedDragPointerId = event.pointerId
+    simplifiedDragging = true
+    simplifiedDragStartX = event.clientX
+    simplifiedDragOffsetX = 0
+    card.setPointerCapture(event.pointerId)
+  }
+
+  function handleSimplifiedCardPointerMove(event: PointerEvent) {
+    if (!simplifiedDragging || simplifiedDragPointerId !== event.pointerId) return
+    simplifiedDragOffsetX = event.clientX - simplifiedDragStartX
+  }
+
+  function finishSimplifiedCardDrag() {
+    const swipeThreshold = 80
+
+    if (simplifiedDragOffsetX <= -swipeThreshold) {
+      showNextSimplifiedCard()
+    } else if (simplifiedDragOffsetX >= swipeThreshold) {
+      showPreviousSimplifiedCard()
+    } else {
+      simplifiedDragOffsetX = 0
+    }
+
+    simplifiedDragging = false
+    simplifiedDragPointerId = null
+  }
+
+  function handleSimplifiedCardPointerUp(event: PointerEvent) {
+    if (simplifiedDragPointerId !== event.pointerId) return
+
+    const card = event.currentTarget as HTMLElement
+    if (card.hasPointerCapture(event.pointerId)) {
+      card.releasePointerCapture(event.pointerId)
+    }
+
+    finishSimplifiedCardDrag()
+  }
+
+  function handleSimplifiedCardPointerCancel(event: PointerEvent) {
+    if (simplifiedDragPointerId !== event.pointerId) return
+
+    const card = event.currentTarget as HTMLElement
+    if (card.hasPointerCapture(event.pointerId)) {
+      card.releasePointerCapture(event.pointerId)
+    }
+
+    simplifiedDragOffsetX = 0
+    simplifiedDragging = false
+    simplifiedDragPointerId = null
+  }
+
   let lastSelectedIndex: number | null = null
 
   function toggleSelection(id: number, index: number, shiftKey = false) {
     const list = isSearchMode ? searchResults : visibleMessages
-    const next = new Set(selectedIds)
+    const next = new SvelteSet(selectedIds)
 
     if (shiftKey && lastSelectedIndex !== null) {
       const lo = Math.min(lastSelectedIndex, index)
@@ -314,11 +466,11 @@
   }
 
   function selectAll() {
-    selectedIds = new Set(listMessages.map((m) => m.id))
+    selectedIds = new SvelteSet(listMessages.map((m) => m.id))
   }
 
   function clearSelection() {
-    selectedIds = new Set()
+    selectedIds = new SvelteSet()
   }
 
   async function bulkAction(action: string) {
@@ -513,7 +665,11 @@
     const isSelected = selectedMessageId === message.id
     return [
       'block w-full border-b border-white/8 px-4 py-4 text-left transition sm:px-5',
-      isSelected ? 'bg-white/6' : isFocused ? 'bg-white/4 ring-1 ring-inset ring-blue-500/40' : 'hover:bg-white/3'
+      isSelected
+        ? 'bg-white/6'
+        : isFocused
+          ? 'bg-white/4 ring-1 ring-inset ring-blue-500/40'
+          : 'hover:bg-white/3'
     ].join(' ')
   }
 
@@ -532,20 +688,25 @@
   <title>{folderDisplayName}</title>
 </svelte:head>
 
-<div class="flex h-full" class:cursor-col-resize={resizing} class:select-none={resizing}>
-  <section
-    style="width: {listWidth}px; min-width: {listWidth}px"
-    class={[
-      'flex flex-col overflow-x-hidden border-r bg-[#0d0d10]',
-      keyboard.panel === 'list' ? 'border-blue-500/40' : 'border-white/8'
-    ]}
-    role="region"
-    aria-label="Message list"
-  >
+{#if showSimplifiedMailboxView}
+  <section class="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-[#0d0d10]">
     <div class="border-b border-white/8 p-4 sm:p-5">
-      <div class="flex items-center justify-between gap-3">
-        <h1 class="text-2xl font-semibold tracking-tight text-white">{folderDisplayName}</h1>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight text-white">{folderDisplayName}</h1>
+          <p class="mt-1 text-sm text-zinc-500">
+            Swipe through recent mail or open the current card.
+          </p>
+        </div>
+
         <div class="flex items-center gap-2">
+          <button
+            type="button"
+            onclick={disableSimplifiedMode}
+            class="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6"
+          >
+            Normal mode
+          </button>
           <button
             type="button"
             onclick={handleRefresh}
@@ -604,83 +765,365 @@
       </label>
     </div>
 
-    <!-- Bulk action toolbar -->
-    {#if selectionMode}
-      <div class="flex shrink-0 items-center gap-2 border-b border-white/8 bg-[#0d0d10] px-4 py-2">
-        <span class="text-xs text-zinc-400">{selectedIds.size} selected</span>
-        <div class="flex flex-1 items-center gap-1">
+    <div class="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-4 sm:p-6">
+      {#if isSearchMode && isSearching}
+        <div class="text-center">
+          <p class="text-sm text-zinc-500">Searching…</p>
+        </div>
+      {:else if simplifiedCards.length === 0}
+        <div
+          class="max-w-md rounded-[2rem] border border-white/8 bg-white/[0.03] p-8 text-center shadow-2xl shadow-black/20"
+        >
+          <p class="text-lg font-semibold text-white">
+            {isSearchMode ? 'No results' : 'No messages found'}
+          </p>
+          <p class="mt-2 text-sm text-zinc-500">
+            {isSearchMode ? 'No messages matched your search.' : 'Wait for the next sync.'}
+          </p>
+        </div>
+      {:else}
+        <div class="flex w-full max-w-4xl flex-col items-center gap-6">
+          <div class="relative h-[27rem] w-full max-w-2xl">
+            {#each simplifiedCards.slice(simplifiedCardIndex, simplifiedCardIndex + 3) as message, offset (message.id)}
+              <article
+                class={[
+                  'absolute inset-0 overflow-hidden rounded-[2rem] border border-white/10 bg-[#131319] p-6 text-left shadow-2xl shadow-black/30 transition duration-200',
+                  offset === 0
+                    ? 'cursor-grab touch-pan-y active:cursor-grabbing'
+                    : 'pointer-events-none'
+                ]}
+                style={`transform: translate3d(${offset === 0 ? simplifiedDragOffsetX : 0}px, ${offset * 14}px, 0) scale(${1 - offset * 0.04}); opacity: ${1 - offset * 0.18}; z-index: ${10 - offset};`}
+                onpointerdown={offset === 0 ? handleSimplifiedCardPointerDown : undefined}
+                onpointermove={offset === 0 ? handleSimplifiedCardPointerMove : undefined}
+                onpointerup={offset === 0 ? handleSimplifiedCardPointerUp : undefined}
+                onpointercancel={offset === 0 ? handleSimplifiedCardPointerCancel : undefined}
+              >
+                <div class="flex h-full flex-col">
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <p class="truncate text-sm font-medium text-zinc-300">
+                          {senderName(message.from)}
+                        </p>
+                        {#if isUnread(message.flags)}
+                          <span class="h-2 w-2 shrink-0 rounded-full bg-sky-400"></span>
+                          <span class="text-xs font-medium text-sky-300">Unread</span>
+                        {/if}
+                      </div>
+
+                      <h2
+                        class="mt-4 line-clamp-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl"
+                      >
+                        {subjectLabel(message.subject)}
+                      </h2>
+                    </div>
+
+                    <p class="shrink-0 text-sm text-zinc-500">
+                      {formatRelativeTime(message.receivedAt)}
+                    </p>
+                  </div>
+
+                  <p class="mt-6 line-clamp-6 text-base leading-7 text-zinc-400">
+                    {previewLabel(message.preview, message.textContent)}
+                  </p>
+
+                  <div class="mt-auto flex flex-wrap items-center justify-between gap-3 pt-6">
+                    <p class="text-sm text-zinc-500">
+                      Card {simplifiedCardIndex + offset + 1} of {simplifiedCards.length}
+                    </p>
+
+                    <button
+                      type="button"
+                      onclick={offset === 0 ? openSimplifiedMessage : undefined}
+                      class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500"
+                    >
+                      Open message
+                    </button>
+                  </div>
+                </div>
+              </article>
+            {/each}
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              onclick={showPreviousSimplifiedCard}
+              disabled={!canShowPreviousCard}
+              aria-label="Show previous message"
+              class="rounded-full border border-white/8 bg-white/3 p-3 text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft size={18} />
+            </button>
+
+            <p class="min-w-28 text-center text-sm text-zinc-500">
+              {simplifiedCards.length === 0
+                ? '0 / 0'
+                : `${simplifiedCardIndex + 1} / ${simplifiedCards.length}`}
+            </p>
+
+            <button
+              type="button"
+              onclick={showNextSimplifiedCard}
+              disabled={!canShowNextCard}
+              aria-label="Show next message"
+              class="rounded-full border border-white/8 bg-white/3 p-3 text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+
+          {#if loadMoreError}
+            <p class="text-sm text-rose-300">{loadMoreError}</p>
+          {/if}
+
+          {#if hasMore && !isSearchMode}
+            <div bind:this={sentinel} class="h-1 w-full max-w-2xl"></div>
+            <button
+              type="button"
+              class="rounded-xl border border-white/8 bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60"
+              onclick={() => void loadMoreMessages()}
+              disabled={isLoadingMore}
+            >
+              {isLoadingMore ? 'Loading...' : 'Load more'}
+            </button>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  </section>
+{:else}
+  <div class="flex h-full" class:cursor-col-resize={resizing} class:select-none={resizing}>
+    <section
+      style="width: {listWidth}px; min-width: {listWidth}px"
+      class={[
+        'flex flex-col overflow-x-hidden border-r bg-[#0d0d10]',
+        keyboard.panel === 'list' ? 'border-blue-500/40' : 'border-white/8'
+      ]}
+      aria-label="Message list"
+    >
+      <div class="border-b border-white/8 p-4 sm:p-5">
+        <div class="flex items-center justify-between gap-3">
+          <h1 class="text-2xl font-semibold tracking-tight text-white">{folderDisplayName}</h1>
+          <div class="flex items-center gap-2">
+            {#if simplifiedViewEnabled && isMailboxRoot}
+              <button
+                type="button"
+                onclick={enableSimplifiedMode}
+                class="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6"
+              >
+                Simplified mode
+              </button>
+            {/if}
+            <button
+              type="button"
+              onclick={handleRefresh}
+              class={[
+                'transition',
+                refreshing ? 'animate-spin text-zinc-400' : 'text-zinc-600 hover:text-zinc-400'
+              ]}
+              title="Refresh"
+            >
+              <RefreshCw size={15} />
+            </button>
+            <button
+              type="button"
+              onclick={() => void toggleThreadedMode()}
+              class={[
+                'transition',
+                threadedMode ? 'text-sky-400' : 'text-zinc-600 hover:text-zinc-400'
+              ]}
+              title={threadedMode ? 'Threaded view (on)' : 'Threaded view (off)'}
+            >
+              <Layers size={15} />
+            </button>
+            <div class="rounded-xl border border-white/8 bg-white/3 p-1 text-sm">
+              <button
+                type="button"
+                class={[
+                  'rounded-lg px-3 py-1.5 transition',
+                  activeFilter === 'all' ? 'bg-white/8 text-white' : 'text-zinc-400'
+                ]}
+                onclick={() => (activeFilter = 'all')}
+              >
+                All mail
+              </button>
+              <button
+                type="button"
+                class={[
+                  'rounded-lg px-3 py-1.5 transition',
+                  activeFilter === 'unread' ? 'bg-white/8 text-white' : 'text-zinc-400'
+                ]}
+                onclick={() => (activeFilter = 'unread')}
+              >
+                Unread
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <label class="mt-4 block">
+          <span class="sr-only">Search messages</span>
+          <input
+            bind:value={searchQuery}
+            type="search"
+            placeholder="Search"
+            class="w-full rounded-xl border border-white/8 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-sky-400/60"
+          />
+        </label>
+      </div>
+
+      <!-- Bulk action toolbar -->
+      {#if selectionMode}
+        <div
+          class="flex shrink-0 items-center gap-2 border-b border-white/8 bg-[#0d0d10] px-4 py-2"
+        >
+          <span class="text-xs text-zinc-400">{selectedIds.size} selected</span>
+          <div class="flex flex-1 items-center gap-1">
+            <button
+              type="button"
+              title="Archive"
+              onclick={() => void bulkAction('archive')}
+              disabled={bulkActionPending}
+              class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+            >
+              <Archive size={13} /> Archive
+            </button>
+            <button
+              type="button"
+              title="Trash"
+              onclick={() => void bulkAction('trash')}
+              disabled={bulkActionPending}
+              class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+            >
+              <Trash2 size={13} /> Trash
+            </button>
+            <button
+              type="button"
+              title="Spam"
+              onclick={() => void bulkAction('spam')}
+              disabled={bulkActionPending}
+              class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+            >
+              <ShieldAlert size={13} /> Spam
+            </button>
+            <button
+              type="button"
+              title="Mark read"
+              onclick={() => void bulkAction('mark_read')}
+              disabled={bulkActionPending}
+              class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+            >
+              <MailOpen size={13} /> Mark read
+            </button>
+          </div>
           <button
             type="button"
-            title="Archive"
-            onclick={() => void bulkAction('archive')}
-            disabled={bulkActionPending}
-            class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+            onclick={clearSelection}
+            class="text-zinc-500 hover:text-zinc-300"
+            title="Clear selection"
           >
-            <Archive size={13} /> Archive
-          </button>
-          <button
-            type="button"
-            title="Trash"
-            onclick={() => void bulkAction('trash')}
-            disabled={bulkActionPending}
-            class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
-          >
-            <Trash2 size={13} /> Trash
-          </button>
-          <button
-            type="button"
-            title="Spam"
-            onclick={() => void bulkAction('spam')}
-            disabled={bulkActionPending}
-            class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
-          >
-            <ShieldAlert size={13} /> Spam
-          </button>
-          <button
-            type="button"
-            title="Mark read"
-            onclick={() => void bulkAction('mark_read')}
-            disabled={bulkActionPending}
-            class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
-          >
-            <MailOpen size={13} /> Mark read
+            <X size={14} />
           </button>
         </div>
-        <button
-          type="button"
-          onclick={clearSelection}
-          class="text-zinc-500 hover:text-zinc-300"
-          title="Clear selection"
-        >
-          <X size={14} />
-        </button>
-      </div>
-    {/if}
+      {/if}
 
-    <div class="flex-1 overflow-y-auto">
-      {#if isSearchMode}
-        {#if isSearching}
-          <div class="p-8 text-center">
-            <p class="text-sm text-zinc-500">Searching…</p>
-          </div>
-        {:else if searchResults.length === 0}
-          <div class="p-8 text-center">
-            <p class="text-lg font-semibold text-white">No results</p>
-            <p class="mt-2 text-sm text-zinc-500">No messages matched your search.</p>
-          </div>
+      <div class="flex-1 overflow-y-auto">
+        {#if isSearchMode}
+          {#if isSearching}
+            <div class="p-8 text-center">
+              <p class="text-sm text-zinc-500">Searching…</p>
+            </div>
+          {:else if searchResults.length === 0}
+            <div class="p-8 text-center">
+              <p class="text-lg font-semibold text-white">No results</p>
+              <p class="mt-2 text-sm text-zinc-500">No messages matched your search.</p>
+            </div>
+          {:else}
+            {#each searchResults as message, index (message.id)}
+              <div class="group relative" use:registerRow={{ id: message.id, map: rowEls }}>
+                <!-- Checkbox -->
+                <button
+                  type="button"
+                  aria-label={selectedIds.has(message.id) ? 'Deselect' : 'Select'}
+                  onclick={(e) => {
+                    e.stopPropagation()
+                    toggleSelection(message.id, index, e.shiftKey)
+                  }}
+                  class={[
+                    'absolute top-1/2 left-2 z-10 -translate-y-1/2 transition',
+                    selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  ].join(' ')}
+                >
+                  {#if selectedIds.has(message.id)}
+                    <CheckSquare size={16} class="text-blue-400" />
+                  {:else}
+                    <Square size={16} class="text-zinc-600" />
+                  {/if}
+                </button>
+                <button
+                  type="button"
+                  class={[
+                    'block w-full border-b border-white/8 py-4 text-left transition',
+                    selectionMode ? 'pr-4 pl-9 sm:pr-5 sm:pl-10' : 'px-4 sm:px-5',
+                    selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
+                  ].join(' ')}
+                  onclick={() => selectMessage(message)}
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <p
+                          class={[
+                            'truncate text-sm',
+                            isUnread(message.flags) ? 'font-semibold text-white' : 'text-zinc-300'
+                          ]}
+                        >
+                          {senderName(message.from)}
+                        </p>
+                        {#if isUnread(message.flags)}
+                          <span class="h-2 w-2 rounded-full bg-sky-400"></span>
+                        {/if}
+                      </div>
+
+                      <p class="mt-1 truncate text-sm font-medium text-zinc-200">
+                        {subjectLabel(message.subject)}
+                      </p>
+                    </div>
+
+                    <div class="flex shrink-0 flex-col items-end gap-1">
+                      <p class="text-xs text-zinc-500">{formatRelativeTime(message.receivedAt)}</p>
+                      {#if message.mailbox}
+                        <p class="rounded bg-white/6 px-1.5 py-0.5 text-xs text-zinc-400">
+                          {mailboxLabel(message.mailbox)}
+                        </p>
+                      {/if}
+                    </div>
+                  </div>
+
+                  <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
+                    {previewLabel(message.preview, message.textContent)}
+                  </p>
+                </button>
+              </div>
+            {/each}
+            <div class="px-4 py-5 text-center text-sm text-zinc-500 sm:px-5">
+              {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
+            </div>
+          {/if}
         {:else}
-          {#each searchResults as message, index (message.id)}
-            <div
-              class="group relative"
-              use:registerRow={{ id: message.id, map: rowEls }}
-            >
+          {#each visibleMessages as message, index (message.id)}
+            <div class="group relative" use:registerRow={{ id: message.id, map: rowEls }}>
               <!-- Checkbox -->
               <button
                 type="button"
                 aria-label={selectedIds.has(message.id) ? 'Deselect' : 'Select'}
-                onclick={(e) => { e.stopPropagation(); toggleSelection(message.id, index, e.shiftKey) }}
+                onclick={(e) => {
+                  e.stopPropagation()
+                  toggleSelection(message.id, index, e.shiftKey)
+                }}
                 class={[
-                  'absolute top-1/2 left-2 -translate-y-1/2 z-10 transition',
+                  'absolute top-1/2 left-2 z-10 -translate-y-1/2 transition',
                   selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 ].join(' ')}
               >
@@ -692,14 +1135,15 @@
               </button>
               <button
                 type="button"
-                class={[
-                  'block w-full border-b border-white/8 py-4 text-left transition',
-                  selectionMode ? 'pl-9 pr-4 sm:pl-10 sm:pr-5' : 'px-4 sm:px-5',
-                  selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
-                ].join(' ')}
+                class={messageRowClass(message, index)}
                 onclick={() => selectMessage(message)}
               >
-                <div class="flex items-start justify-between gap-3">
+                <div
+                  class={[
+                    'flex items-start justify-between gap-3',
+                    selectionMode ? 'pl-5' : ''
+                  ].join(' ')}
+                >
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
                       <p
@@ -713,6 +1157,13 @@
                       {#if isUnread(message.flags)}
                         <span class="h-2 w-2 rounded-full bg-sky-400"></span>
                       {/if}
+                      {#if threadedMode && message.threadCount && message.threadCount > 1}
+                        <span
+                          class="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-xs text-zinc-400"
+                        >
+                          {message.threadCount}
+                        </span>
+                      {/if}
                     </div>
 
                     <p class="mt-1 truncate text-sm font-medium text-zinc-200">
@@ -720,139 +1171,70 @@
                     </p>
                   </div>
 
-                  <div class="flex shrink-0 flex-col items-end gap-1">
-                    <p class="text-xs text-zinc-500">{formatRelativeTime(message.receivedAt)}</p>
-                    {#if message.mailbox}
-                      <p class="rounded bg-white/6 px-1.5 py-0.5 text-xs text-zinc-400">
-                        {mailboxLabel(message.mailbox)}
-                      </p>
-                    {/if}
-                  </div>
+                  <p class="shrink-0 text-xs text-zinc-500">
+                    {formatRelativeTime(message.receivedAt)}
+                  </p>
                 </div>
 
-                <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
+                <p
+                  class={[
+                    'mt-3 line-clamp-2 text-sm leading-6 text-zinc-400',
+                    selectionMode ? 'pl-5' : ''
+                  ].join(' ')}
+                >
                   {previewLabel(message.preview, message.textContent)}
                 </p>
               </button>
             </div>
+          {:else}
+            <div class="p-8 text-center">
+              <p class="text-lg font-semibold text-white">No messages found</p>
+              <p class="mt-2 text-sm text-zinc-500">Wait for the next sync.</p>
+            </div>
           {/each}
-          <div class="px-4 py-5 text-center text-sm text-zinc-500 sm:px-5">
-            {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
-          </div>
-        {/if}
-      {:else}
-        {#each visibleMessages as message, index (message.id)}
-          <div
-            class="group relative"
-            use:registerRow={{ id: message.id, map: rowEls }}
-          >
-            <!-- Checkbox -->
-            <button
-              type="button"
-              aria-label={selectedIds.has(message.id) ? 'Deselect' : 'Select'}
-              onclick={(e) => { e.stopPropagation(); toggleSelection(message.id, index, e.shiftKey) }}
-              class={[
-                'absolute top-1/2 left-2 -translate-y-1/2 z-10 transition',
-                selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-              ].join(' ')}
-            >
-              {#if selectedIds.has(message.id)}
-                <CheckSquare size={16} class="text-blue-400" />
-              {:else}
-                <Square size={16} class="text-zinc-600" />
+
+          {#if visibleMessages.length > 0}
+            <div class="px-4 py-5 sm:px-5">
+              {#if loadMoreError}
+                <p class="text-sm text-rose-300">{loadMoreError}</p>
               {/if}
-            </button>
-            <button
-              type="button"
-              aria-selected={selectedMessageId === message.id}
-              class={messageRowClass(message, index)}
-              onclick={() => selectMessage(message)}
-            >
-              <div class={['flex items-start justify-between gap-3', selectionMode ? 'pl-5' : ''].join(' ')}>
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2">
-                    <p
-                      class={[
-                        'truncate text-sm',
-                        isUnread(message.flags) ? 'font-semibold text-white' : 'text-zinc-300'
-                      ]}
-                    >
-                      {senderName(message.from)}
-                    </p>
-                    {#if isUnread(message.flags)}
-                      <span class="h-2 w-2 rounded-full bg-sky-400"></span>
-                    {/if}
-                    {#if threadedMode && message.threadCount && message.threadCount > 1}
-                      <span class="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-xs text-zinc-400">
-                        {message.threadCount}
-                      </span>
-                    {/if}
-                  </div>
 
-                  <p class="mt-1 truncate text-sm font-medium text-zinc-200">
-                    {subjectLabel(message.subject)}
-                  </p>
+              {#if hasMore}
+                <div bind:this={sentinel} class="h-1 w-full"></div>
+                <div class="flex justify-center">
+                  <button
+                    type="button"
+                    class="rounded-xl border border-white/8 bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60"
+                    onclick={() => void loadMoreMessages()}
+                    disabled={isLoadingMore}
+                  >
+                    {isLoadingMore ? 'Loading...' : 'Load more'}
+                  </button>
                 </div>
-
-                <p class="shrink-0 text-xs text-zinc-500">
-                  {formatRelativeTime(message.receivedAt)}
-                </p>
-              </div>
-
-              <p class={['mt-3 line-clamp-2 text-sm leading-6 text-zinc-400', selectionMode ? 'pl-5' : ''].join(' ')}>
-                {previewLabel(message.preview, message.textContent)}
-              </p>
-            </button>
-          </div>
-        {:else}
-          <div class="p-8 text-center">
-            <p class="text-lg font-semibold text-white">No messages found</p>
-            <p class="mt-2 text-sm text-zinc-500">Wait for the next sync.</p>
-          </div>
-        {/each}
-
-        {#if visibleMessages.length > 0}
-          <div class="px-4 py-5 sm:px-5">
-            {#if loadMoreError}
-              <p class="text-sm text-rose-300">{loadMoreError}</p>
-            {/if}
-
-            {#if hasMore}
-              <div bind:this={sentinel} class="h-1 w-full"></div>
-              <div class="flex justify-center">
-                <button
-                  type="button"
-                  class="rounded-xl border border-white/8 bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60"
-                  onclick={() => void loadMoreMessages()}
-                  disabled={isLoadingMore}
-                >
-                  {isLoadingMore ? 'Loading...' : 'Load more'}
-                </button>
-              </div>
-            {:else}
-              <p class="text-center text-sm text-zinc-500">All stored messages are loaded.</p>
-            {/if}
-          </div>
+              {:else}
+                <p class="text-center text-sm text-zinc-500">All stored messages are loaded.</p>
+              {/if}
+            </div>
+          {/if}
         {/if}
-      {/if}
-    </div>
-  </section>
+      </div>
+    </section>
 
-  <!-- Resize handle: list ↔ detail -->
-  <div
-    role="separator"
-    aria-orientation="vertical"
-    tabindex="-1"
-    class="group relative z-10 w-2 shrink-0 cursor-col-resize"
-    onpointerdown={startResize}
-  >
+    <!-- Resize handle: list ↔ detail -->
     <div
-      class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/8 transition-colors group-hover:bg-white/25"
-    ></div>
+      role="separator"
+      aria-orientation="vertical"
+      tabindex="-1"
+      class="group relative z-10 w-2 shrink-0 cursor-col-resize"
+      onpointerdown={startResize}
+    >
+      <div
+        class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/8 transition-colors group-hover:bg-white/25"
+      ></div>
+    </div>
+
+    <section class="min-w-0 flex-1 overflow-hidden bg-[#0b0b0e]">
+      {@render children()}
+    </section>
   </div>
-
-  <section class="min-w-0 flex-1 overflow-hidden bg-[#0b0b0e]">
-    {@render children()}
-  </section>
-</div>
-
+{/if}

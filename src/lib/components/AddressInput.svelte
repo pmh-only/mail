@@ -20,6 +20,7 @@
   let highlightIndex = $state(-1)
   let showDropdown = $state(false)
   let inputEl = $state<HTMLInputElement | undefined>(undefined)
+  const listboxId = $derived(id ? `${id}-listbox` : undefined)
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
   // Sync `value` → pills on mount and when value changes externally
@@ -120,10 +121,8 @@
     <span class="w-10 shrink-0 text-xs font-medium text-zinc-500">{label}</span>
   {/if}
 
-  {#each pills as pill, i}
-    <span
-      class="flex items-center gap-1 rounded bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-200"
-    >
+  {#each pills as pill, i (`${pill}-${i}`)}
+    <span class="flex items-center gap-1 rounded bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-200">
       {pill}
       <button
         type="button"
@@ -149,16 +148,18 @@
     role="combobox"
     aria-autocomplete="list"
     aria-expanded={showDropdown}
+    aria-controls={listboxId}
     aria-haspopup="listbox"
     class="min-w-[120px] flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
   />
 
   {#if showDropdown && suggestions.length > 0}
     <ul
+      id={listboxId}
       role="listbox"
       class="absolute top-full left-0 z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-white/10 bg-[#1e1e24] shadow-xl"
     >
-      {#each suggestions as suggestion, i}
+      {#each suggestions as suggestion, i (`${suggestion.email}-${i}`)}
         <li
           role="option"
           aria-selected={i === highlightIndex}

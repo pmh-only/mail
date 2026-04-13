@@ -46,7 +46,9 @@
 :root{padding:12px}
 </style>`
 
-  const LINK_SCRIPT = `<script>document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.protocol!=='javascript:'){e.preventDefault();window.open(a.href,'_blank','noopener,noreferrer');}});<\/script>`
+  const LINK_SCRIPT =
+    `<script>document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.protocol!=='javascript:'){e.preventDefault();window.open(a.href,'_blank','noopener,noreferrer');}});</scr` +
+    `ipt>`
 
   function injectScrollbarStyle(html: string): string {
     const headClose = html.indexOf('</head>')
@@ -73,8 +75,8 @@
   <meta name="twitter:description" content={ogDescription} />
 </svelte:head>
 
-<div class="min-h-screen flex flex-col bg-zinc-950 text-zinc-100">
-  <div class="mx-auto flex grow flex-col w-full max-w-3xl p-4">
+<div class="flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
+  <div class="mx-auto flex w-full max-w-3xl grow flex-col p-4">
     <!-- Header -->
     <div class="border-white/8 pb-6">
       <h1 class="text-2xl font-semibold text-white">
@@ -101,12 +103,12 @@
 
     <!-- Body -->
     {#if srcdoc}
-      <div class="overflow-hidden rounded flex grow border border-white/8 bg-white">
+      <div class="flex grow overflow-hidden rounded border border-white/8 bg-white">
         <iframe
           title={`Email body for ${data.subject}`}
           sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts"
           {srcdoc}
-          class="block grow w-full"
+          class="block w-full grow"
         ></iframe>
       </div>
     {:else}

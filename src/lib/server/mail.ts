@@ -3,7 +3,13 @@ import { desc, eq, inArray, sql } from 'drizzle-orm'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import { db, client as sqliteClient } from '$lib/server/db'
-import { mailboxSync, mailMessage, mailMessageMailbox, mailShare, mailAttachment } from '$lib/server/db/schema'
+import {
+  mailboxSync,
+  mailMessage,
+  mailMessageMailbox,
+  mailShare,
+  mailAttachment
+} from '$lib/server/db/schema'
 import { enqueueMarkRead, enqueueMoveMessage, registerImapConfig } from '$lib/server/imap-queue'
 import { getImapConfig, type ImapConfig } from '$lib/server/config'
 import { withRetry } from '$lib/server/retry'
@@ -25,7 +31,11 @@ async function connectImap(config: ImapConfig, label: string): Promise<ImapFlow>
         await client.connect()
         return client
       } catch (err) {
-        try { client.close() } catch { /* ignore */ }
+        try {
+          client.close()
+        } catch {
+          /* ignore */
+        }
         throw err
       }
     },
@@ -220,7 +230,7 @@ async function storeMessageContent(
   const inReplyTo = message.inReplyTo ?? null
   const references = Array.isArray(message.references)
     ? message.references.join(' ')
-    : (message.references as string | undefined) ?? null
+    : ((message.references as string | undefined) ?? null)
   const cc = summarizeAddresses(message.cc as Parameters<typeof summarizeAddresses>[0])
 
   // Resolve thread ID
@@ -329,9 +339,7 @@ async function syncOneMailbox(
       const range = needsInitialBackfill ? '1:*' : `${nextLastUid + 1}:*`
       const fetchOptions = needsInitialBackfill ? undefined : { uid: true }
 
-      console.log(
-        `[sync] ${mailboxPath}: fetching envelopes range=${range} (${elapsed()})`
-      )
+      console.log(`[sync] ${mailboxPath}: fetching envelopes range=${range} (${elapsed()})`)
 
       // Phase 1: fetch lightweight envelopes to discover message-ids
       type EnvelopeItem = {
@@ -385,9 +393,7 @@ async function syncOneMailbox(
           ).map((r) => r.messageId)
         )
 
-        const needsSourceItems = envelopeItems.filter(
-          (i) => !existingIds.has(i.effectiveMessageId)
-        )
+        const needsSourceItems = envelopeItems.filter((i) => !existingIds.has(i.effectiveMessageId))
         const cachedItems = envelopeItems.filter((i) => existingIds.has(i.effectiveMessageId))
         const cachedCount = fetchedCount - needsSourceItems.length
 
@@ -409,7 +415,9 @@ async function syncOneMailbox(
         // speed (one disk sync per chunk instead of one per row).
         if (cachedItems.length > 0) {
           const CHUNK_SIZE = 200
-          console.log(`[sync] ${mailboxPath}: updating ${cachedItems.length} cached mailbox entries...`)
+          console.log(
+            `[sync] ${mailboxPath}: updating ${cachedItems.length} cached mailbox entries...`
+          )
           for (let ci = 0; ci < cachedItems.length; ci += CHUNK_SIZE) {
             const chunk = cachedItems.slice(ci, ci + CHUNK_SIZE)
             sqliteClient.transaction(() => {
@@ -442,9 +450,7 @@ async function syncOneMailbox(
             }
             await yieldToEventLoop()
           }
-          console.log(
-            `[sync] ${mailboxPath}: cached entries updated (${elapsed()})`
-          )
+          console.log(`[sync] ${mailboxPath}: cached entries updated (${elapsed()})`)
         }
 
         // Phase 3b: fetch source newest-first, in batches so recent mail lands in DB first
@@ -467,7 +473,11 @@ async function syncOneMailbox(
               const item = itemByUid.get(fetchItem.uid)
               if (!item) continue
               const parsed = await simpleParser(fetchItem.source)
-              const isNew = await storeMessageContent(item.effectiveMessageId, parsed, item.internalDate)
+              const isNew = await storeMessageContent(
+                item.effectiveMessageId,
+                parsed,
+                item.internalDate
+              )
               if (isNew) newlyStoredMessageIds.push(item.effectiveMessageId)
               await storeMailboxEntry(item.effectiveMessageId, mailboxPath, item.uid, item.flags)
               storedCount += 1
@@ -730,9 +740,8 @@ async function refreshMailboxCache(): Promise<void> {
   const config = await getImapConfig()
   if ('missing' in config) return
 
-  let client: ImapFlow | null = null
   try {
-    client = await connectImap(config, 'mailbox cache refresh')
+    const client = await connectImap(config, 'mailbox cache refresh')
     const tree = await client.list()
     await client.logout()
 
@@ -990,11 +999,7 @@ export async function createShareToken(mailboxEntryId: number): Promise<string |
 }
 
 export async function getMessageByShareToken(token: string): Promise<MailRow | null> {
-  const [share] = await db
-    .select()
-    .from(mailShare)
-    .where(eq(mailShare.token, token))
-    .limit(1)
+  const [share] = await db.select().from(mailShare).where(eq(mailShare.token, token)).limit(1)
 
   if (!share) return null
 

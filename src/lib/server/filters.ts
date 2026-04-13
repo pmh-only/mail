@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db'
 import { mailFilter, mailMessage, mailMessageMailbox } from '$lib/server/db/schema'
-import { eq, inArray, and } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { enqueueMarkRead, enqueueMoveMessage } from '$lib/server/imap-queue'
 
 type Filter = typeof mailFilter.$inferSelect

@@ -1,5 +1,22 @@
 <script lang="ts">
-  import { Archive, Trash2, ShieldAlert, Reply, ReplyAll, Forward, Share2, Check, Paperclip, Download, FileText, FileVideo, FileImage, X, ChevronLeft, ChevronRight } from 'lucide-svelte'
+  import {
+    Archive,
+    Trash2,
+    ShieldAlert,
+    Reply,
+    ReplyAll,
+    Forward,
+    Share2,
+    Check,
+    Paperclip,
+    Download,
+    FileText,
+    FileVideo,
+    FileImage,
+    X,
+    ChevronLeft,
+    ChevronRight
+  } from 'lucide-svelte'
   import { goto, invalidateAll } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { page } from '$app/state'
@@ -57,7 +74,9 @@
         const { url } = await res.json()
         await navigator.clipboard.writeText(url)
         shareCopied = true
-        setTimeout(() => { shareCopied = false }, 2000)
+        setTimeout(() => {
+          shareCopied = false
+        }, 2000)
       }
     } finally {
       sharing = false
@@ -132,7 +151,9 @@
 }
 </style>`
 
-  const LINK_SCRIPT = `<script>document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.protocol!=='javascript:'){e.preventDefault();window.open(a.href,'_blank','noopener,noreferrer');}});<\/script>`
+  const LINK_SCRIPT =
+    `<script>document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.protocol!=='javascript:'){e.preventDefault();window.open(a.href,'_blank','noopener,noreferrer');}});</scr` +
+    `ipt>`
 
   function injectScrollbarStyle(html: string): string {
     const headClose = html.indexOf('</head>')
@@ -177,11 +198,9 @@
   // Preview lightbox state
   let previewIndex = $state<number | null>(null)
 
-  const previewableAttachments = $derived(
-    attachments.filter((a) => isPreviewable(a.contentType))
-  )
+  const previewableAttachments = $derived(attachments.filter((a) => isPreviewable(a.contentType)))
 
-  function openPreview(att: typeof attachments[0]) {
+  function openPreview(att: (typeof attachments)[0]) {
     const idx = previewableAttachments.findIndex((a) => a.id === att.id)
     if (idx >= 0) previewIndex = idx
   }
@@ -192,7 +211,8 @@
 
   function prevPreview() {
     if (previewIndex === null) return
-    previewIndex = (previewIndex - 1 + previewableAttachments.length) % previewableAttachments.length
+    previewIndex =
+      (previewIndex - 1 + previewableAttachments.length) % previewableAttachments.length
   }
 
   function nextPreview() {
@@ -205,8 +225,6 @@
     else if (e.key === 'ArrowLeft') prevPreview()
     else if (e.key === 'ArrowRight') nextPreview()
   }
-
-  let iframeEl: HTMLIFrameElement | null = null
 
   onMount(() => {
     const prevContext = keyboard.context
@@ -441,7 +459,6 @@
   <div class="flex flex-1 flex-col overflow-y-auto">
     {#if srcdoc}
       <iframe
-        bind:this={iframeEl}
         title={`Email body for ${subjectLabel(message.subject)}`}
         sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-scripts"
         {srcdoc}
@@ -475,7 +492,9 @@
         </div>
         <div class="flex flex-wrap gap-3">
           {#each attachments as att (att.id)}
-            <div class="group relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/3 transition hover:border-white/20">
+            <div
+              class="group relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/3 transition hover:border-white/20"
+            >
               {#if isImage(att.contentType)}
                 <button
                   type="button"
@@ -493,7 +512,7 @@
                 <button
                   type="button"
                   onclick={() => openPreview(att)}
-                  class="flex h-32 min-w-40 w-full flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none"
+                  class="flex h-32 w-full min-w-40 flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none"
                   title="Click to preview"
                 >
                   <FileText size={36} />
@@ -510,8 +529,11 @@
                   <span class="text-xs">Play video</span>
                 </button>
               {:else}
-                <div class="flex h-32 w-40 flex-col items-center justify-center gap-2 text-zinc-600">
-                  <svelte:component this={attachmentIcon(att.contentType)} size={36} />
+                {@const Icon = attachmentIcon(att.contentType)}
+                <div
+                  class="flex h-32 w-40 flex-col items-center justify-center gap-2 text-zinc-600"
+                >
+                  <Icon size={36} />
                 </div>
               {/if}
               <div class="flex items-center gap-2 border-t border-white/8 px-2.5 py-2">
@@ -520,7 +542,7 @@
                   <p class="text-xs text-zinc-500">{formatBytes(att.size)}</p>
                 </div>
                 <a
-                  href="/api/attachments/{att.id}"
+                  href={resolve(`/api/attachments/${att.id}`)}
                   download={att.filename}
                   class="shrink-0 text-zinc-600 hover:text-zinc-300"
                   title="Download"
@@ -539,13 +561,14 @@
 <!-- Preview lightbox -->
 {#if previewIndex !== null}
   {@const att = previewableAttachments[previewIndex]}
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     role="dialog"
     aria-modal="true"
     aria-label="Attachment preview"
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
-    onclick={(e) => { if (e.target === e.currentTarget) closePreview() }}
+    onclick={(e) => {
+      if (e.target === e.currentTarget) closePreview()
+    }}
     onkeydown={onPreviewKeydown}
     tabindex="-1"
   >
@@ -606,7 +629,7 @@
         <p class="text-sm text-zinc-300">{att.filename}</p>
         <span class="text-xs text-zinc-600">{formatBytes(att.size)}</span>
         <a
-          href="/api/attachments/{att.id}"
+          href={resolve(`/api/attachments/${att.id}`)}
           download={att.filename}
           class="flex items-center gap-1 text-xs text-zinc-400 hover:text-white"
         >
