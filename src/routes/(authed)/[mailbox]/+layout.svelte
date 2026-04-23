@@ -3,6 +3,7 @@
   import { resolve } from '$app/paths'
   import { trackAppLoading } from '$lib/loading.svelte'
   import { pathToSlug } from '$lib/mailbox'
+  import { setSimplifiedModeContext } from '$lib/simplified-mode-context'
   import { page } from '$app/state'
   import { onMount } from 'svelte'
   import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity'
@@ -106,7 +107,7 @@
   let searchTimer: ReturnType<typeof setTimeout> | null = null
 
   // Bulk selection
-  let selectedIds = $state(new SvelteSet<number>())
+  let selectedIds = new SvelteSet<number>()
   const selectionMode = $derived(selectedIds.size > 0)
   let bulkActionPending = $state(false)
 
@@ -386,14 +387,32 @@
     simplifiedModeOverride = true
   }
 
+  async function openSimplifiedMailboxView() {
+    enableSimplifiedMode()
+    await goto(resolve(`/${mailbox}`))
+  }
+
+  setSimplifiedModeContext({ openSimplifiedMode: openSimplifiedMailboxView })
+
   function disableSimplifiedMode() {
     clearSelection()
     simplifiedDragOffsetX = 0
     simplifiedModeOverride = false
   }
 
+  function shouldStartSimplifiedCardDrag(event: PointerEvent) {
+    const target = event.target
+
+    if (!(target instanceof Element)) return true
+
+    return !target.closest(
+      'button, a, input, select, textarea, summary, details, [contenteditable="true"], [role="button"]'
+    )
+  }
+
   function handleSimplifiedCardPointerDown(event: PointerEvent) {
     if (!activeSimplifiedMessage || simplifiedCards.length <= 1) return
+    if (!shouldStartSimplifiedCardDrag(event)) return
 
     const card = event.currentTarget as HTMLElement
     simplifiedDragPointerId = event.pointerId
@@ -451,29 +470,29 @@
 
   function toggleSelection(id: number, index: number, shiftKey = false) {
     const list = isSearchMode ? searchResults : visibleMessages
-    const next = new SvelteSet(selectedIds)
 
     if (shiftKey && lastSelectedIndex !== null) {
       const lo = Math.min(lastSelectedIndex, index)
       const hi = Math.max(lastSelectedIndex, index)
       for (let i = lo; i <= hi; i++) {
-        if (list[i]) next.add(list[i].id)
+        if (list[i]) selectedIds.add(list[i].id)
       }
     } else {
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (selectedIds.has(id)) selectedIds.delete(id)
+      else selectedIds.add(id)
       lastSelectedIndex = index
     }
-
-    selectedIds = next
   }
 
   function selectAll() {
-    selectedIds = new SvelteSet(listMessages.map((m) => m.id))
+    selectedIds.clear()
+    for (const message of listMessages) {
+      selectedIds.add(message.id)
+    }
   }
 
   function clearSelection() {
-    selectedIds = new SvelteSet()
+    selectedIds.clear()
   }
 
   async function bulkAction(action: string) {

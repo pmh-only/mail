@@ -21,6 +21,7 @@
   import { resolve } from '$app/paths'
   import { page } from '$app/state'
   import { trackAppLoading } from '$lib/loading.svelte'
+  import { getSimplifiedModeContext } from '$lib/simplified-mode-context'
   import { onMount } from 'svelte'
   import { openReply, openReplyAll, openForward } from '$lib/composer.svelte'
   import { keyboard, setupKeyboardHandler } from '$lib/keyboard.svelte'
@@ -57,6 +58,8 @@
   let { data }: Props = $props()
 
   const role = $derived(data.mailboxRole)
+  const simplifiedViewEnabled = $derived(Boolean(page.data.simplifiedView))
+  const { openSimplifiedMode } = getSimplifiedModeContext()
 
   let acting = $state(false)
   let sharing = $state(false)
@@ -362,6 +365,15 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-1">
+        {#if simplifiedViewEnabled}
+          <button
+            type="button"
+            onclick={() => void openSimplifiedMode()}
+            class="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6"
+          >
+            Simplified mode
+          </button>
+        {/if}
         <div class="group relative">
           <button
             type="button"
