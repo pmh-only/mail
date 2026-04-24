@@ -19,7 +19,8 @@
     X,
     Layers,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Search
   } from 'lucide-svelte'
   import { openCompose } from '$lib/composer.svelte'
   import { keyboard, setupKeyboardHandler } from '$lib/keyboard.svelte'
@@ -138,6 +139,7 @@
   let isRefreshingList = $state(initialRouteListSeed === null)
   let loadMoreError = $state<string | null>(null)
   let searchQuery = $state('')
+  let mobileSearchOpen = $state(false)
   let activeFilter = $state<'all' | 'unread'>('all')
   let sentinel = $state<HTMLDivElement | null>(null)
   let loadedCount = initialRouteListSeed?.messages.length ?? 0
@@ -781,6 +783,9 @@
   let listWidth = $state(readStorage('mail:listWidth', 440))
   let resizing = $state(false)
   let refreshing = $state(false)
+  let viewportWidth = $state(1024)
+
+  const isDesktop = $derived(viewportWidth >= 768)
 
   async function handleRefresh() {
     if (refreshing) return
@@ -829,7 +834,7 @@
     const isFocused = focusedIndex === index && !isSearchMode
     const isSelected = selectedMessageId === message.id
     return [
-      'block w-full border-b border-white/8 px-4 py-4 text-left transition sm:px-5',
+      'block w-full rounded-2xl bg-white/[0.02] px-4 py-4 text-left transition sm:px-5 md:rounded-none md:bg-transparent md:border-b md:border-white/8',
       isSelected
         ? 'bg-white/6'
         : isFocused
@@ -853,24 +858,34 @@
   <title>{folderDisplayName}</title>
 </svelte:head>
 
+<svelte:window bind:innerWidth={viewportWidth} />
+
 {#if showSimplifiedMailboxView}
   <section class="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-[#0d0d10]">
-    <div class="border-b border-white/8 p-4 sm:p-5">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 class="text-2xl font-semibold tracking-tight text-white">{folderDisplayName}</h1>
-          <p class="mt-1 text-sm text-zinc-500">
-            Swipe through recent mail or open the current card.
-          </p>
-        </div>
-
-        <div class="flex items-center gap-2">
+    <div class="p-4 sm:p-5 md:border-b md:border-white/8">
+      <div class="flex justify-end overflow-x-auto">
+        <div class="inline-flex min-w-max items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onclick={() => (mobileSearchOpen = !mobileSearchOpen)}
+            class={[
+              'rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden',
+              mobileSearchOpen || searchQuery.trim().length > 0 ? 'text-zinc-200' : ''
+            ]}
+            aria-label={mobileSearchOpen || searchQuery.trim().length > 0
+              ? 'Hide search'
+              : 'Show search'}
+            aria-pressed={mobileSearchOpen || searchQuery.trim().length > 0}
+          >
+            <Search size={15} />
+          </button>
           <button
             type="button"
             onclick={disableSimplifiedMode}
-            class="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6"
+            class="rounded-xl border border-transparent bg-white/3 px-2.5 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/6 sm:px-3 sm:text-sm md:border-white/8"
           >
-            Normal mode
+            <span class="sm:hidden">Normal</span>
+            <span class="hidden sm:inline">Normal mode</span>
           </button>
           <button
             type="button"
@@ -894,21 +909,24 @@
           >
             <Layers size={15} />
           </button>
-          <div class="rounded-xl border border-white/8 bg-white/3 p-1 text-sm">
+          <div
+            class="shrink-0 rounded-xl border border-transparent bg-white/3 p-1 text-xs md:border-white/8 md:text-sm"
+          >
             <button
               type="button"
               class={[
-                'rounded-lg px-3 py-1.5 transition',
+                'rounded-lg px-2.5 py-1.5 transition sm:px-3',
                 activeFilter === 'all' ? 'bg-white/8 text-white' : 'text-zinc-400'
               ]}
               onclick={() => (activeFilter = 'all')}
             >
-              All mail
+              <span class="sm:hidden">All</span>
+              <span class="hidden sm:inline">All mail</span>
             </button>
             <button
               type="button"
               class={[
-                'rounded-lg px-3 py-1.5 transition',
+                'rounded-lg px-2.5 py-1.5 transition sm:px-3',
                 activeFilter === 'unread' ? 'bg-white/8 text-white' : 'text-zinc-400'
               ]}
               onclick={() => (activeFilter = 'unread')}
@@ -919,15 +937,21 @@
         </div>
       </div>
 
-      <label class="mt-4 block">
-        <span class="sr-only">Search messages</span>
-        <input
-          bind:value={searchQuery}
-          type="search"
-          placeholder="Search"
-          class="w-full rounded-xl border border-white/8 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-sky-400/60"
-        />
-      </label>
+      <p class="mt-3 hidden text-sm text-zinc-500 sm:block">
+        Swipe through recent mail or open the current card.
+      </p>
+
+      {#if isDesktop || mobileSearchOpen || searchQuery.trim().length > 0}
+        <label class="mt-3 block md:mt-4">
+          <span class="sr-only">Search messages</span>
+          <input
+            bind:value={searchQuery}
+            type="search"
+            placeholder="Search"
+            class="w-full rounded-xl border border-transparent bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-sky-400/60 md:border-white/8"
+          />
+        </label>
+      {/if}
     </div>
 
     <div
@@ -1018,7 +1042,7 @@
               onclick={showPreviousSimplifiedCard}
               disabled={!canShowPreviousCard}
               aria-label="Show previous message"
-              class="rounded-full border border-white/8 bg-white/3 p-3 text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-40"
+              class="rounded-full border border-transparent bg-white/3 p-3 text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
             >
               <ChevronLeft size={18} />
             </button>
@@ -1034,7 +1058,7 @@
               onclick={showNextSimplifiedCard}
               disabled={!canShowNextCard}
               aria-label="Show next message"
-              class="rounded-full border border-white/8 bg-white/3 p-3 text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-40"
+              class="rounded-full border border-transparent bg-white/3 p-3 text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
             >
               <ChevronRight size={18} />
             </button>
@@ -1048,7 +1072,7 @@
             <div bind:this={sentinel} class="h-1 w-full max-w-2xl"></div>
             <button
               type="button"
-              class="rounded-xl border border-white/8 bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60"
+              class="rounded-xl border border-transparent bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60 md:border-white/8"
               onclick={() => void loadMoreMessages()}
               disabled={isLoadingMore}
             >
@@ -1062,26 +1086,41 @@
 {:else}
   <div class="flex h-full" class:cursor-col-resize={resizing} class:select-none={resizing}>
     <section
-      style="width: {listWidth}px; min-width: {listWidth}px"
+      style={isDesktop ? `width: ${listWidth}px; min-width: ${listWidth}px` : undefined}
       class={[
-        'flex flex-col overflow-x-hidden border-r bg-[#0d0d10]',
-        keyboard.panel === 'list' ? 'border-blue-500/40' : 'border-white/8'
+        'flex flex-col overflow-x-hidden bg-[#0d0d10] md:border-r',
+        keyboard.panel === 'list' ? 'md:border-blue-500/40' : 'md:border-white/8',
+        isMailboxRoot ? 'flex min-w-0 flex-1 md:flex-none' : 'hidden md:flex'
       ]}
       aria-label="Message list"
     >
-      <div class="border-b border-white/8 p-4 sm:p-5">
-        <div class="flex items-center justify-between gap-3">
-          <h1 class="text-2xl font-semibold tracking-tight text-white">{folderDisplayName}</h1>
-          <div class="flex items-center gap-2">
+      <div class="p-4 sm:p-5 md:border-b md:border-white/8">
+        <div class="flex justify-end overflow-x-auto">
+          <div class="inline-flex min-w-max items-center gap-1.5 sm:gap-2">
             {#if simplifiedViewEnabled && isMailboxRoot}
               <button
                 type="button"
                 onclick={enableSimplifiedMode}
-                class="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6"
+                class="rounded-xl border border-transparent bg-white/3 px-2.5 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/6 sm:px-3 sm:text-sm md:border-white/8"
               >
-                Simplified mode
+                <span class="sm:hidden">Simple</span>
+                <span class="hidden sm:inline">Simplified mode</span>
               </button>
             {/if}
+            <button
+              type="button"
+              onclick={() => (mobileSearchOpen = !mobileSearchOpen)}
+              class={[
+                'rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden',
+                mobileSearchOpen || searchQuery.trim().length > 0 ? 'text-zinc-200' : ''
+              ]}
+              aria-label={mobileSearchOpen || searchQuery.trim().length > 0
+                ? 'Hide search'
+                : 'Show search'}
+              aria-pressed={mobileSearchOpen || searchQuery.trim().length > 0}
+            >
+              <Search size={15} />
+            </button>
             <button
               type="button"
               onclick={handleRefresh}
@@ -1104,21 +1143,24 @@
             >
               <Layers size={15} />
             </button>
-            <div class="rounded-xl border border-white/8 bg-white/3 p-1 text-sm">
+            <div
+              class="shrink-0 rounded-xl border border-transparent bg-white/3 p-1 text-xs md:border-white/8 md:text-sm"
+            >
               <button
                 type="button"
                 class={[
-                  'rounded-lg px-3 py-1.5 transition',
+                  'rounded-lg px-2.5 py-1.5 transition sm:px-3',
                   activeFilter === 'all' ? 'bg-white/8 text-white' : 'text-zinc-400'
                 ]}
                 onclick={() => (activeFilter = 'all')}
               >
-                All mail
+                <span class="sm:hidden">All</span>
+                <span class="hidden sm:inline">All mail</span>
               </button>
               <button
                 type="button"
                 class={[
-                  'rounded-lg px-3 py-1.5 transition',
+                  'rounded-lg px-2.5 py-1.5 transition sm:px-3',
                   activeFilter === 'unread' ? 'bg-white/8 text-white' : 'text-zinc-400'
                 ]}
                 onclick={() => (activeFilter = 'unread')}
@@ -1129,24 +1171,26 @@
           </div>
         </div>
 
-        <label class="mt-4 block">
-          <span class="sr-only">Search messages</span>
-          <input
-            bind:value={searchQuery}
-            type="search"
-            placeholder="Search"
-            class="w-full rounded-xl border border-white/8 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-sky-400/60"
-          />
-        </label>
+        {#if isDesktop || mobileSearchOpen || searchQuery.trim().length > 0}
+          <label class="mt-3 block md:mt-4">
+            <span class="sr-only">Search messages</span>
+            <input
+              bind:value={searchQuery}
+              type="search"
+              placeholder="Search"
+              class="w-full rounded-xl border border-transparent bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-sky-400/60 md:border-white/8"
+            />
+          </label>
+        {/if}
       </div>
 
       <!-- Bulk action toolbar -->
       {#if selectionMode}
         <div
-          class="flex shrink-0 items-center gap-2 border-b border-white/8 bg-[#0d0d10] px-4 py-2"
+          class="flex shrink-0 flex-wrap items-center gap-2 bg-[#0d0d10] px-4 py-2 md:border-b md:border-white/8"
         >
           <span class="text-xs text-zinc-400">{selectedIds.size} selected</span>
-          <div class="flex flex-1 items-center gap-1">
+          <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <button
               type="button"
               title="Archive"
@@ -1207,7 +1251,95 @@
               <p class="mt-2 text-sm text-zinc-500">No messages matched your search.</p>
             </div>
           {:else}
-            {#each searchResults as message, index (message.id)}
+            <div class="space-y-2 p-2 md:space-y-0 md:p-0">
+              {#each searchResults as message, index (message.id)}
+                <div class="group relative" use:registerRow={{ id: message.id, map: rowEls }}>
+                  <!-- Checkbox -->
+                  <button
+                    type="button"
+                    aria-label={selectedIds.has(message.id) ? 'Deselect' : 'Select'}
+                    onclick={(e) => {
+                      e.stopPropagation()
+                      toggleSelection(message.id, index, e.shiftKey)
+                    }}
+                    class={[
+                      'absolute top-1/2 left-2 z-10 -translate-y-1/2 transition',
+                      selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    ].join(' ')}
+                  >
+                    {#if selectedIds.has(message.id)}
+                      <CheckSquare size={16} class="text-blue-400" />
+                    {:else}
+                      <Square size={16} class="text-zinc-600" />
+                    {/if}
+                  </button>
+                  <button
+                    type="button"
+                    class={[
+                      'block w-full rounded-2xl bg-white/[0.02] py-4 text-left transition md:rounded-none md:border-b md:border-white/8 md:bg-transparent',
+                      selectionMode ? 'pr-4 pl-9 sm:pr-5 sm:pl-10' : 'px-4 sm:px-5',
+                      selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
+                    ].join(' ')}
+                    onclick={() => selectMessage(message)}
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2">
+                          <p
+                            class={[
+                              'truncate text-sm',
+                              isUnread(message.flags) ? 'font-semibold text-white' : 'text-zinc-300'
+                            ]}
+                          >
+                            {senderName(message.from)}
+                          </p>
+                          {#if isUnread(message.flags)}
+                            <span class="h-2 w-2 rounded-full bg-sky-400"></span>
+                          {/if}
+                        </div>
+
+                        <p class="mt-1 truncate text-sm font-medium text-zinc-200">
+                          {subjectLabel(message.subject)}
+                        </p>
+                      </div>
+
+                      <div class="flex shrink-0 flex-col items-end gap-1">
+                        <p class="text-xs text-zinc-500">
+                          {formatRelativeTime(message.receivedAt)}
+                        </p>
+                        {#if message.mailbox}
+                          <p class="rounded bg-white/6 px-1.5 py-0.5 text-xs text-zinc-400">
+                            {mailboxLabel(message.mailbox)}
+                          </p>
+                        {/if}
+                      </div>
+                    </div>
+
+                    <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
+                      {previewLabel(message.preview)}
+                    </p>
+                  </button>
+                </div>
+              {/each}
+            </div>
+            <div class="px-4 py-5 text-center text-sm text-zinc-500 sm:px-5">
+              {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
+            </div>
+          {/if}
+        {:else if isRefreshingList && messages.length === 0}
+          <div class="space-y-3 p-4 sm:p-5">
+            {#each Array.from({ length: 6 }) as _, index (`sidebar-skeleton-${index}`)}
+              <div class="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                <div class="h-3 w-28 animate-pulse rounded bg-white/8"></div>
+                <div class="mt-3 h-4 w-3/4 animate-pulse rounded bg-white/10"></div>
+                <div class="mt-3 h-3 w-full animate-pulse rounded bg-white/8"></div>
+                <div class="mt-2 h-3 w-2/3 animate-pulse rounded bg-white/8"></div>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <div class="space-y-2 p-2 md:space-y-0 md:p-0">
+            {#each visibleMessages as message, index (message.id)}
               <div class="group relative" use:registerRow={{ id: message.id, map: rowEls }}>
                 <!-- Checkbox -->
                 <button
@@ -1230,14 +1362,15 @@
                 </button>
                 <button
                   type="button"
-                  class={[
-                    'block w-full border-b border-white/8 py-4 text-left transition',
-                    selectionMode ? 'pr-4 pl-9 sm:pr-5 sm:pl-10' : 'px-4 sm:px-5',
-                    selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
-                  ].join(' ')}
+                  class={messageRowClass(message, index)}
                   onclick={() => selectMessage(message)}
                 >
-                  <div class="flex items-start justify-between gap-3">
+                  <div
+                    class={[
+                      'flex items-start justify-between gap-3',
+                      selectionMode ? 'pl-5' : ''
+                    ].join(' ')}
+                  >
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2">
                         <p
@@ -1251,6 +1384,13 @@
                         {#if isUnread(message.flags)}
                           <span class="h-2 w-2 rounded-full bg-sky-400"></span>
                         {/if}
+                        {#if threadedMode && message.threadCount && message.threadCount > 1}
+                          <span
+                            class="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-xs text-zinc-400"
+                          >
+                            {message.threadCount}
+                          </span>
+                        {/if}
                       </div>
 
                       <p class="mt-1 truncate text-sm font-medium text-zinc-200">
@@ -1258,118 +1398,28 @@
                       </p>
                     </div>
 
-                    <div class="flex shrink-0 flex-col items-end gap-1">
-                      <p class="text-xs text-zinc-500">{formatRelativeTime(message.receivedAt)}</p>
-                      {#if message.mailbox}
-                        <p class="rounded bg-white/6 px-1.5 py-0.5 text-xs text-zinc-400">
-                          {mailboxLabel(message.mailbox)}
-                        </p>
-                      {/if}
-                    </div>
+                    <p class="shrink-0 text-xs text-zinc-500">
+                      {formatRelativeTime(message.receivedAt)}
+                    </p>
                   </div>
 
-                  <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
+                  <p
+                    class={[
+                      'mt-3 line-clamp-2 text-sm leading-6 text-zinc-400',
+                      selectionMode ? 'pl-5' : ''
+                    ].join(' ')}
+                  >
                     {previewLabel(message.preview)}
                   </p>
                 </button>
               </div>
-            {/each}
-            <div class="px-4 py-5 text-center text-sm text-zinc-500 sm:px-5">
-              {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
-            </div>
-          {/if}
-        {:else if isRefreshingList && messages.length === 0}
-          <div class="space-y-3 p-4 sm:p-5">
-            {#each Array.from({ length: 6 }) as _, index (`sidebar-skeleton-${index}`)}
-              <div class="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                <div class="h-3 w-28 animate-pulse rounded bg-white/8"></div>
-                <div class="mt-3 h-4 w-3/4 animate-pulse rounded bg-white/10"></div>
-                <div class="mt-3 h-3 w-full animate-pulse rounded bg-white/8"></div>
-                <div class="mt-2 h-3 w-2/3 animate-pulse rounded bg-white/8"></div>
+            {:else}
+              <div class="p-8 text-center">
+                <p class="text-lg font-semibold text-white">No messages found</p>
+                <p class="mt-2 text-sm text-zinc-500">Wait for the next sync.</p>
               </div>
             {/each}
           </div>
-        {:else}
-          {#each visibleMessages as message, index (message.id)}
-            <div class="group relative" use:registerRow={{ id: message.id, map: rowEls }}>
-              <!-- Checkbox -->
-              <button
-                type="button"
-                aria-label={selectedIds.has(message.id) ? 'Deselect' : 'Select'}
-                onclick={(e) => {
-                  e.stopPropagation()
-                  toggleSelection(message.id, index, e.shiftKey)
-                }}
-                class={[
-                  'absolute top-1/2 left-2 z-10 -translate-y-1/2 transition',
-                  selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                ].join(' ')}
-              >
-                {#if selectedIds.has(message.id)}
-                  <CheckSquare size={16} class="text-blue-400" />
-                {:else}
-                  <Square size={16} class="text-zinc-600" />
-                {/if}
-              </button>
-              <button
-                type="button"
-                class={messageRowClass(message, index)}
-                onclick={() => selectMessage(message)}
-              >
-                <div
-                  class={[
-                    'flex items-start justify-between gap-3',
-                    selectionMode ? 'pl-5' : ''
-                  ].join(' ')}
-                >
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2">
-                      <p
-                        class={[
-                          'truncate text-sm',
-                          isUnread(message.flags) ? 'font-semibold text-white' : 'text-zinc-300'
-                        ]}
-                      >
-                        {senderName(message.from)}
-                      </p>
-                      {#if isUnread(message.flags)}
-                        <span class="h-2 w-2 rounded-full bg-sky-400"></span>
-                      {/if}
-                      {#if threadedMode && message.threadCount && message.threadCount > 1}
-                        <span
-                          class="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-xs text-zinc-400"
-                        >
-                          {message.threadCount}
-                        </span>
-                      {/if}
-                    </div>
-
-                    <p class="mt-1 truncate text-sm font-medium text-zinc-200">
-                      {subjectLabel(message.subject)}
-                    </p>
-                  </div>
-
-                  <p class="shrink-0 text-xs text-zinc-500">
-                    {formatRelativeTime(message.receivedAt)}
-                  </p>
-                </div>
-
-                <p
-                  class={[
-                    'mt-3 line-clamp-2 text-sm leading-6 text-zinc-400',
-                    selectionMode ? 'pl-5' : ''
-                  ].join(' ')}
-                >
-                  {previewLabel(message.preview)}
-                </p>
-              </button>
-            </div>
-          {:else}
-            <div class="p-8 text-center">
-              <p class="text-lg font-semibold text-white">No messages found</p>
-              <p class="mt-2 text-sm text-zinc-500">Wait for the next sync.</p>
-            </div>
-          {/each}
 
           {#if visibleMessages.length > 0}
             <div class="px-4 py-5 sm:px-5">
@@ -1382,7 +1432,7 @@
                 <div class="flex justify-center">
                   <button
                     type="button"
-                    class="rounded-xl border border-white/8 bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60"
+                    class="rounded-xl border border-transparent bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60 md:border-white/8"
                     onclick={() => void loadMoreMessages()}
                     disabled={isLoadingMore}
                   >
@@ -1403,7 +1453,7 @@
       role="separator"
       aria-orientation="vertical"
       tabindex="-1"
-      class="group relative z-10 w-2 shrink-0 cursor-col-resize"
+      class="group relative z-10 hidden w-2 shrink-0 cursor-col-resize md:block"
       onpointerdown={startResize}
     >
       <div
@@ -1411,7 +1461,12 @@
       ></div>
     </div>
 
-    <section class="min-w-0 flex-1 overflow-hidden bg-[#0b0b0e]">
+    <section
+      class={[
+        'min-w-0 overflow-hidden bg-[#0b0b0e]',
+        isMailboxRoot ? 'hidden flex-1 md:block' : 'flex-1'
+      ]}
+    >
       {@render children()}
     </section>
   </div>

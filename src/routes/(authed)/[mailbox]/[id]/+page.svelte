@@ -257,9 +257,17 @@
 </svelte:head>
 
 <div class="flex h-full flex-col">
-  <div class="border-b border-white/8 p-4 sm:p-5">
+  <div class="p-4 sm:p-5 md:border-b md:border-white/8">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-1">
+        <button
+          type="button"
+          onclick={() => goto(resolve(`/${page.params.mailbox}`))}
+          class="inline-flex items-center gap-2 rounded-lg border border-transparent bg-white/3 px-3 py-2 text-sm text-zinc-200 transition hover:bg-white/6 md:hidden"
+        >
+          <ChevronLeft size={16} />
+          Back to list
+        </button>
         {#if role === 'archive'}
           <div class="group relative">
             <button
@@ -267,7 +275,7 @@
               aria-label="Move to inbox"
               disabled={acting}
               onclick={() => performAction('inbox')}
-              class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
             >
               <Archive size={16} />
             </button>
@@ -284,7 +292,7 @@
               aria-label="Restore"
               disabled={acting}
               onclick={() => performAction('inbox')}
-              class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
             >
               <Trash2 size={16} />
             </button>
@@ -301,7 +309,7 @@
               aria-label="Not spam"
               disabled={acting}
               onclick={() => performAction('inbox')}
-              class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
             >
               <ShieldAlert size={16} />
             </button>
@@ -318,7 +326,7 @@
               aria-label="Archive"
               disabled={acting}
               onclick={() => performAction('archive')}
-              class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
             >
               <Archive size={16} />
             </button>
@@ -334,7 +342,7 @@
               aria-label="Delete"
               disabled={acting}
               onclick={() => performAction('trash')}
-              class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40"
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
             >
               <Trash2 size={16} />
             </button>
@@ -350,7 +358,7 @@
               aria-label="Move to spam"
               disabled={acting}
               onclick={() => performAction('spam')}
-              class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
             >
               <ShieldAlert size={16} />
             </button>
@@ -363,12 +371,12 @@
         {/if}
       </div>
 
-      <div class="flex flex-wrap items-center gap-1">
+      <div class="flex flex-wrap items-center gap-1 sm:justify-end">
         {#if simplifiedViewEnabled}
           <button
             type="button"
             onclick={() => void openSimplifiedMode()}
-            class="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6"
+            class="rounded-xl border border-transparent bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 md:border-white/8"
           >
             Simplified mode
           </button>
@@ -378,7 +386,7 @@
             type="button"
             aria-label="Reply"
             onclick={() => openReply(message)}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
           >
             <Reply size={16} />
           </button>
@@ -393,7 +401,7 @@
             type="button"
             aria-label="Reply all"
             onclick={() => openReplyAll(message)}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
           >
             <ReplyAll size={16} />
           </button>
@@ -408,7 +416,7 @@
             type="button"
             aria-label="Forward"
             onclick={() => openForward(message)}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
           >
             <Forward size={16} />
           </button>
@@ -424,7 +432,7 @@
             aria-label="Share"
             disabled={sharing}
             onclick={shareMessage}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
           >
             {#if shareCopied}
               <Check size={16} class="text-emerald-400" />
@@ -442,8 +450,8 @@
     </div>
   </div>
 
-  <div class="border-b border-white/8 p-4 sm:p-5">
-    <div class="flex items-start justify-between gap-4">
+  <div class="p-4 sm:p-5 md:border-b md:border-white/8">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div class="flex min-w-0 gap-3">
         <div
           class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/8 text-sm font-semibold text-zinc-200"
@@ -458,13 +466,18 @@
           <p class="mt-1 truncate text-sm font-medium text-zinc-200">
             {senderName(message.from)}
           </p>
-          <p class="mt-1 text-sm text-zinc-500">
+          <div class="mt-1 flex min-w-0 items-center gap-2 text-xs text-zinc-500 sm:hidden">
+            <span class="shrink-0">{formatFullDate(message.receivedAt)}</span>
+            <span class="h-1 w-1 shrink-0 rounded-full bg-zinc-700"></span>
+            <span class="truncate">Reply-To: {senderLabel(message.from)}</span>
+          </div>
+          <p class="mt-1 hidden text-sm text-zinc-500 sm:block">
             Reply-To: {senderLabel(message.from)}
           </p>
         </div>
       </div>
 
-      <p class="shrink-0 text-sm text-zinc-500">
+      <p class="hidden text-sm text-zinc-500 sm:block sm:shrink-0 sm:text-right">
         {formatFullDate(message.receivedAt)}
       </p>
     </div>
@@ -487,7 +500,7 @@
         }}
       ></iframe>
     {:else}
-      <div class="space-y-6 p-4 text-[15px] leading-8 text-zinc-200">
+      <div class="space-y-5 p-4 text-[15px] leading-7 text-zinc-200 sm:p-5 sm:leading-8">
         {#each bodyText(message)
           .split(/\n{2,}/)
           .filter(Boolean) as paragraph, index (`${message.id}-${index}`)}
@@ -497,7 +510,7 @@
     {/if}
 
     {#if attachments.length > 0}
-      <div class="border-t border-white/8 p-4 sm:p-5">
+      <div class="p-4 sm:p-5 md:border-t md:border-white/8">
         <div class="mb-3 flex items-center gap-2">
           <Paperclip size={14} class="text-zinc-500" />
           <span class="text-xs font-semibold tracking-wide text-zinc-500 uppercase">
@@ -507,13 +520,13 @@
         <div class="flex flex-wrap gap-3">
           {#each attachments as att (att.id)}
             <div
-              class="group relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/3 transition hover:border-white/20"
+              class="group relative flex w-full flex-col overflow-hidden rounded-xl border border-transparent bg-white/3 transition hover:border-white/20 sm:w-auto md:border-white/10"
             >
               {#if isImage(att.contentType)}
                 <button
                   type="button"
                   onclick={() => openPreview(att)}
-                  class="block h-32 w-40 overflow-hidden focus:outline-none"
+                  class="block h-40 w-full overflow-hidden focus:outline-none sm:h-32 sm:w-40"
                   title="Click to preview"
                 >
                   <img
@@ -526,7 +539,7 @@
                 <button
                   type="button"
                   onclick={() => openPreview(att)}
-                  class="flex h-32 w-full min-w-40 flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none"
+                  class="flex h-40 w-full min-w-0 flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none sm:h-32 sm:min-w-40"
                   title="Click to preview"
                 >
                   <FileText size={36} />
@@ -536,7 +549,7 @@
                 <button
                   type="button"
                   onclick={() => openPreview(att)}
-                  class="flex h-32 w-40 flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none"
+                  class="flex h-40 w-full flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none sm:h-32 sm:w-40"
                   title="Click to preview"
                 >
                   <FileVideo size={36} />
@@ -545,12 +558,12 @@
               {:else}
                 {@const Icon = attachmentIcon(att.contentType)}
                 <div
-                  class="flex h-32 w-40 flex-col items-center justify-center gap-2 text-zinc-600"
+                  class="flex h-40 w-full flex-col items-center justify-center gap-2 text-zinc-600 sm:h-32 sm:w-40"
                 >
                   <Icon size={36} />
                 </div>
               {/if}
-              <div class="flex items-center gap-2 border-t border-white/8 px-2.5 py-2">
+              <div class="flex items-center gap-2 px-2.5 py-2 md:border-t md:border-white/8">
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-xs font-medium text-zinc-200">{att.filename}</p>
                   <p class="text-xs text-zinc-500">{formatBytes(att.size)}</p>
@@ -639,7 +652,7 @@
           class="max-h-[80vh] max-w-[85vw] rounded-lg shadow-2xl"
         ></video>
       {/if}
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center justify-center gap-3 px-4 text-center sm:px-0">
         <p class="text-sm text-zinc-300">{att.filename}</p>
         <span class="text-xs text-zinc-600">{formatBytes(att.size)}</span>
         <a

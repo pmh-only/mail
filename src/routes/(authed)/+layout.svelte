@@ -14,13 +14,15 @@
     Pencil,
     Settings,
     BookOpen,
-    RefreshCw
+    RefreshCw,
+    PanelLeft,
+    X
   } from 'lucide-svelte'
   import { resolve } from '$app/paths'
   import { pathToSlug } from '$lib/mailbox'
   import Composer from '$lib/components/Composer.svelte'
   import { openCompose, openDraft, type DraftRow } from '$lib/composer.svelte'
-  import { goto } from '$app/navigation'
+  import { afterNavigate, goto } from '$app/navigation'
   import { keyboard } from '$lib/keyboard.svelte'
 
   type ImapMailbox = { path: string; name: string; delimiter: string }
@@ -102,6 +104,13 @@
   let drafts = $state<DraftListRow[]>([])
   let draftsError = $state<string | null>(null)
   let unreadCount = $state(0)
+  let mobileNavOpen = $state(false)
+  let viewportWidth = $state(1024)
+
+  const isMobile = $derived(viewportWidth < 768)
+  const activeMailboxLabel = $derived(
+    mailboxes.find((candidate) => candidate.slug === mailbox)?.label ?? 'Mail'
+  )
 
   function formatRelative(isoString: string): string {
     const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000)
@@ -235,6 +244,14 @@
 
   let mailboxNavEl = $state<HTMLElement | null>(null)
 
+  afterNavigate(() => {
+    mobileNavOpen = false
+  })
+
+  $effect(() => {
+    if (!isMobile && mobileNavOpen) mobileNavOpen = false
+  })
+
   // Keep keyboard state in sync with the mailboxes list
   $effect(() => {
     keyboard.mailboxCount = mailboxes.length
@@ -365,20 +382,54 @@
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 
+<svelte:window bind:innerWidth={viewportWidth} />
+
 <div
   class="flex h-screen overflow-hidden bg-[#0d0d10] text-zinc-100"
   class:cursor-col-resize={resizing}
   class:select-none={resizing}
 >
+  {#if isMobile && mobileNavOpen}
+    <button
+      type="button"
+      class="absolute inset-0 z-30 bg-black/60 backdrop-blur-[1px] md:hidden"
+      aria-label="Close navigation"
+      onclick={() => (mobileNavOpen = false)}
+    ></button>
+  {/if}
+
   <aside
-    style="width: {sidebarWidth}px; min-width: {sidebarWidth}px"
-    class="flex flex-col bg-[#0a0a0d]"
+    style={isMobile ? undefined : `width: ${sidebarWidth}px; min-width: ${sidebarWidth}px`}
+    class={[
+      'flex flex-col bg-[#0a0a0d]',
+      isMobile
+        ? [
+            'absolute inset-y-0 left-0 z-40 w-[85vw] max-w-xs transition-transform duration-200 ease-out',
+            mobileNavOpen ? 'translate-x-0' : '-translate-x-full'
+          ]
+        : 'relative'
+    ]}
   >
     <div class="flex flex-1 flex-col overflow-hidden p-3 sm:p-4">
+      <div class="mb-3 flex items-center justify-between px-1 md:hidden">
+        <p class="text-sm font-semibold text-zinc-300">Navigation</p>
+        <button
+          type="button"
+          class="rounded-lg p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+          aria-label="Close navigation"
+          onclick={() => (mobileNavOpen = false)}
+        >
+          <X size={16} />
+        </button>
+      </div>
+
       <div class="mb-3 px-1">
         <button
           type="button"
-          onclick={() => void openCompose()}
+          onclick={() => {
+            mobileNavOpen = false
+            void openCompose()
+          }}
           class="flex w-full items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-500"
         >
           <Pencil size={14} />
@@ -423,6 +474,7 @@
             href={resolve(`/${mb.slug}`)}
             data-mailbox-item
             onclick={() => {
+              mobileNavOpen = false
               keyboard.panel = 'list'
             }}
             class={[
@@ -444,6 +496,7 @@
       <div class="mt-auto space-y-1 pt-4">
         <a
           href={resolve('/settings')}
+          onclick={() => (mobileNavOpen = false)}
           class={[
             'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition',
             page.url.pathname === '/settings'
@@ -456,6 +509,7 @@
         </a>
         <a
           href={resolve('/manual')}
+          onclick={() => (mobileNavOpen = false)}
           class={[
             'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition',
             page.url.pathname === '/manual'
@@ -539,7 +593,7 @@
     role="separator"
     aria-orientation="vertical"
     tabindex="-1"
-    class="group relative z-10 w-2 shrink-0 cursor-col-resize"
+    class="group relative z-10 hidden w-2 shrink-0 cursor-col-resize md:block"
     onpointerdown={startResize}
   >
     <div
@@ -548,7 +602,47 @@
   </div>
 
   <div class="min-w-0 flex-1 overflow-hidden">
-    {@render children()}
+    <div class="flex h-full min-h-0 flex-col">
+      <div class="flex items-center gap-3 bg-[#0b0b0e] px-4 py-3 md:hidden">
+        <button
+          type="button"
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-200 transition hover:bg-white/6"
+          aria-label="Open navigation"
+          onclick={() => (mobileNavOpen = true)}
+        >
+          <PanelLeft size={16} />
+        </button>
+
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-medium text-white">{activeMailboxLabel}</p>
+          {#if sync}
+            <p class="truncate text-xs text-zinc-500">
+              {#if !sync.configured}
+                Mail not configured
+              {:else if sync.hasError}
+                Sync error
+              {:else if sync.syncing}
+                Syncing…
+              {:else}
+                {sync.lastSyncedAt ? `Synced ${formatRelative(sync.lastSyncedAt)}` : 'Never synced'}
+              {/if}
+            </p>
+          {/if}
+        </div>
+
+        <button
+          type="button"
+          class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-500"
+          onclick={() => void openCompose()}
+        >
+          Compose
+        </button>
+      </div>
+
+      <div class="min-h-0 flex-1 overflow-hidden">
+        {@render children()}
+      </div>
+    </div>
   </div>
 </div>
 

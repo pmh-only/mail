@@ -6,6 +6,7 @@
     Reply,
     ReplyAll,
     ChevronDown,
+    ChevronLeft,
     Paperclip,
     Download,
     FileImage
@@ -180,16 +181,24 @@
 
 <div class="flex h-full flex-col overflow-hidden">
   <!-- Thread header -->
-  <div class="border-b border-white/8 p-4 sm:p-5">
+  <div class="p-4 sm:p-5 md:border-b md:border-white/8">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-1">
+        <button
+          type="button"
+          onclick={() => goto(resolve(`/${page.params.mailbox}`))}
+          class="inline-flex items-center gap-2 rounded-lg border border-transparent bg-white/3 px-3 py-2 text-sm text-zinc-200 transition hover:bg-white/6 md:hidden"
+        >
+          <ChevronLeft size={16} />
+          Back to list
+        </button>
         {#if role === 'archive' || role === 'trash' || role === 'spam'}
           <button
             type="button"
             aria-label="Move to inbox"
             disabled={acting}
             onclick={() => performThreadAction('inbox')}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
           >
             <Archive size={16} />
           </button>
@@ -199,7 +208,7 @@
             aria-label="Archive thread"
             disabled={acting}
             onclick={() => performThreadAction('archive')}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
           >
             <Archive size={16} />
           </button>
@@ -208,7 +217,7 @@
             aria-label="Trash thread"
             disabled={acting}
             onclick={() => performThreadAction('trash')}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
           >
             <Trash2 size={16} />
           </button>
@@ -217,19 +226,19 @@
             aria-label="Mark as spam"
             disabled={acting}
             onclick={() => performThreadAction('spam')}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
           >
             <ShieldAlert size={16} />
           </button>
         {/if}
       </div>
 
-      <div class="flex items-center gap-1">
+      <div class="flex flex-wrap items-center gap-1 sm:justify-end">
         {#if simplifiedViewEnabled}
           <button
             type="button"
             onclick={() => void openSimplifiedMode()}
-            class="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6"
+            class="rounded-xl border border-transparent bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 md:border-white/8"
           >
             Simplified mode
           </button>
@@ -239,7 +248,7 @@
             type="button"
             aria-label="Reply"
             onclick={() => openReply(lastMessage)}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
           >
             <Reply size={16} />
           </button>
@@ -247,7 +256,7 @@
             type="button"
             aria-label="Reply all"
             onclick={() => openReplyAll(lastMessage)}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
           >
             <ReplyAll size={16} />
           </button>
@@ -263,13 +272,18 @@
 
   <!-- Thread messages accordion -->
   <div class="flex-1 overflow-y-auto">
-    <div class="divide-y divide-white/8">
+    <div class="space-y-2 p-2 md:space-y-0 md:divide-y md:divide-white/8 md:p-0">
       {#each messages as msg (msg.id)}
         {@const isExpanded = expandedIds.has(msg.id)}
         {@const msgAttachments = getMessageAttachments(msg.messageId)}
         {@const srcdoc = msg.htmlContent ? injectScrollbarStyle(msg.htmlContent) : null}
 
-        <div class="transition-colors {isExpanded ? 'bg-white/2' : 'hover:bg-white/2'}">
+        <div
+          class={[
+            'rounded-2xl bg-white/[0.02] transition-colors md:rounded-none md:bg-transparent',
+            isExpanded ? 'bg-white/4 md:bg-white/2' : 'hover:bg-white/4 md:hover:bg-white/2'
+          ].join(' ')}
+        >
           <!-- Collapsed header / toggle -->
           <button
             type="button"
@@ -318,7 +332,7 @@
           <!-- Expanded content -->
           {#if isExpanded}
             <div class="px-4 pb-4 sm:px-5">
-              <p class="mb-3 text-xs text-zinc-500">
+              <p class="mb-3 text-xs break-words text-zinc-500">
                 To: {msg.to || '—'}
               </p>
 
@@ -338,7 +352,8 @@
                   }}
                 ></iframe>
               {:else}
-                <pre class="font-sans text-sm leading-relaxed whitespace-pre-wrap text-zinc-300">
+                <pre
+                  class="overflow-x-auto font-sans text-sm leading-relaxed whitespace-pre-wrap text-zinc-300">
                   {msg.textContent || msg.preview || 'No message body available.'}
                 </pre>
               {/if}
@@ -351,7 +366,7 @@
                   <div class="flex flex-wrap gap-2">
                     {#each msgAttachments as att (att.id)}
                       <div
-                        class="flex items-center gap-2 rounded-lg border border-white/8 bg-white/3 px-3 py-2"
+                        class="flex items-center gap-2 rounded-lg border border-transparent bg-white/3 px-3 py-2 md:border-white/8"
                       >
                         {#if isImage(att.contentType)}
                           <FileImage size={14} class="shrink-0 text-zinc-400" />
@@ -379,18 +394,18 @@
               {/if}
 
               <!-- Per-message reply -->
-              <div class="mt-4 flex gap-2">
+              <div class="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onclick={() => openReply(msg)}
-                  class="flex items-center gap-1.5 rounded-lg border border-white/8 bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+                  class="flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
                 >
                   <Reply size={13} /> Reply
                 </button>
                 <button
                   type="button"
                   onclick={() => openReplyAll(msg)}
-                  class="flex items-center gap-1.5 rounded-lg border border-white/8 bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+                  class="flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
                 >
                   <ReplyAll size={13} /> Reply all
                 </button>
