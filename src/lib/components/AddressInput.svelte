@@ -116,9 +116,9 @@
   }
 </script>
 
-<div class="relative flex flex-wrap items-center gap-1 rounded-none bg-transparent py-1.5">
+<div class="relative flex w-full flex-wrap items-start gap-1 rounded-none bg-transparent py-1.5">
   {#if label}
-    <span class="w-10 shrink-0 text-xs font-medium text-zinc-500">{label}</span>
+    <span class="w-full shrink-0 pt-1 text-xs font-medium text-zinc-500 sm:w-10">{label}</span>
   {/if}
 
   {#each pills as pill, i (`${pill}-${i}`)}
@@ -150,7 +150,7 @@
     aria-expanded={showDropdown}
     aria-controls={listboxId}
     aria-haspopup="listbox"
-    class="min-w-[120px] flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+    class="min-w-[120px] flex-1 basis-[180px] bg-transparent py-1 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
   />
 
   {#if showDropdown && suggestions.length > 0}

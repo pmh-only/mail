@@ -76,14 +76,14 @@
 </svelte:head>
 
 <div class="flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
-  <div class="mx-auto flex w-full max-w-3xl grow flex-col p-4">
+  <div class="mx-auto flex w-full max-w-3xl grow flex-col p-4 sm:p-6">
     <!-- Header -->
     <div class="border-white/8 pb-6">
       <h1 class="text-2xl font-semibold text-white">
         {data.subject || '(no subject)'}
       </h1>
 
-      <div class="mt-4 flex items-center gap-3">
+      <div class="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
         <div
           class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/8 text-sm font-semibold text-zinc-200"
         >
@@ -95,7 +95,7 @@
           <p class="text-sm text-zinc-500">{data.from}</p>
         </div>
 
-        <p class="ml-auto shrink-0 text-sm text-zinc-500">
+        <p class="text-sm text-zinc-500 sm:ml-auto sm:shrink-0 sm:text-right">
           {formatFullDate(data.receivedAt)}
         </p>
       </div>

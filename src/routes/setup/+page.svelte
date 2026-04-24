@@ -20,7 +20,7 @@
 <svelte:head><title>Setup</title></svelte:head>
 
 <div class="min-h-screen bg-[#0d0d10] px-4 py-12">
-  <div class="mx-auto w-full max-w-lg">
+  <div class="mx-auto w-full max-w-2xl">
     <!-- Header -->
     <div class="mb-8">
       <h1 class="text-2xl font-semibold text-white">First-time setup</h1>
@@ -60,7 +60,7 @@
               class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
             />
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-xs text-zinc-400" for="clientId"
                 >Client ID <span class="text-red-400">*</span></label
@@ -107,7 +107,7 @@
           >
         </h2>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div class="col-span-2 sm:col-span-1">
             <label class="mb-1 block text-xs text-zinc-400" for="imapHost">Host</label>
             <input
@@ -210,7 +210,7 @@
           >
         </h2>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div class="col-span-2 sm:col-span-1">
             <label class="mb-1 block text-xs text-zinc-400" for="smtpHost">Host</label>
             <input

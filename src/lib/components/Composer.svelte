@@ -57,6 +57,10 @@
   let editorTick = $state(0) // increments on editor transactions to force re-render
   let showDiscardDialog = $state(false)
   let attachmentInput = $state<HTMLInputElement | undefined>(undefined)
+  let viewportWidth = $state(1024)
+
+  const isMobile = $derived(viewportWidth < 640)
+  const useFullscreenLayout = $derived(composer.fullscreen || (isMobile && !composer.minimized))
 
   // Create the editor once when the element is first available
   $effect(() => {
@@ -370,16 +374,20 @@
   }
 </script>
 
+<svelte:window bind:innerWidth={viewportWidth} />
+
 <div
   class={[
     'fixed z-50 flex flex-col overflow-hidden border border-white/10 bg-[#18181c] shadow-2xl',
-    composer.fullscreen
+    useFullscreenLayout
       ? 'inset-0 rounded-none sm:inset-4 sm:rounded-xl'
-      : 'right-4 bottom-0 rounded-t-xl'
+      : composer.minimized
+        ? 'right-0 bottom-0 left-0 rounded-t-xl sm:right-4 sm:left-auto'
+        : 'inset-x-0 top-0 bottom-0 rounded-none sm:top-auto sm:right-4 sm:left-auto sm:rounded-t-xl'
   ]}
-  style:width={composer.fullscreen ? null : '580px'}
-  style:height={composer.fullscreen ? null : '520px'}
-  style:max-height={composer.fullscreen ? null : '90vh'}
+  style:width={useFullscreenLayout || isMobile ? null : '580px'}
+  style:height={useFullscreenLayout || isMobile ? null : '520px'}
+  style:max-height={useFullscreenLayout || isMobile ? null : '90vh'}
   style:display={composer.open ? 'flex' : 'none'}
 >
   <!-- Title bar -->
@@ -390,7 +398,7 @@
         type="button"
         aria-label={composer.fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         onclick={toggleFullscreen}
-        class="rounded p-1 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+        class="hidden rounded p-1 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 sm:block"
       >
         {#if composer.fullscreen}
           <Minimize2 size={14} />
@@ -425,14 +433,14 @@
     <!-- Fields -->
     <div class="shrink-0 border-b border-white/8">
       <!-- To -->
-      <div class="flex items-center border-b border-white/8 px-4">
+      <div class="flex flex-wrap items-start gap-2 border-b border-white/8 px-4 py-2">
         <AddressInput
           id="composer-to"
           label="To"
           bind:value={composer.to}
           placeholder="recipients@example.com"
         />
-        <div class="flex gap-1 text-xs text-zinc-500">
+        <div class="ml-auto flex shrink-0 gap-1 text-xs text-zinc-500">
           {#if !showCc}
             <button type="button" onclick={() => (showCc = true)} class="px-1 hover:text-zinc-300"
               >Cc</button
@@ -447,7 +455,7 @@
       </div>
 
       {#if showCc}
-        <div class="flex items-center border-b border-white/8 px-4">
+        <div class="flex flex-wrap items-start gap-2 border-b border-white/8 px-4 py-2">
           <AddressInput
             id="composer-cc"
             label="Cc"
@@ -458,7 +466,7 @@
       {/if}
 
       {#if showBcc}
-        <div class="flex items-center border-b border-white/8 px-4">
+        <div class="flex flex-wrap items-start gap-2 border-b border-white/8 px-4 py-2">
           <AddressInput
             id="composer-bcc"
             label="Bcc"
@@ -742,9 +750,9 @@
 
     <!-- Footer -->
     <div
-      class="flex shrink-0 items-center justify-between border-t border-white/8 bg-[#16161a] px-4 py-2.5"
+      class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-white/8 bg-[#16161a] px-4 py-2.5"
     >
-      <div class="flex items-center gap-2">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
         <input
           bind:this={attachmentInput}
           type="file"
@@ -786,7 +794,7 @@
       class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-[#18181c]/95"
     >
       <p class="text-sm text-zinc-300">Save this draft?</p>
-      <div class="flex gap-3">
+      <div class="flex flex-wrap justify-center gap-3">
         <button
           type="button"
           onclick={saveDraftAndClose}

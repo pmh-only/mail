@@ -6,7 +6,7 @@
   <title>Manual · Mail</title>
 </svelte:head>
 
-<div class="h-full overflow-y-auto p-6 lg:p-10">
+<div class="h-full overflow-y-auto p-4 sm:p-6 lg:p-10">
   <div class="mx-auto max-w-2xl space-y-12">
     <div>
       <h1 class="text-xl font-semibold text-white">Manual</h1>
@@ -26,7 +26,7 @@
           <div class="overflow-hidden rounded-xl border border-white/8">
             {#each [{ keys: ['←', '→'], desc: 'Switch focus between mailbox sidebar, mail list, and back' }, { keys: ['↑', '↓'], desc: 'Move selection up / down in the focused panel' }, { keys: ['j', 'k'], desc: 'Move selection down / up in the mail list' }, { keys: ['Enter'], desc: 'Open focused message' }, { keys: ['u', 'Esc'], desc: 'Go back to mail list from a message' }] as row, rowIndex (rowIndex)}
               <div
-                class="flex items-center gap-4 border-b border-white/6 px-4 py-2.5 last:border-b-0"
+                class="flex flex-col items-start gap-3 border-b border-white/6 px-4 py-2.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4"
               >
                 <div class="flex shrink-0 gap-1.5">
                   {#each row.keys as k, keyIndex (keyIndex)}
@@ -48,7 +48,7 @@
           <div class="overflow-hidden rounded-xl border border-white/8">
             {#each [{ keys: ['x'], desc: 'Toggle selection on the focused message' }, { keys: ['* a'], desc: 'Select all visible messages' }, { keys: ['* n'], desc: 'Clear selection' }, { keys: ['e'], desc: 'Archive focused message (or all selected)' }, { keys: ['#'], desc: 'Move focused message to trash (or all selected)' }, { keys: ['c'], desc: 'Compose a new message' }, { keys: ['Esc'], desc: 'Clear selection' }] as row, rowIndex (rowIndex)}
               <div
-                class="flex items-center gap-4 border-b border-white/6 px-4 py-2.5 last:border-b-0"
+                class="flex flex-col items-start gap-3 border-b border-white/6 px-4 py-2.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4"
               >
                 <div class="flex shrink-0 gap-1.5">
                   {#each row.keys as k, keyIndex (keyIndex)}
@@ -70,7 +70,7 @@
           <div class="overflow-hidden rounded-xl border border-white/8">
             {#each [{ keys: ['r'], desc: 'Reply' }, { keys: ['a'], desc: 'Reply all' }, { keys: ['f'], desc: 'Forward' }, { keys: ['e'], desc: 'Archive' }, { keys: ['#'], desc: 'Move to trash' }, { keys: ['u'], desc: 'Back to list' }] as row, rowIndex (rowIndex)}
               <div
-                class="flex items-center gap-4 border-b border-white/6 px-4 py-2.5 last:border-b-0"
+                class="flex flex-col items-start gap-3 border-b border-white/6 px-4 py-2.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4"
               >
                 <div class="flex shrink-0 gap-1.5">
                   {#each row.keys as k, keyIndex (keyIndex)}
@@ -92,7 +92,7 @@
           <div class="overflow-hidden rounded-xl border border-white/8">
             {#each [{ keys: ['Esc'], desc: 'Minimise composer (draft is auto-saved)' }] as row, rowIndex (rowIndex)}
               <div
-                class="flex items-center gap-4 border-b border-white/6 px-4 py-2.5 last:border-b-0"
+                class="flex flex-col items-start gap-3 border-b border-white/6 px-4 py-2.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4"
               >
                 <div class="flex shrink-0 gap-1.5">
                   {#each row.keys as k, keyIndex (keyIndex)}
@@ -114,7 +114,7 @@
           <div class="overflow-hidden rounded-xl border border-white/8">
             {#each [{ keys: ['Click checkbox'], desc: 'Select a message' }, { keys: ['Shift + click checkbox'], desc: 'Select a range of messages' }] as row, rowIndex (rowIndex)}
               <div
-                class="flex items-center gap-4 border-b border-white/6 px-4 py-2.5 last:border-b-0"
+                class="flex flex-col items-start gap-3 border-b border-white/6 px-4 py-2.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4"
               >
                 <div class="flex shrink-0 gap-1.5">
                   {#each row.keys as k, keyIndex (keyIndex)}

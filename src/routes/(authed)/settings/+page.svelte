@@ -234,8 +234,8 @@
   }
 </script>
 
-<div class="h-full overflow-y-auto p-6 lg:p-10">
-  <div class="mx-auto max-w-2xl space-y-10">
+<div class="h-full overflow-y-auto p-4 sm:p-6 lg:p-10">
+  <div class="mx-auto max-w-3xl space-y-10">
     <div>
       <h1 class="text-xl font-semibold text-white">Settings</h1>
       <p class="mt-1 text-sm text-zinc-400">
@@ -245,7 +245,7 @@
 
     <!-- IMAP -->
     <section class="space-y-4">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
           IMAP — Incoming Mail
         </h2>
@@ -260,7 +260,7 @@
         {/if}
       </div>
 
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div class="col-span-2 sm:col-span-1">
           <label class="mb-1 block text-xs text-zinc-400" for="imap-host">Host</label>
           <input
@@ -339,7 +339,7 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onclick={testImap}
@@ -360,7 +360,7 @@
 
     <!-- SMTP -->
     <section class="space-y-4">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
           SMTP — Outgoing Mail
         </h2>
@@ -375,7 +375,7 @@
         {/if}
       </div>
 
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div class="col-span-2 sm:col-span-1">
           <label class="mb-1 block text-xs text-zinc-400" for="smtp-host">Host</label>
           <input
@@ -442,7 +442,7 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onclick={testSmtp}
@@ -463,7 +463,7 @@
 
     <!-- OIDC -->
     <section class="space-y-4">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
           OIDC — Authentication
         </h2>
@@ -526,7 +526,7 @@
     <section class="space-y-4">
       <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Interface</h2>
       <div class="rounded-lg border border-white/8 bg-white/3 p-4">
-        <label class="flex items-start justify-between gap-4">
+        <label class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p class="text-sm font-medium text-zinc-200">
               Use simplified mailbox view on page load
@@ -577,7 +577,7 @@
         Generate VAPID keys to enable browser push notifications for new mail. Keys are stored in
         the database and only need to be generated once.
       </p>
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onclick={() => void generateVapid()}
@@ -601,7 +601,7 @@
 
     <!-- Filters -->
     <section class="space-y-4">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Filters</h2>
         <button
           type="button"
@@ -619,9 +619,11 @@
       {/if}
 
       {#each filters as filter (filter.id)}
-        <div class="flex items-center gap-3 rounded-lg border border-white/8 bg-white/3 px-3 py-2">
+        <div
+          class="flex flex-wrap items-center gap-3 rounded-lg border border-white/8 bg-white/3 px-3 py-2 sm:flex-nowrap"
+        >
           <GripVertical size={14} class="shrink-0 cursor-grab text-zinc-600" />
-          <div class="min-w-0 flex-1">
+          <div class="min-w-0 flex-1 basis-full sm:basis-auto">
             <p class="text-xs text-zinc-300">
               <span class="text-zinc-500">If</span>
               <span class="font-medium text-zinc-200">{filter.field}</span>
@@ -661,7 +663,7 @@
       {#if showAddFilter}
         <div class="space-y-3 rounded-lg border border-white/10 bg-white/3 p-4">
           <h3 class="text-xs font-medium text-zinc-400">New rule</h3>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label class="mb-1 block text-xs text-zinc-500" for="new-filter-field">Field</label>
               <select
@@ -727,7 +729,7 @@
               </div>
             {/if}
           </div>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2">
             <button
               type="button"
               onclick={addFilter}
@@ -750,7 +752,7 @@
     <div class="border-t border-white/8"></div>
 
     <!-- Save -->
-    <div class="flex items-center gap-4">
+    <div class="flex flex-wrap items-center gap-4">
       <button
         type="button"
         onclick={save}
