@@ -6,7 +6,7 @@
   import { pathToSlug } from '$lib/mailbox'
   import { setSimplifiedModeContext } from '$lib/simplified-mode-context'
   import { page } from '$app/state'
-  import { onMount, untrack } from 'svelte'
+  import { onMount, tick, untrack } from 'svelte'
   import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity'
   import {
     RefreshCw,
@@ -179,6 +179,8 @@
 
   // Row elements for scrollIntoView
   let rowEls = $state<Map<number, HTMLElement>>(new Map())
+  let listViewport: HTMLDivElement | null = null
+  let listScrollRestoreId = 0
   let simplifiedCardIndex = $state(0)
   let simplifiedDragOffsetX = $state(0)
   let simplifiedDragPointerId = $state<number | null>(null)
@@ -334,11 +336,29 @@
     return Math.max(loadedCount, messages.length, lastKnownPageSize)
   }
 
+  function captureListScrollTop() {
+    return listViewport?.scrollTop ?? null
+  }
+
+  function restoreListScrollTop(scrollTop: number | null) {
+    if (scrollTop === null) return
+
+    const restoreId = ++listScrollRestoreId
+
+    void tick().then(() => {
+      if (restoreId !== listScrollRestoreId || !listViewport) return
+
+      const maxScrollTop = Math.max(listViewport.scrollHeight - listViewport.clientHeight, 0)
+      listViewport.scrollTop = Math.min(scrollTop, maxScrollTop)
+    })
+  }
+
   function applyListSeed(
     seed: { messages: Message[]; hasMore: boolean; pageSize: number },
     reason = 'unknown'
   ) {
     const startedAt = now()
+    const scrollTop = captureListScrollTop()
     loadedMailbox = mailbox
     lastKnownPageSize = seed.pageSize
     isRefreshingList = false
@@ -346,6 +366,7 @@
     hasMore = seed.hasMore
     loadedCount = seed.messages.length
     loadMoreError = null
+    restoreListScrollTop(scrollTop)
     logPerf('applyListSeed', {
       reason,
       mailbox,
@@ -361,6 +382,7 @@
     const requestMailbox = mailbox
     const limit = currentWindowSize()
     const requestId = ++listRequestId
+    const scrollTop = captureListScrollTop()
     isRefreshingList = true
 
     try {
@@ -376,6 +398,7 @@
       hasMore = payload.hasMore
       loadedCount = payload.messages.length
       loadMoreError = null
+      restoreListScrollTop(scrollTop)
     } catch {
       if (requestId !== listRequestId) return
       loadMoreError = 'Failed to refresh message list.'
@@ -839,6 +862,13 @@
       }
     }
   }
+
+  function registerListViewport(el: HTMLDivElement) {
+    listViewport = el
+    return () => {
+      if (listViewport === el) listViewport = null
+    }
+  }
 </script>
 
 <svelte:head>
@@ -1226,7 +1256,7 @@
         </div>
       {/if}
 
-      <div class="flex-1 overflow-y-auto">
+      <div {@attach registerListViewport} class="flex-1 overflow-y-auto">
         {#if isSearchMode}
           {#if isSearching}
             <div class="p-8 text-center">
