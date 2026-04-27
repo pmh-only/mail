@@ -234,9 +234,27 @@
             <ShieldAlert size={16} />
           </button>
         {/if}
+        {#if lastMessage}
+          <button
+            type="button"
+            aria-label="Reply"
+            onclick={() => openReply(lastMessage)}
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
+          >
+            <Reply size={16} />
+          </button>
+          <button
+            type="button"
+            aria-label="Reply all"
+            onclick={() => openReplyAll(lastMessage)}
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
+          >
+            <ReplyAll size={16} />
+          </button>
+        {/if}
       </div>
 
-      <div class="flex flex-wrap items-center gap-1 sm:justify-end">
+      <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
         {#if simplifiedViewEnabled}
           <button
             type="button"

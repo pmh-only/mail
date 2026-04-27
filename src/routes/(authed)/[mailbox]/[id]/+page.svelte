@@ -382,9 +382,46 @@
             </span>
           </div>
         {/if}
+        <button
+          type="button"
+          aria-label="Reply"
+          onclick={() => openReply(message)}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
+        >
+          <Reply size={16} />
+        </button>
+        <button
+          type="button"
+          aria-label="Reply all"
+          onclick={() => openReplyAll(message)}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
+        >
+          <ReplyAll size={16} />
+        </button>
+        <button
+          type="button"
+          aria-label="Forward"
+          onclick={() => openForward(message)}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
+        >
+          <Forward size={16} />
+        </button>
+        <button
+          type="button"
+          aria-label={shareCopied ? 'Copied!' : 'Share'}
+          disabled={sharing}
+          onclick={shareMessage}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:hidden"
+        >
+          {#if shareCopied}
+            <Check size={16} class="text-emerald-400" />
+          {:else}
+            <Share2 size={16} />
+          {/if}
+        </button>
       </div>
 
-      <div class="flex flex-wrap items-center gap-1 sm:justify-end">
+      <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
         {#if simplifiedViewEnabled}
           <button
             type="button"

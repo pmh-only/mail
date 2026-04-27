@@ -56,6 +56,7 @@
   let linkInputValue = $state('')
   let editorTick = $state(0) // increments on editor transactions to force re-render
   let showDiscardDialog = $state(false)
+  let discardDialogWasMinimized = $state(false)
   let attachmentInput = $state<HTMLInputElement | undefined>(undefined)
   let viewportWidth = $state(1024)
 
@@ -260,20 +261,36 @@
   }
 
   function discard() {
-    // If there's content and no draft yet saved, ask; otherwise just close
+    discardDialogWasMinimized = composer.minimized
+
+    if (composer.minimized) {
+      composer.minimized = false
+    }
+
     showDiscardDialog = true
   }
 
   async function discardAndDelete() {
     await deleteDraft()
+    discardDialogWasMinimized = false
     showDiscardDialog = false
     closeComposer()
   }
 
   async function saveDraftAndClose() {
     await saveDraft()
+    discardDialogWasMinimized = false
     showDiscardDialog = false
     closeComposer()
+  }
+
+  function cancelDiscard() {
+    showDiscardDialog = false
+
+    if (discardDialogWasMinimized) {
+      composer.minimized = true
+      discardDialogWasMinimized = false
+    }
   }
 
   function toggleMinimized() {
@@ -811,7 +828,7 @@
         </button>
         <button
           type="button"
-          onclick={() => (showDiscardDialog = false)}
+          onclick={cancelDiscard}
           class="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 hover:bg-white/10"
         >
           Cancel

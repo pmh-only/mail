@@ -4,7 +4,10 @@
   import { resolve } from '$app/paths'
   import { trackAppLoading } from '$lib/loading.svelte'
   import { pathToSlug } from '$lib/mailbox'
-  import { setSimplifiedModeContext } from '$lib/simplified-mode-context'
+  import {
+    getSimplifiedModeMobileActionContext,
+    setSimplifiedModeContext
+  } from '$lib/simplified-mode-context'
   import { page } from '$app/state'
   import { onMount, tick, untrack } from 'svelte'
   import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity'
@@ -70,6 +73,7 @@
   }
 
   let { data, children }: Props = $props()
+  const { setMobileSimplifiedModeAction } = getSimplifiedModeMobileActionContext()
 
   const perfPrefix = '[perf-client]'
 
@@ -512,6 +516,16 @@
   }
 
   setSimplifiedModeContext({ openSimplifiedMode: openSimplifiedMailboxView })
+
+  $effect(() => {
+    setMobileSimplifiedModeAction(
+      simplifiedViewEnabled && !showSimplifiedMailboxView ? openSimplifiedMailboxView : null
+    )
+
+    return () => {
+      setMobileSimplifiedModeAction(null)
+    }
+  })
 
   function disableSimplifiedMode() {
     clearSelection()
@@ -1149,7 +1163,7 @@
               <button
                 type="button"
                 onclick={enableSimplifiedMode}
-                class="rounded-xl border border-transparent bg-white/3 px-2.5 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/6 sm:px-3 sm:text-sm md:border-white/8"
+                class="hidden rounded-xl border border-transparent bg-white/3 px-2.5 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/6 sm:px-3 sm:text-sm md:inline-flex md:border-white/8"
               >
                 <span class="sm:hidden">Simple</span>
                 <span class="hidden sm:inline">Simplified mode</span>

@@ -2,6 +2,7 @@
   import favicon from '$lib/assets/favicon.svg'
   import { dev } from '$app/environment'
   import { page } from '$app/state'
+  import { setSimplifiedModeMobileActionContext } from '$lib/simplified-mode-context'
   import { onMount } from 'svelte'
   import {
     Inbox,
@@ -105,6 +106,7 @@
   let draftsError = $state<string | null>(null)
   let unreadCount = $state(0)
   let mobileNavOpen = $state(false)
+  let mobileSimplifiedModeAction = $state<(() => Promise<void>) | null>(null)
   let viewportWidth = $state(1024)
 
   const isMobile = $derived(viewportWidth < 768)
@@ -378,6 +380,12 @@
       .slice(0, 2)
       .toUpperCase()
   })
+
+  setSimplifiedModeMobileActionContext({
+    setMobileSimplifiedModeAction(action) {
+      mobileSimplifiedModeAction = action
+    }
+  })
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
@@ -630,13 +638,24 @@
           {/if}
         </div>
 
-        <button
-          type="button"
-          class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-500"
-          onclick={() => void openCompose()}
-        >
-          Compose
-        </button>
+        <div class="flex items-center gap-2">
+          {#if mobileSimplifiedModeAction}
+            <button
+              type="button"
+              class="rounded-lg border border-white/8 bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6"
+              onclick={() => void mobileSimplifiedModeAction?.()}
+            >
+              Simple
+            </button>
+          {/if}
+          <button
+            type="button"
+            class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-500"
+            onclick={() => void openCompose()}
+          >
+            Compose
+          </button>
+        </div>
       </div>
 
       <div class="min-h-0 flex-1 overflow-hidden">
