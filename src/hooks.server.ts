@@ -7,6 +7,7 @@ import { isOidcConfigured } from '$lib/server/config'
 import { startImapJobWorker } from '$lib/server/imap-queue'
 import { startMailboxSync } from '$lib/server/mail'
 import { logServerError } from '$lib/server/perf'
+import { runMigrations } from '$lib/server/db'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
 
 // Warm up eagerly so the first request doesn't pay initialization costs
@@ -19,9 +20,16 @@ if (!building) {
     console.error('[crash] unhandledRejection:', reason)
   })
 
-  void getAuth()
-  startImapJobWorker()
-  void startMailboxSync()
+  void runMigrations()
+    .then(() => {
+      void getAuth()
+      startImapJobWorker()
+      void startMailboxSync()
+    })
+    .catch((err) => {
+      console.error('[startup] migration failed, aborting startup:', err)
+      process.exit(1)
+    })
 }
 
 const SETUP_PATHS = ['/setup']

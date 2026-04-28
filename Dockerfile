@@ -22,6 +22,7 @@ FROM base AS runtime
 WORKDIR /app
 COPY package.json ./
 COPY drizzle.config.ts ./
+COPY drizzle ./drizzle
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
 COPY --from=build /app/src ./src

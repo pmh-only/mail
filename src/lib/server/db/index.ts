@@ -1,4 +1,6 @@
 import { drizzle as drizzlePg } from 'drizzle-orm/postgres-js'
+import { migrate } from 'drizzle-orm/postgres-js/migrator'
+import { resolve } from 'path'
 import postgres from 'postgres'
 import * as schema from './schema'
 import { env } from '$env/dynamic/private'
@@ -16,5 +18,9 @@ const client = postgres(databaseUrl, {
 })
 
 const db = drizzlePg(client, { schema })
+
+export async function runMigrations() {
+  await migrate(db, { migrationsFolder: resolve('drizzle') })
+}
 
 export { db, client }
