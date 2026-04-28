@@ -17,8 +17,7 @@
     FileImage,
     X,
     ChevronLeft,
-    ChevronRight,
-    MoreVertical
+    ChevronRight
   } from 'lucide-svelte'
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
@@ -71,7 +70,6 @@
   let sharing = $state(false)
   let shareCopied = $state(false)
   let metadataOpen = $state(false)
-  let moreOpen = $state(false)
 
   function gotoMailbox() {
     return goto(resolve(`/${page.params.mailbox}`), { noScroll: true, keepFocus: true })
@@ -99,19 +97,8 @@
     }
   }
 
-  async function shareFromMore() {
-    moreOpen = false
-    await shareMessage()
-  }
-
-  async function spamFromMore() {
-    moreOpen = false
-    await performAction('spam')
-  }
-
-  async function markUnreadFromMore() {
+  async function markUnread() {
     if (acting) return
-    moreOpen = false
     acting = true
     try {
       const res = await trackAppLoading(() =>
@@ -327,13 +314,7 @@
       f: () => openForward(message),
       e: () => void performAction('archive'),
       '#': () => void performAction('trash'),
-      Escape: () => {
-        if (moreOpen) {
-          moreOpen = false
-          return
-        }
-        gotoMailbox()
-      },
+      Escape: () => gotoMailbox(),
       ArrowLeft: () => gotoMailbox(),
       ArrowDown: () => scrollEmail(60),
       ArrowUp: () => scrollEmail(-60)
@@ -346,15 +327,6 @@
 <svelte:head>
   <title>{subjectLabel(message.subject)} · Inbox</title>
 </svelte:head>
-
-<svelte:window
-  onclick={(event) => {
-    if (!moreOpen) return
-    const target = event.target
-    if (target instanceof Element && target.closest('[data-more-menu]')) return
-    moreOpen = false
-  }}
-/>
 
 <div class="flex h-full flex-col">
   <div class="p-4 sm:p-5 md:border-b md:border-white/8">
@@ -485,57 +457,39 @@
         >
           <Info size={16} />
         </button>
-        <div data-more-menu class="relative md:hidden">
+        {#if role !== 'archive' && role !== 'trash' && role !== 'spam'}
           <button
             type="button"
-            aria-label="More actions"
-            aria-expanded={moreOpen}
-            onclick={() => (moreOpen = !moreOpen)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+            aria-label="Spam"
+            disabled={acting}
+            onclick={() => performAction('spam')}
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
           >
-            <MoreVertical size={16} />
+            <ShieldAlert size={16} />
           </button>
-          {#if moreOpen}
-            <div
-              class="absolute right-0 z-30 mt-1 min-w-40 overflow-hidden rounded-lg border border-white/10 bg-zinc-950 py-1 shadow-2xl shadow-black/40"
-            >
-              {#if role !== 'archive' && role !== 'trash' && role !== 'spam'}
-                <button
-                  type="button"
-                  disabled={acting}
-                  onclick={() => void spamFromMore()}
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <ShieldAlert size={14} />
-                  Spam
-                </button>
-              {/if}
-              <button
-                type="button"
-                disabled={acting}
-                onclick={() => void markUnreadFromMore()}
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Mail size={14} />
-                Mark unread
-              </button>
-              <button
-                type="button"
-                disabled={sharing}
-                onclick={() => void shareFromMore()}
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {#if shareCopied}
-                  <Check size={14} class="text-emerald-400" />
-                  Copied
-                {:else}
-                  <Share2 size={14} />
-                  Share
-                {/if}
-              </button>
-            </div>
+        {/if}
+        <button
+          type="button"
+          aria-label="Mark unread"
+          disabled={acting}
+          onclick={() => void markUnread()}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
+        >
+          <Mail size={16} />
+        </button>
+        <button
+          type="button"
+          aria-label={shareCopied ? 'Copied' : 'Share'}
+          disabled={sharing}
+          onclick={() => void shareMessage()}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
+        >
+          {#if shareCopied}
+            <Check size={16} class="text-emerald-400" />
+          {:else}
+            <Share2 size={16} />
           {/if}
-        </div>
+        </button>
       </div>
 
       <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
@@ -598,57 +552,6 @@
           >
             Metadata
           </span>
-        </div>
-        <div data-more-menu class="relative">
-          <button
-            type="button"
-            aria-label="More actions"
-            aria-expanded={moreOpen}
-            onclick={() => (moreOpen = !moreOpen)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
-          >
-            <MoreVertical size={16} />
-          </button>
-          {#if moreOpen}
-            <div
-              class="absolute right-0 z-30 mt-1 min-w-40 overflow-hidden rounded-lg border border-white/10 bg-zinc-950 py-1 shadow-2xl shadow-black/40"
-            >
-              {#if role !== 'archive' && role !== 'trash' && role !== 'spam'}
-                <button
-                  type="button"
-                  disabled={acting}
-                  onclick={() => void spamFromMore()}
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <ShieldAlert size={14} />
-                  Spam
-                </button>
-              {/if}
-              <button
-                type="button"
-                disabled={acting}
-                onclick={() => void markUnreadFromMore()}
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Mail size={14} />
-                Mark unread
-              </button>
-              <button
-                type="button"
-                disabled={sharing}
-                onclick={() => void shareFromMore()}
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {#if shareCopied}
-                  <Check size={14} class="text-emerald-400" />
-                  Copied
-                {:else}
-                  <Share2 size={14} />
-                  Share
-                {/if}
-              </button>
-            </div>
-          {/if}
         </div>
       </div>
     </div>
@@ -739,26 +642,26 @@
         <div class="flex flex-wrap gap-3">
           {#each attachments as att (att.id)}
             <div
-              class="group relative flex w-full flex-col overflow-hidden rounded-xl border border-transparent bg-white/3 transition hover:border-white/20 sm:w-auto md:border-white/10"
+              class="group relative flex w-full flex-col overflow-hidden rounded-xl border border-transparent bg-white/3 transition hover:border-white/20 sm:w-40 md:border-white/10"
             >
               {#if isImage(att.contentType)}
                 <button
                   type="button"
                   onclick={() => openPreview(att)}
-                  class="block h-40 w-full overflow-hidden focus:outline-none sm:h-32 sm:w-40"
+                  class="block h-40 w-full overflow-hidden bg-black/20 focus:outline-none sm:h-32"
                   title="Click to preview"
                 >
                   <img
                     src="/api/attachments/{att.id}?inline=1"
                     alt={att.filename}
-                    class="h-full w-full object-cover transition group-hover:scale-105"
+                    class="h-full w-full object-contain object-center transition group-hover:scale-105"
                   />
                 </button>
               {:else if isPdf(att.contentType)}
                 <button
                   type="button"
                   onclick={() => openPreview(att)}
-                  class="flex h-40 w-full min-w-0 flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none sm:h-32 sm:min-w-40"
+                  class="flex h-40 w-full min-w-0 flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none sm:h-32"
                   title="Click to preview"
                 >
                   <FileText size={36} />
@@ -768,7 +671,7 @@
                 <button
                   type="button"
                   onclick={() => openPreview(att)}
-                  class="flex h-40 w-full flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none sm:h-32 sm:w-40"
+                  class="flex h-40 w-full flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none sm:h-32"
                   title="Click to preview"
                 >
                   <FileVideo size={36} />
@@ -777,7 +680,7 @@
               {:else}
                 {@const Icon = attachmentIcon(att.contentType)}
                 <div
-                  class="flex h-40 w-full flex-col items-center justify-center gap-2 text-zinc-600 sm:h-32 sm:w-40"
+                  class="flex h-40 w-full flex-col items-center justify-center gap-2 text-zinc-600 sm:h-32"
                 >
                   <Icon size={36} />
                 </div>
@@ -918,7 +821,7 @@
         <img
           src="/api/attachments/{att.id}?inline=1"
           alt={att.filename}
-          class="max-h-[80vh] max-w-[85vw] rounded-lg object-contain shadow-2xl"
+          class="max-h-[80vh] max-w-[85vw] rounded-lg object-contain object-center shadow-2xl"
         />
       {:else if isPdf(att.contentType)}
         <iframe
