@@ -3,11 +3,13 @@ import type { RequestHandler } from './$types'
 import nodemailer from 'nodemailer'
 import { getSmtpConfig } from '$lib/server/config'
 import { parseComposerAttachments } from '$lib/mail-attachments'
+import { logServerError, logServerEvent } from '$lib/server/perf'
 import { withRetry } from '$lib/server/retry'
 
 export const POST: RequestHandler = async ({ request }) => {
   const smtpConfig = await getSmtpConfig()
   if ('missing' in smtpConfig) {
+    logServerEvent('api.send.POST.missingSmtpConfig', { missing: smtpConfig.missing })
     return error(500, `Missing SMTP config: ${smtpConfig.missing.join(', ')}`)
   }
 
@@ -70,6 +72,12 @@ export const POST: RequestHandler = async ({ request }) => {
     )
     return json({ success: true })
   } catch (err) {
+    logServerError('api.send.POST.sendMail', err, {
+      hasCc: Boolean(cc),
+      hasBcc: Boolean(bcc),
+      attachmentCount: attachments.length,
+      inReplyTo: Boolean(inReplyTo)
+    })
     const message = err instanceof Error ? err.message : String(err)
     return error(500, `Failed to send: ${message}`)
   }

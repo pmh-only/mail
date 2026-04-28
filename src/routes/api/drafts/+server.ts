@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types'
 import { db } from '$lib/server/db'
 import { mailDraft } from '$lib/server/db/schema'
 import { parseComposerAttachments } from '$lib/mail-attachments'
+import { logServerEvent } from '$lib/server/perf'
 import { desc, eq } from 'drizzle-orm'
 import { payloadBytes, perfLog, perfMs, perfNow } from '$lib/server/perf'
 
@@ -19,7 +20,7 @@ export const GET: RequestHandler = async () => {
     .orderBy(desc(mailDraft.updatedAt))
 
   const body = {
-    drafts: drafts.map((d) => ({
+    drafts: drafts.map((d: (typeof drafts)[number]) => ({
       id: d.id,
       toAddr: d.toAddr,
       subject: d.subject,
@@ -84,7 +85,10 @@ export const POST: RequestHandler = async ({ request }) => {
     })
     .returning({ id: mailDraft.id })
 
-  if (!inserted) return error(500, 'Failed to save draft')
+  if (!inserted) {
+    logServerEvent('api.drafts.POST.insertReturnedEmpty', { hasId: id !== null })
+    return error(500, 'Failed to save draft')
+  }
 
   return json({ id: inserted.id, updatedAt: now.toISOString() })
 }

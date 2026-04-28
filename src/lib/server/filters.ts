@@ -1,7 +1,7 @@
-import { db } from '$lib/server/db'
-import { mailFilter, mailMessage, mailMessageMailbox } from '$lib/server/db/schema'
+import { db } from './db'
+import { mailFilter, mailMessage, mailMessageMailbox } from './db/schema'
 import { eq, inArray } from 'drizzle-orm'
-import { enqueueMarkRead, enqueueMoveMessage } from '$lib/server/imap-queue'
+import { enqueueMarkRead, enqueueMoveMessage } from './imap-queue'
 
 type Filter = typeof mailFilter.$inferSelect
 
@@ -76,7 +76,7 @@ export async function runFiltersOnMessages(messageIds: string[]): Promise<void> 
               .update(mailMessageMailbox)
               .set({ flags: JSON.stringify([...flags, '\\Seen']) })
               .where(eq(mailMessageMailbox.id, entry.id))
-            enqueueMarkRead(entry.uid, entry.mailbox)
+            await enqueueMarkRead(entry.uid, entry.mailbox)
           }
         }
       } else if (filter.action === 'trash' || filter.action === 'move') {
@@ -93,8 +93,8 @@ export async function runFiltersOnMessages(messageIds: string[]): Promise<void> 
 
           if (filter.action === 'trash') {
             // Find trash mailbox from known mailboxes
-            const { listImapMailboxes } = await import('$lib/server/mail')
-            const mailboxes = listImapMailboxes()
+            const { getImapMailboxes } = await import('./mail')
+            const mailboxes = await getImapMailboxes()
             const trashMb = mailboxes.find((mb) =>
               /\b(trash|deleted[\s._-]?(items|messages)?)\b/i.test(mb.name + ' ' + mb.path)
             )
@@ -108,7 +108,7 @@ export async function runFiltersOnMessages(messageIds: string[]): Promise<void> 
             touchedThreadKeysByMailbox.get(entry.mailbox) ?? new Set<string>()
           touchedThreadKeys.add(msg.threadKey)
           touchedThreadKeysByMailbox.set(entry.mailbox, touchedThreadKeys)
-          enqueueMoveMessage(entry.uid, entry.mailbox, destination)
+          await enqueueMoveMessage(entry.uid, entry.mailbox, destination)
         }
       }
 
@@ -119,8 +119,8 @@ export async function runFiltersOnMessages(messageIds: string[]): Promise<void> 
 
   if (touchedThreadKeysByMailbox.size === 0) return
 
-  const { refreshThreadSummaries } = await import('$lib/server/mail')
+  const { refreshThreadSummaries } = await import('./mail')
   for (const [mailbox, threadKeys] of touchedThreadKeysByMailbox) {
-    refreshThreadSummaries(mailbox, threadKeys)
+    await refreshThreadSummaries(mailbox, threadKeys)
   }
 }

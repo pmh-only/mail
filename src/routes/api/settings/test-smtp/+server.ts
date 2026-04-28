@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import nodemailer from 'nodemailer'
 import { getSmtpConfig } from '$lib/server/config'
+import { logServerError } from '$lib/server/perf'
 
 export const POST: RequestHandler = async ({ request }) => {
   const body = await request.json().catch(() => ({}))
@@ -39,6 +40,11 @@ export const POST: RequestHandler = async ({ request }) => {
     await transporter.verify()
     return json({ ok: true, message: 'Connected successfully.' })
   } catch (err) {
+    logServerError('api.settings.testSmtp.POST.verify', err, {
+      host,
+      port: Number(port),
+      secure: Boolean(secure)
+    })
     const message = err instanceof Error ? err.message : String(err)
     return json({ ok: false, message }, { status: 400 })
   }

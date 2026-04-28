@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import { db } from '$lib/server/db'
 import { mailFilter } from '$lib/server/db/schema'
+import { logServerEvent } from '$lib/server/perf'
 import { asc } from 'drizzle-orm'
 
 export const GET: RequestHandler = async () => {
@@ -29,7 +30,13 @@ export const POST: RequestHandler = async ({ request }) => {
     })
     .returning({ id: mailFilter.id })
 
-  if (!inserted) return error(500, 'Failed to create filter')
+  if (!inserted) {
+    logServerEvent('api.filters.POST.insertReturnedEmpty', {
+      field: body.field,
+      action: body.action
+    })
+    return error(500, 'Failed to create filter')
+  }
 
   return json({ id: inserted.id })
 }

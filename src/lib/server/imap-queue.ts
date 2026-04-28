@@ -1,7 +1,22 @@
+import { and, asc, eq, lte } from 'drizzle-orm'
 import { ImapFlow } from 'imapflow'
-import { withRetry } from '$lib/server/retry'
+import { getImapConfig, type ImapConfig } from './config'
+import { db } from './db'
+import { imapJob } from './db/schema'
+import { logServerError } from './perf'
+import { isAuthError, withRetry } from './retry'
 
 const IMAP_CONNECT_TIMEOUT_MS = 20_000
+const JOB_POLL_INTERVAL_MS = 1_000
+const MAX_JOB_ATTEMPTS = 8
+const PERMANENT_JOB_ERROR_RE =
+  /\b(no such mailbox|unknown mailbox|invalid mailbox|mailbox does not exist)\b/i
+
+type MailConfig = Pick<ImapConfig, 'host' | 'port' | 'secure' | 'user' | 'password'>
+type ImapJobRow = typeof imapJob.$inferSelect
+
+let jobWorkerTimer: ReturnType<typeof setInterval> | null = null
+let drainInFlight = false
 
 async function connectImap(config: MailConfig, label: string): Promise<ImapFlow> {
   return withRetry(
@@ -30,121 +45,86 @@ async function connectImap(config: MailConfig, label: string): Promise<ImapFlow>
   )
 }
 
-type MailConfig = {
-  host: string
-  port: number
-  secure: boolean
-  user: string
-  password: string
+function nextAttemptDelayMs(attemptCount: number) {
+  return Math.min(5 * 60_000, 1_000 * 2 ** Math.min(attemptCount, 8))
 }
 
-type MarkReadJob = {
-  type: 'mark_read'
-  uid: number
-  mailbox: string
+function isPermanentJobError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return isAuthError(error) || PERMANENT_JOB_ERROR_RE.test(message)
 }
 
-type MoveJob = {
-  type: 'move'
-  uid: number
-  sourceMailbox: string
-  targetMailbox: string
-}
-
-type ImapJob = MarkReadJob | MoveJob
-
-const queue: ImapJob[] = []
-let workerRunning = false
-let configResolver: (() => Promise<MailConfig | null> | MailConfig | null) | null = null
-
-export function registerImapConfig(resolver: () => Promise<MailConfig | null> | MailConfig | null) {
-  configResolver = resolver
-}
-
-export function enqueueMarkRead(uid: number, mailbox: string) {
-  if (queue.some((j) => j.type === 'mark_read' && j.uid === uid && j.mailbox === mailbox)) return
-  queue.push({ type: 'mark_read', uid, mailbox })
-  startWorker()
-}
-
-export function enqueueMoveMessage(uid: number, sourceMailbox: string, targetMailbox: string) {
-  // Replace any existing move for the same uid+source with the latest target
-  const existing = queue.findIndex(
-    (j) => j.type === 'move' && j.uid === uid && j.sourceMailbox === sourceMailbox
-  )
-  if (existing !== -1) queue.splice(existing, 1)
-  queue.push({ type: 'move', uid, sourceMailbox, targetMailbox })
-  startWorker()
-}
-
-function startWorker() {
-  if (workerRunning) return
-  workerRunning = true
-  void runWorker()
-}
-
-async function runWorker() {
-  try {
-    while (queue.length > 0) {
-      await flushQueue()
-    }
-  } finally {
-    workerRunning = false
+function toConfig(config: ImapConfig): MailConfig {
+  return {
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    user: config.user,
+    password: config.password
   }
 }
 
-async function flushQueue() {
-  const config = await configResolver?.()
-  if (!config) {
-    queue.length = 0
+async function markJobRunning(job: ImapJobRow) {
+  await db
+    .update(imapJob)
+    .set({
+      status: 'running',
+      updatedAt: new Date(),
+      lastError: null
+    })
+    .where(eq(imapJob.id, job.id))
+}
+
+async function markJobDone(job: ImapJobRow) {
+  await db
+    .update(imapJob)
+    .set({
+      status: 'done',
+      updatedAt: new Date(),
+      lastError: null
+    })
+    .where(eq(imapJob.id, job.id))
+}
+
+async function failJob(job: ImapJobRow, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  const attemptCount = job.attemptCount + 1
+
+  if (isPermanentJobError(error) || attemptCount >= MAX_JOB_ATTEMPTS) {
+    await db
+      .update(imapJob)
+      .set({
+        status: 'failed',
+        attemptCount,
+        updatedAt: new Date(),
+        lastError: message
+      })
+      .where(eq(imapJob.id, job.id))
     return
   }
 
-  const batch = queue.splice(0, queue.length)
-
-  // Group mark_read by mailbox
-  const readByMailbox = new Map<string, number[]>()
-  // Group moves by source mailbox → target → uids
-  const movesBySource = new Map<string, Map<string, number[]>>()
-
-  for (const job of batch) {
-    if (job.type === 'mark_read') {
-      const uids = readByMailbox.get(job.mailbox) ?? []
-      uids.push(job.uid)
-      readByMailbox.set(job.mailbox, uids)
-    } else if (job.type === 'move') {
-      const targets = movesBySource.get(job.sourceMailbox) ?? new Map<string, number[]>()
-      const uids = targets.get(job.targetMailbox) ?? []
-      uids.push(job.uid)
-      targets.set(job.targetMailbox, uids)
-      movesBySource.set(job.sourceMailbox, targets)
-    }
-  }
-
-  const tasks: Promise<void>[] = []
-  for (const [mailbox, uids] of readByMailbox) {
-    tasks.push(runMarkRead(config, mailbox, uids))
-  }
-  for (const [sourceMailbox, targets] of movesBySource) {
-    for (const [targetMailbox, uids] of targets) {
-      tasks.push(runMove(config, sourceMailbox, targetMailbox, uids))
-    }
-  }
-  await Promise.all(tasks)
+  await db
+    .update(imapJob)
+    .set({
+      status: 'pending',
+      attemptCount,
+      updatedAt: new Date(),
+      availableAt: new Date(Date.now() + nextAttemptDelayMs(attemptCount)),
+      lastError: message
+    })
+    .where(eq(imapJob.id, job.id))
 }
 
-async function runMarkRead(config: MailConfig, mailbox: string, uids: number[]) {
+async function runMarkRead(config: MailConfig, job: ImapJobRow) {
   let client: ImapFlow | null = null
   try {
-    client = await connectImap(config, `mark-read ${mailbox}`)
-    const lock = await client.getMailboxLock(mailbox)
+    client = await connectImap(config, `mark-read ${job.mailbox}`)
+    const lock = await client.getMailboxLock(job.mailbox)
     try {
-      await client.messageFlagsAdd(uids.join(','), ['\\Seen'], { uid: true })
+      await client.messageFlagsAdd(String(job.uid), ['\\Seen'], { uid: true })
     } finally {
       lock.release()
     }
-  } catch {
-    // Jobs are dropped after retries are exhausted; DB was already updated optimistically
   } finally {
     if (client) {
       try {
@@ -156,23 +136,20 @@ async function runMarkRead(config: MailConfig, mailbox: string, uids: number[]) 
   }
 }
 
-async function runMove(
-  config: MailConfig,
-  sourceMailbox: string,
-  targetMailbox: string,
-  uids: number[]
-) {
+async function runMove(config: MailConfig, job: ImapJobRow) {
+  if (!job.targetMailbox) {
+    throw new Error('Missing target mailbox for move job')
+  }
+
   let client: ImapFlow | null = null
   try {
-    client = await connectImap(config, `move ${sourceMailbox}→${targetMailbox}`)
-    const lock = await client.getMailboxLock(sourceMailbox)
+    client = await connectImap(config, `move ${job.mailbox}→${job.targetMailbox}`)
+    const lock = await client.getMailboxLock(job.mailbox)
     try {
-      await client.messageMove(uids.join(','), targetMailbox, { uid: true })
+      await client.messageMove(String(job.uid), job.targetMailbox, { uid: true })
     } finally {
       lock.release()
     }
-  } catch {
-    // Jobs are dropped after retries are exhausted; DB was already updated optimistically
   } finally {
     if (client) {
       try {
@@ -182,4 +159,132 @@ async function runMove(
       }
     }
   }
+}
+
+async function runJob(job: ImapJobRow) {
+  const config = await getImapConfig()
+  if ('missing' in config) {
+    throw new Error(`Missing IMAP config: ${config.missing.join(', ')}`)
+  }
+
+  if (job.type === 'mark_read') {
+    await runMarkRead(toConfig(config), job)
+    return
+  }
+
+  if (job.type === 'move') {
+    await runMove(toConfig(config), job)
+    return
+  }
+
+  throw new Error(`Unknown IMAP job type: ${job.type}`)
+}
+
+async function drainQueueOnce(): Promise<boolean> {
+  const [job] = await db
+    .select()
+    .from(imapJob)
+    .where(and(eq(imapJob.status, 'pending'), lte(imapJob.availableAt, new Date())))
+    .orderBy(asc(imapJob.availableAt), asc(imapJob.createdAt))
+    .limit(1)
+
+  if (!job) return false
+
+  await markJobRunning(job)
+
+  try {
+    await runJob(job)
+    await markJobDone(job)
+  } catch (error) {
+    logServerError(`imapQueue.${job.type}`, error, {
+      mailbox: job.mailbox,
+      uid: job.uid,
+      targetMailbox: job.targetMailbox ?? null,
+      attemptCount: job.attemptCount
+    })
+    await failJob(job, error)
+  }
+
+  return true
+}
+
+async function drainQueue() {
+  if (drainInFlight) return
+  drainInFlight = true
+
+  try {
+    while (await drainQueueOnce()) {
+      // Drain until queue is empty.
+    }
+  } finally {
+    drainInFlight = false
+  }
+}
+
+export async function enqueueMarkRead(uid: number, mailbox: string) {
+  const now = new Date()
+  await db
+    .insert(imapJob)
+    .values({
+      type: 'mark_read',
+      mailbox,
+      uid,
+      targetMailbox: null,
+      status: 'pending',
+      dedupeKey: `mark_read:${mailbox}:${uid}`,
+      attemptCount: 0,
+      availableAt: now,
+      lastError: null,
+      createdAt: now,
+      updatedAt: now
+    })
+    .onConflictDoUpdate({
+      target: imapJob.dedupeKey,
+      set: {
+        status: 'pending',
+        attemptCount: 0,
+        availableAt: now,
+        lastError: null,
+        updatedAt: now
+      }
+    })
+}
+
+export async function enqueueMoveMessage(uid: number, sourceMailbox: string, targetMailbox: string) {
+  const now = new Date()
+  await db
+    .insert(imapJob)
+    .values({
+      type: 'move',
+      mailbox: sourceMailbox,
+      uid,
+      targetMailbox,
+      status: 'pending',
+      dedupeKey: `move:${sourceMailbox}:${uid}`,
+      attemptCount: 0,
+      availableAt: now,
+      lastError: null,
+      createdAt: now,
+      updatedAt: now
+    })
+    .onConflictDoUpdate({
+      target: imapJob.dedupeKey,
+      set: {
+        targetMailbox,
+        status: 'pending',
+        attemptCount: 0,
+        availableAt: now,
+        lastError: null,
+        updatedAt: now
+      }
+    })
+}
+
+export function startImapJobWorker() {
+  if (jobWorkerTimer) return
+
+  void drainQueue()
+  jobWorkerTimer = setInterval(() => {
+    void drainQueue()
+  }, JOB_POLL_INTERVAL_MS)
 }

@@ -1,10 +1,15 @@
 import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import {
+  countSearchMessages,
+  countStoredMessages,
+  countStoredThreads,
   listStoredMessages,
   listStoredThreads,
   resolveMailboxPath,
-  searchMessages
+  searchMessages,
+  type MailListRow,
+  type ThreadRow
 } from '$lib/server/mail'
 import { payloadBytes, perfLog, perfMs, perfNow } from '$lib/server/perf'
 
@@ -16,10 +21,7 @@ function parsePositiveInt(value: string | null, fallback: number) {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback
 }
 
-function serializeMessage(
-  message: Awaited<ReturnType<typeof listStoredMessages>>[number] & { threadCount?: number },
-  includeMailbox = false
-) {
+function serializeMessage(message: MailListRow | ThreadRow, includeMailbox = false) {
   return {
     id: message.id,
     messageId: message.messageId,
@@ -31,7 +33,7 @@ function serializeMessage(
     flags: JSON.parse(message.flags) as string[],
     receivedAt: message.receivedAt?.toISOString() ?? null,
     threadId: message.threadId ?? null,
-    ...(message.threadCount !== undefined ? { threadCount: message.threadCount } : {}),
+    ...('threadCount' in message ? { threadCount: message.threadCount } : {}),
     ...(includeMailbox ? { mailbox: message.mailbox } : {})
   }
 }
@@ -45,12 +47,16 @@ export const GET: RequestHandler = async ({ url }) => {
     const requestedLimit = parsePositiveInt(url.searchParams.get('limit'), DEFAULT_LIMIT)
     const limit = Math.min(Math.max(requestedLimit, 1), MAX_LIMIT)
 
-    const messages = await searchMessages(q, limit + 1, offset)
+    const [messages, total] = await Promise.all([
+      searchMessages(q, limit + 1, offset),
+      countSearchMessages(q)
+    ])
     const hasMore = messages.length > limit
 
     const body = {
       messages: messages.slice(0, limit).map((m) => serializeMessage(m, true)),
-      hasMore
+      hasMore,
+      total
     }
 
     perfLog('api.messages.GET', {
@@ -76,11 +82,15 @@ export const GET: RequestHandler = async ({ url }) => {
   const mailboxPath = await resolveMailboxPath(mailboxSlug)
 
   if (threaded) {
-    const threads = listStoredThreads(mailboxPath, limit + 1, offset)
+    const [threads, total] = await Promise.all([
+      listStoredThreads(mailboxPath, limit + 1, offset),
+      countStoredThreads(mailboxPath)
+    ])
     const hasMore = threads.length > limit
     const body = {
       messages: threads.slice(0, limit).map((m) => serializeMessage(m)),
-      hasMore
+      hasMore,
+      total
     }
 
     perfLog('api.messages.GET', {
@@ -97,11 +107,15 @@ export const GET: RequestHandler = async ({ url }) => {
     return json(body)
   }
 
-  const messages = await listStoredMessages(mailboxPath, limit + 1, offset)
+  const [messages, total] = await Promise.all([
+    listStoredMessages(mailboxPath, limit + 1, offset),
+    countStoredMessages(mailboxPath)
+  ])
   const hasMore = messages.length > limit
   const body = {
     messages: messages.slice(0, limit).map((m) => serializeMessage(m)),
-    hasMore
+    hasMore,
+    total
   }
 
   perfLog('api.messages.GET', {

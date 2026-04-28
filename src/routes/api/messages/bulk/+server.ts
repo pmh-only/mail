@@ -37,7 +37,7 @@ export const POST: RequestHandler = async ({ request }) => {
           .update(mailMessageMailbox)
           .set({ flags: JSON.stringify(newFlags) })
           .where(eq(mailMessageMailbox.id, row.id))
-        enqueueMarkRead(row.uid, row.mailbox)
+        await enqueueMarkRead(row.uid, row.mailbox)
         count++
       }
     }

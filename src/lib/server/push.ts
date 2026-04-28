@@ -1,6 +1,7 @@
 import webpush from 'web-push'
-import { db } from '$lib/server/db'
-import { mailConfig, mailPushSubscription } from '$lib/server/db/schema'
+import { db } from './db'
+import { mailConfig, mailPushSubscription } from './db/schema'
+import { logServerError } from './perf'
 import { eq } from 'drizzle-orm'
 
 let initialized = false
@@ -40,7 +41,7 @@ export async function sendPushToAll(payload: {
   const data = JSON.stringify(payload)
 
   await Promise.allSettled(
-    subscriptions.map(async (sub) => {
+    subscriptions.map(async (sub: typeof subscriptions[number]) => {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
@@ -53,7 +54,13 @@ export async function sendPushToAll(payload: {
           await db
             .delete(mailPushSubscription)
             .where(eq(mailPushSubscription.endpoint, sub.endpoint))
+          return
         }
+
+        logServerError('push.sendNotification', err, {
+          endpoint: sub.endpoint,
+          status: status ?? null
+        })
       }
     })
   )

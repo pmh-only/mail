@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types'
 import { db } from '$lib/server/db'
 import { mailDraft } from '$lib/server/db/schema'
 import { parseComposerAttachments } from '$lib/mail-attachments'
+import { logServerError, logServerEvent } from '$lib/server/perf'
 import { eq } from 'drizzle-orm'
 
 export const GET: RequestHandler = async ({ params }) => {
@@ -15,12 +16,17 @@ export const GET: RequestHandler = async ({ params }) => {
   let parsedRaw: unknown
   try {
     parsedRaw = JSON.parse(draft.attachments)
-  } catch {
+  } catch (err) {
+    logServerError('api.drafts.[id].GET.invalidStoredDraftAttachments', err, { draftId: id })
     return error(500, 'Stored draft attachments are invalid')
   }
 
   const parsedAttachments = parseComposerAttachments(parsedRaw)
   if (!parsedAttachments.ok) {
+    logServerEvent('api.drafts.[id].GET.invalidStoredDraftAttachments', {
+      draftId: id,
+      reason: parsedAttachments.error
+    })
     return error(500, parsedAttachments.error)
   }
 

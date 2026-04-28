@@ -1,11 +1,13 @@
-import type { Handle } from '@sveltejs/kit'
+import type { Handle, HandleServerError } from '@sveltejs/kit'
 import { redirect } from '@sveltejs/kit'
 import { sequence } from '@sveltejs/kit/hooks'
 import { building } from '$app/environment'
 import { getAuth } from '$lib/server/auth'
 import { isOidcConfigured } from '$lib/server/config'
-import { svelteKitHandler } from 'better-auth/svelte-kit'
+import { startImapJobWorker } from '$lib/server/imap-queue'
 import { startMailboxSync } from '$lib/server/mail'
+import { logServerError } from '$lib/server/perf'
+import { svelteKitHandler } from 'better-auth/svelte-kit'
 
 // Warm up eagerly so the first request doesn't pay initialization costs
 if (!building) {
@@ -18,6 +20,7 @@ if (!building) {
   })
 
   void getAuth()
+  startImapJobWorker()
   void startMailboxSync()
 }
 
@@ -71,3 +74,15 @@ const handleTraffic: Handle = async ({ event, resolve }) => {
 }
 
 export const handle: Handle = sequence(handleTraffic, handleBetterAuth)
+
+export const handleError: HandleServerError = ({ error, event, status, message }) => {
+  logServerError('request', error, {
+    method: event.request.method,
+    path: event.url.pathname + event.url.search,
+    routeId: event.route.id ?? null,
+    status,
+    message
+  })
+
+  return { message }
+}
