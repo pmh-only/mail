@@ -91,7 +91,9 @@
   $effect(() => {
     if (composer.open && !prevOpen && editor) {
       editor.commands.setContent(composer.initialHtml || '<p></p>')
-      editor.commands.focus('end')
+      const focusPosition =
+        composer.mode === 'reply' || composer.mode === 'reply-all' ? 'start' : 'end'
+      editor.commands.focus(focusPosition)
       showCc = !!composer.cc
       showBcc = !!composer.bcc
       lastSavedContent = draftSnapshot(composer.initialHtml || '<p></p>')
