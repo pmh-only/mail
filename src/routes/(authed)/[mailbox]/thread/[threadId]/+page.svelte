@@ -5,11 +5,13 @@
     ShieldAlert,
     Reply,
     ReplyAll,
+    Scissors,
     ChevronDown,
     ChevronLeft,
     Paperclip,
     Download,
     FileImage,
+    FileText,
     X
   } from 'lucide-svelte'
   import { goto } from '$app/navigation'
@@ -62,10 +64,15 @@
   const attachments = $derived(data.attachments)
   const role = $derived(data.mailboxRole)
   const subject = $derived(messages[0]?.subject ?? '(no subject)')
+  const defaultExpandedId = $derived(messages[messages.length - 1]?.id ?? null)
 
   // Latest message expanded by default
-  let expandedIds = new SvelteSet<number>()
+  let expandedIds = $state(new SvelteSet<number>())
+  let collapsedDefaultIds = $state(new SvelteSet<number>())
+  let initializedThreadId = $state<string | null>(null)
   let acting = $state(false)
+  let splittingId = $state<number | null>(null)
+  let splitError = $state<string | null>(null)
   let metadataMessage = $state<Message | null>(null)
 
   function gotoMailbox() {
@@ -73,8 +80,17 @@
   }
 
   function toggleExpanded(id: number) {
-    if (expandedIds.has(id)) expandedIds.delete(id)
-    else expandedIds.add(id)
+    if (isMessageExpanded(id)) {
+      expandedIds.delete(id)
+      collapsedDefaultIds.add(id)
+    } else {
+      collapsedDefaultIds.delete(id)
+      expandedIds.add(id)
+    }
+  }
+
+  function isMessageExpanded(id: number) {
+    return expandedIds.has(id) || (id === defaultExpandedId && !collapsedDefaultIds.has(id))
   }
 
   async function performThreadAction(action: 'archive' | 'trash' | 'spam' | 'inbox') {
@@ -92,6 +108,39 @@
       await gotoMailbox()
     } finally {
       acting = false
+    }
+  }
+
+  async function splitThreadFrom(msg: Message) {
+    if (splittingId !== null) return
+    splitError = null
+    splittingId = msg.id
+    try {
+      const response = await trackAppLoading(() =>
+        fetch(resolve(`/api/threads/${encodeURIComponent(data.threadId)}/split`), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ mailbox: page.params.mailbox, messageId: msg.id })
+        })
+      )
+
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || 'Failed to split thread.')
+      }
+
+      const result = (await response.json()) as { threadKey: string }
+      await goto(
+        resolve(`/${page.params.mailbox}/thread/${encodeURIComponent(result.threadKey)}`),
+        {
+          noScroll: true,
+          keepFocus: true
+        }
+      )
+    } catch (error) {
+      splitError = error instanceof Error ? error.message : 'Failed to split thread.'
+    } finally {
+      splittingId = null
     }
   }
 
@@ -183,11 +232,15 @@
 
   let scrollContainer = $state<HTMLDivElement | undefined>(undefined)
 
-  onMount(() => {
-    // Expand the latest message by default
-    const last = messages[messages.length - 1]
-    if (last) expandedIds.add(last.id)
+  $effect(() => {
+    if (initializedThreadId === data.threadId) return
 
+    expandedIds = new SvelteSet<number>()
+    collapsedDefaultIds = new SvelteSet<number>()
+    initializedThreadId = data.threadId
+  })
+
+  onMount(() => {
     const teardown = setupKeyboardHandler('message', {
       u: () => gotoMailbox(),
       r: () => lastMessage && openReply(lastMessage),
@@ -306,13 +359,16 @@
     <p class="mt-0.5 text-sm text-zinc-500">
       {messages.length} message{messages.length === 1 ? '' : 's'}
     </p>
+    {#if splitError}
+      <p class="mt-2 text-sm text-rose-300">{splitError}</p>
+    {/if}
   </div>
 
   <!-- Thread messages accordion -->
   <div bind:this={scrollContainer} class="flex-1 overflow-y-auto">
     <div class="space-y-2 p-2 md:space-y-0 md:divide-y md:divide-white/8 md:p-0">
-      {#each messages as msg (msg.id)}
-        {@const isExpanded = expandedIds.has(msg.id)}
+      {#each messages as msg, index (msg.id)}
+        {@const isExpanded = isMessageExpanded(msg.id)}
         {@const msgAttachments = getMessageAttachments(msg.messageId)}
         {@const srcdoc = msg.htmlContent ? injectScrollbarStyle(msg.htmlContent) : null}
 
@@ -323,68 +379,68 @@
           ].join(' ')}
         >
           <!-- Collapsed header / toggle -->
-          <button
-            type="button"
-            onclick={() => toggleExpanded(msg.id)}
-            class="flex w-full items-center gap-3 px-4 py-3 text-left sm:px-5"
-          >
+          <div class="flex w-full items-center gap-3 px-4 py-3 text-left sm:px-5">
             <div
               class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xs font-semibold text-zinc-300"
             >
               {senderInitials(msg.from)}
             </div>
 
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span
-                  class="truncate text-sm {isUnread(msg.flags)
-                    ? 'font-semibold text-white'
-                    : 'text-zinc-300'}"
-                >
-                  {senderName(msg.from)}
-                </span>
-                {#if senderAddress(msg.from)}
-                  <span class="truncate text-xs text-zinc-500"
-                    >&lt;{senderAddress(msg.from)}&gt;</span
+            <button
+              type="button"
+              onclick={() => toggleExpanded(msg.id)}
+              class="min-w-0 flex-1 text-left"
+            >
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span
+                    class="truncate text-sm {isUnread(msg.flags)
+                      ? 'font-semibold text-white'
+                      : 'text-zinc-300'}"
                   >
-                {/if}
-                {#if isUnread(msg.flags)}
-                  <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400"></span>
+                    {senderName(msg.from)}
+                  </span>
+                  {#if senderAddress(msg.from)}
+                    <span class="truncate text-xs text-zinc-500"
+                      >&lt;{senderAddress(msg.from)}&gt;</span
+                    >
+                  {/if}
+                  {#if isUnread(msg.flags)}
+                    <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400"></span>
+                  {/if}
+                </div>
+
+                {#if !isExpanded}
+                  <p class="mt-0.5 truncate text-xs text-zinc-500">
+                    {msg.preview || msg.textContent?.slice(0, 120) || ''}
+                  </p>
                 {/if}
               </div>
+            </button>
 
-              {#if !isExpanded}
-                <p class="mt-0.5 truncate text-xs text-zinc-500">
-                  {msg.preview || msg.textContent?.slice(0, 120) || ''}
-                </p>
-              {/if}
-            </div>
-
-            <div class="flex shrink-0 items-center gap-2">
+            <div class="flex shrink-0 items-center gap-1.5">
               {#if msgAttachments.length > 0}
                 <Paperclip size={13} class="text-zinc-500" />
               {/if}
               <span class="text-xs text-zinc-500">{formatFullDate(msg.receivedAt)}</span>
+              <button
+                type="button"
+                aria-label="View metadata"
+                onclick={() => (metadataMessage = msg)}
+                class="rounded-lg p-1.5 text-zinc-500 transition hover:bg-white/6 hover:text-zinc-200"
+              >
+                <FileText size={14} />
+              </button>
               <ChevronDown
                 size={14}
                 class="text-zinc-600 transition-transform {isExpanded ? 'rotate-180' : ''}"
               />
             </div>
-          </button>
+          </div>
 
           <!-- Expanded content -->
           {#if isExpanded}
             <div class="px-4 pb-4 sm:px-5">
-              <div class="mb-4 flex justify-end">
-                <button
-                  type="button"
-                  onclick={() => (metadataMessage = msg)}
-                  class="rounded-lg border border-white/8 bg-white/3 px-3 py-1.5 text-xs text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100"
-                >
-                  Metadata
-                </button>
-              </div>
-
               {#if srcdoc}
                 <iframe
                   title="Message body"
@@ -458,6 +514,17 @@
                 >
                   <ReplyAll size={13} /> Reply all
                 </button>
+                {#if index > 0}
+                  <button
+                    type="button"
+                    disabled={splittingId !== null}
+                    onclick={() => splitThreadFrom(msg)}
+                    class="flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
+                  >
+                    <Scissors size={13} />
+                    {splittingId === msg.id ? 'Splitting...' : 'Split from here'}
+                  </button>
+                {/if}
               </div>
             </div>
           {/if}
@@ -469,16 +536,16 @@
 
 {#if metadataMessage}
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
     role="presentation"
     onclick={(event) => {
       if (event.target === event.currentTarget) metadataMessage = null
     }}
   >
     <div
-      class="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl"
+      class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/8 bg-[#0d0d10]"
     >
-      <div class="flex items-center justify-between border-b border-white/8 px-5 py-4">
+      <div class="flex shrink-0 items-center justify-between border-b border-white/8 px-5 py-4">
         <div>
           <h3 class="text-base font-semibold text-white">Message Metadata</h3>
           <p class="mt-1 text-sm text-zinc-500">{metadataMessage.subject ?? '(no subject)'}</p>
@@ -487,17 +554,17 @@
           type="button"
           aria-label="Close metadata"
           onclick={() => (metadataMessage = null)}
-          class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
         >
           <X size={16} />
         </button>
       </div>
 
-      <div class="overflow-y-auto p-5">
+      <div class="min-h-0 flex-1 overflow-y-auto p-5">
         <dl class="space-y-3">
           {#each [...detailRows(metadataMessage), { label: 'Received', value: formatFullDate(metadataMessage.receivedAt) }, { label: 'Flags', value: metadataMessage.flags.join(', ') || '—' }] as row (row.label)}
             <div
-              class="grid gap-1 border-b border-white/6 pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[108px_minmax(0,1fr)] sm:gap-4"
+              class="grid gap-1 border-b border-white/6 py-2 first:pt-0 last:border-b-0 last:pb-0 sm:grid-cols-[108px_minmax(0,1fr)] sm:gap-4"
             >
               <dt class="text-xs font-medium tracking-wide text-zinc-500 uppercase">{row.label}</dt>
               <dd class="min-w-0 text-sm break-all text-zinc-200">{row.value}</dd>
@@ -506,17 +573,17 @@
         </dl>
 
         <div class="mt-6 space-y-4">
-          <details class="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+          <details class="rounded-xl border border-white/8 bg-white/[0.02] p-3">
             <summary class="cursor-pointer text-sm font-medium text-zinc-200">HTML Source</summary>
             <pre
-              class="mt-3 max-h-80 overflow-auto rounded-xl border border-white/6 bg-black/20 p-3 text-xs leading-6 whitespace-pre-wrap text-zinc-300">{metadataMessage.htmlContent ||
+              class="mt-3 max-h-[50vh] overflow-auto rounded-lg border border-white/6 bg-black/20 p-3 text-xs leading-6 whitespace-pre-wrap text-zinc-300">{metadataMessage.htmlContent ||
                 'No HTML content available.'}</pre>
           </details>
 
-          <details class="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+          <details class="rounded-xl border border-white/8 bg-white/[0.02] p-3">
             <summary class="cursor-pointer text-sm font-medium text-zinc-200">Text Source</summary>
             <pre
-              class="mt-3 max-h-80 overflow-auto rounded-xl border border-white/6 bg-black/20 p-3 text-xs leading-6 whitespace-pre-wrap text-zinc-300">{metadataMessage.textContent ||
+              class="mt-3 max-h-[50vh] overflow-auto rounded-lg border border-white/6 bg-black/20 p-3 text-xs leading-6 whitespace-pre-wrap text-zinc-300">{metadataMessage.textContent ||
                 'No text content available.'}</pre>
           </details>
         </div>

@@ -15,6 +15,7 @@
     Archive,
     Trash2,
     MailOpen,
+    Mails,
     ShieldAlert,
     X,
     ChevronLeft,
@@ -51,7 +52,7 @@
     threadCount?: number
   }
 
-  let threadedMode = $state(false)
+  let threadedMode = $state(true)
 
   type ImapMailbox = {
     path: string
@@ -103,18 +104,21 @@
       hasMore?: boolean
       pageSize?: number
       total?: number
+      threaded?: boolean
     }
 
     if (!Array.isArray(seed.messages)) return null
     if (typeof seed.hasMore !== 'boolean') return null
     if (typeof seed.pageSize !== 'number') return null
     if (typeof seed.total !== 'number') return null
+    if (typeof seed.threaded !== 'boolean') return null
 
     return {
       messages: seed.messages,
       hasMore: seed.hasMore,
       pageSize: seed.pageSize,
-      total: seed.total
+      total: seed.total,
+      threaded: seed.threaded
     }
   }
 
@@ -186,6 +190,8 @@
     const match = data.imapMailboxes.find((mb) => pathToSlug(mb.path) === mailbox)
     return match?.name ?? mailbox
   })
+
+  const totalCountLabel = $derived(`${totalCount} ${threadedMode ? 'threads' : 'messages'}`)
 
   const visibleMessages = $derived.by(() => {
     return messages.filter((message) => {
@@ -532,7 +538,7 @@
       )
       restoreListScrollTop(scrollTop)
     }
-    if (threadedMode && message.threadId) {
+    if (threadedMode && message.threadId && (message.threadCount ?? 0) > 1) {
       goto(resolve(`/${mailbox}/thread/${encodeURIComponent(message.threadId)}`), {
         noScroll: true,
         keepFocus: true
@@ -736,11 +742,9 @@
 
     const directionLift = offset === 1 ? 10 : 6
     const directionScale = offset === 1 ? 0.045 : 0.03
-    const directionOpacity = offset === 1 ? 0.16 : 0.08
     const xParallax = simplifiedDragOffsetX * (offset === 1 ? 0.1 : 0.05)
     const y = offset * 14 - progress * directionLift
     const scale = 1 - offset * 0.04 + progress * directionScale
-    const opacity = 1 - offset * 0.18 + progress * directionOpacity
 
     return `translate3d(${xParallax}px, ${y}px, 0) scale(${scale})`
   }
@@ -866,7 +870,7 @@
     if (nextKey === listSyncKey) return
     listSyncKey = nextKey
 
-    if (seed && !untrack(() => threadedMode)) {
+    if (seed && seed.threaded === untrack(() => threadedMode)) {
       applyListSeed(seed, 'route-seed')
       return
     }
@@ -1193,11 +1197,24 @@
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0">
           <p class="truncate text-sm font-semibold text-white sm:text-base">{folderDisplayName}</p>
-          <p class="mt-1 text-xs text-zinc-500 sm:text-sm">{totalCount} messages</p>
+          <p class="mt-1 text-xs text-zinc-500 sm:text-sm">{totalCountLabel}</p>
         </div>
 
         <div class="flex justify-end overflow-x-auto">
           <div class="inline-flex min-w-max items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onclick={() => void toggleThreadedMode()}
+              class={[
+                'transition',
+                threadedMode ? 'text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
+              ]}
+              aria-pressed={threadedMode}
+              title={threadedMode ? 'Show individual messages' : 'Show threads'}
+              aria-label={threadedMode ? 'Show individual messages' : 'Show threads'}
+            >
+              <Mails size={15} />
+            </button>
             <button
               type="button"
               onclick={() => (mobileSearchOpen = !mobileSearchOpen)}
@@ -1408,12 +1425,27 @@
       <div class="p-4 sm:p-5 md:border-b md:border-white/8">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <p class="truncate text-sm font-semibold text-white sm:text-base">{folderDisplayName}</p>
-            <p class="mt-1 text-xs text-zinc-500 sm:text-sm">{totalCount} messages</p>
+            <p class="truncate text-sm font-semibold text-white sm:text-base">
+              {folderDisplayName}
+            </p>
+            <p class="mt-1 text-xs text-zinc-500 sm:text-sm">{totalCountLabel}</p>
           </div>
 
           <div class="flex justify-end overflow-x-auto">
             <div class="inline-flex min-w-max items-center gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                onclick={() => void toggleThreadedMode()}
+                class={[
+                  'transition',
+                  threadedMode ? 'text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
+                ]}
+                aria-pressed={threadedMode}
+                title={threadedMode ? 'Show individual messages' : 'Show threads'}
+                aria-label={threadedMode ? 'Show individual messages' : 'Show threads'}
+              >
+                <Mails size={15} />
+              </button>
               <button
                 type="button"
                 onclick={() => (mobileSearchOpen = !mobileSearchOpen)}

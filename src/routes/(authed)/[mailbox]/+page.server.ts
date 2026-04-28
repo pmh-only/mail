@@ -1,10 +1,10 @@
 import type { PageServerLoad } from './$types'
-import { countStoredMessages, listStoredMessages, resolveMailboxPath } from '$lib/server/mail'
+import { countStoredThreads, listStoredThreads, resolveMailboxPath } from '$lib/server/mail'
 import { payloadBytes, perfLog, perfMs, perfNow } from '$lib/server/perf'
 
 const PAGE_SIZE = 50
 
-function serializeMessage(message: Awaited<ReturnType<typeof listStoredMessages>>[number]) {
+function serializeMessage(message: Awaited<ReturnType<typeof listStoredThreads>>[number]) {
   return {
     id: message.id,
     messageId: message.messageId,
@@ -16,7 +16,8 @@ function serializeMessage(message: Awaited<ReturnType<typeof listStoredMessages>
     preview: message.preview,
     flags: JSON.parse(message.flags) as string[],
     receivedAt: message.receivedAt?.toISOString() ?? null,
-    threadId: message.threadId ?? null
+    threadId: message.threadId ?? null,
+    threadCount: message.threadCount
   }
 }
 
@@ -25,8 +26,8 @@ export const load: PageServerLoad = async ({ params, parent }) => {
   const { imapMailboxes } = await parent()
   const mailboxPath = await resolveMailboxPath(params.mailbox, imapMailboxes)
   const [rawMessages, total] = await Promise.all([
-    listStoredMessages(mailboxPath, PAGE_SIZE + 1, 0),
-    countStoredMessages(mailboxPath)
+    listStoredThreads(mailboxPath, PAGE_SIZE + 1, 0),
+    countStoredThreads(mailboxPath)
   ])
   const hasMore = rawMessages.length > PAGE_SIZE
 
@@ -34,7 +35,8 @@ export const load: PageServerLoad = async ({ params, parent }) => {
     messages: rawMessages.slice(0, PAGE_SIZE).map(serializeMessage),
     hasMore,
     pageSize: PAGE_SIZE,
-    total
+    total,
+    threaded: true
   }
 
   perfLog('load.mailboxPage', {

@@ -1403,6 +1403,69 @@ export async function getMessagesInThread(
   }
 }
 
+export async function splitThreadFromMessage(
+  threadKey: string,
+  mailboxPath: string,
+  mailboxEntryId: number
+): Promise<{ threadKey: string; splitCount: number; remainingCount: number } | null> {
+  const currentThreadRows = await db
+    .select({
+      messageId: mailMessage.messageId,
+      mailboxEntryId: mailMessageMailbox.id,
+      receivedAt: mailMessage.receivedAt,
+      uid: mailMessageMailbox.uid
+    })
+    .from(mailMessage)
+    .innerJoin(mailMessageMailbox, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .where(and(eq(mailMessageMailbox.mailbox, mailboxPath), eq(mailMessage.threadKey, threadKey)))
+    .orderBy(asc(mailMessage.receivedAt), asc(mailMessageMailbox.uid))
+
+  const splitIndex = currentThreadRows.findIndex((row) => row.mailboxEntryId === mailboxEntryId)
+  if (splitIndex <= 0) return null
+
+  const splitMessageIds = currentThreadRows.slice(splitIndex).map((row) => row.messageId)
+  if (splitMessageIds.length === 0 || splitMessageIds.length === currentThreadRows.length) {
+    return null
+  }
+
+  const affectedMailboxRows = await db
+    .select({
+      mailbox: mailMessageMailbox.mailbox,
+      messageId: mailMessageMailbox.messageId
+    })
+    .from(mailMessageMailbox)
+    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .where(eq(mailMessage.threadKey, threadKey))
+
+  const allAffectedMailboxes = new Set(affectedMailboxRows.map((row) => row.mailbox))
+  const splitAffectedMailboxes = new Set(
+    affectedMailboxRows
+      .filter((row) => splitMessageIds.includes(row.messageId))
+      .map((row) => row.mailbox)
+  )
+
+  const selectedMessageId = splitMessageIds[0]
+  const newThreadKey = `${selectedMessageId}#split-${randomUUID()}`
+
+  await db
+    .update(mailMessage)
+    .set({ threadId: newThreadKey, threadKey: newThreadKey })
+    .where(inArray(mailMessage.messageId, splitMessageIds))
+
+  for (const mailbox of allAffectedMailboxes) {
+    await refreshThreadSummaries(mailbox, [threadKey])
+  }
+  for (const mailbox of splitAffectedMailboxes) {
+    await refreshThreadSummaries(mailbox, [newThreadKey])
+  }
+
+  return {
+    threadKey: newThreadKey,
+    splitCount: splitMessageIds.length,
+    remainingCount: currentThreadRows.length - splitMessageIds.length
+  }
+}
+
 export async function searchMessages(query: string, limit: number, offset: number) {
   const startedAt = perfNow()
   if (!query.trim()) {

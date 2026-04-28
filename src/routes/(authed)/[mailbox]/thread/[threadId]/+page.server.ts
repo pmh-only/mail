@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit'
+import { error, redirect } from '@sveltejs/kit'
 import type { PageServerLoad } from './$types'
 import {
   getMessagesInThread,
@@ -38,6 +38,10 @@ export const load: PageServerLoad = async ({ params }) => {
 
   if (messages.length === 0) {
     error(404, 'Thread not found')
+  }
+
+  if (messages.length === 1) {
+    redirect(302, `/${params.mailbox}/${messages[0].id}`)
   }
 
   // Mark all unread messages as read in the background
