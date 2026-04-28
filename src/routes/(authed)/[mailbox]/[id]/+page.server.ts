@@ -16,6 +16,7 @@ function serializeMessage(message: NonNullable<Awaited<ReturnType<typeof getStor
     from: message.from,
     to: message.to,
     cc: message.cc,
+    replyTo: message.replyTo,
     preview: message.preview,
     textContent: message.textContent,
     htmlContent: message.htmlContent,

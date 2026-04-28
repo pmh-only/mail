@@ -8,6 +8,13 @@
       "when": 1777370268004,
       "tag": "0000_strong_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777373266140,
+      "tag": "0001_lovely_mac_gargan",
+      "breakpoints": true
     }
   ]
 }
