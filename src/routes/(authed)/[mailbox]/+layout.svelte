@@ -1771,8 +1771,11 @@
                         {/if}
                         {#if threadedMode && message.threadCount && message.threadCount > 1}
                           <span
-                            class="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 text-xs text-zinc-400"
+                            class="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/8 bg-transparent px-1.5 py-0.5 text-[11px] font-medium text-zinc-500"
+                            title={`${message.threadCount} messages in thread`}
+                            aria-label={`${message.threadCount} messages in thread`}
                           >
+                            <Mails size={11} />
                             {message.threadCount}
                           </span>
                         {/if}
