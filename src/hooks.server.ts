@@ -5,7 +5,7 @@ import { building } from '$app/environment'
 import { getAuth } from '$lib/server/auth'
 import { isOidcConfigured } from '$lib/server/config'
 import { startImapJobWorker } from '$lib/server/imap-queue'
-import { startMailboxSync } from '$lib/server/mail'
+import { repairThreadKeys, startMailboxSync } from '$lib/server/mail'
 import { logServerError } from '$lib/server/perf'
 import { runMigrations } from '$lib/server/db'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
@@ -21,7 +21,8 @@ if (!building) {
   })
 
   void runMigrations()
-    .then(() => {
+    .then(async () => {
+      await repairThreadKeys()
       void getAuth()
       startImapJobWorker()
       void startMailboxSync()

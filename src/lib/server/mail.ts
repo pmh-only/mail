@@ -3,7 +3,7 @@ import { and, asc, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import { slugToPath } from '../mailbox'
-import { db } from './db'
+import { client, db } from './db'
 import {
   mailboxCatalog,
   mailboxSync,
@@ -398,6 +398,8 @@ async function resolveThreadKey(
   ownId: string
 ): Promise<string> {
   const startedAt = Date.now()
+  if (!inReplyTo) return ownId
+
   const candidates = [...references, inReplyTo].filter((x): x is string => !!x)
   if (candidates.length === 0) return ownId
   const [existing] = await db
@@ -1248,6 +1250,130 @@ export async function refreshThreadSummaries(mailbox: string, threadKeys: Iterab
   if (ms >= 100) {
     console.log(`[sync] ${mailbox}: refreshThreadSummaries ${uniqueThreadKeys.length} keys ${ms}ms`)
   }
+}
+
+type ThreadRepairMessage = {
+  messageId: string
+  inReplyTo: string | null
+  references: string | null
+  threadKey: string
+}
+
+function referenceCandidates(message: ThreadRepairMessage) {
+  if (!message.inReplyTo) return []
+  return [...(message.references?.split(/\s+/).filter(Boolean) ?? []), message.inReplyTo].filter(
+    (candidate) => candidate !== message.messageId
+  )
+}
+
+export async function repairThreadKeys() {
+  const startedAt = Date.now()
+  const messages = await db
+    .select({
+      messageId: mailMessage.messageId,
+      inReplyTo: mailMessage.inReplyTo,
+      references: mailMessage.references,
+      threadKey: mailMessage.threadKey
+    })
+    .from(mailMessage)
+
+  const byId = new Map(messages.map((message) => [message.messageId, message]))
+  const resolving = new Set<string>()
+  const canonical = new Map<string, string>()
+
+  function resolveCanonical(message: ThreadRepairMessage): string {
+    const cached = canonical.get(message.messageId)
+    if (cached) return cached
+
+    if (resolving.has(message.messageId)) {
+      return message.messageId
+    }
+
+    resolving.add(message.messageId)
+
+    let resolved = message.messageId
+    const candidates = referenceCandidates(message)
+    const existingCandidate = candidates.find((candidate) => byId.has(candidate))
+    if (existingCandidate) {
+      resolved = resolveCanonical(byId.get(existingCandidate)!)
+    } else if (message.inReplyTo) {
+      resolved = candidates[0] ?? message.inReplyTo
+    }
+
+    resolving.delete(message.messageId)
+    canonical.set(message.messageId, resolved)
+    return resolved
+  }
+
+  const changes = messages
+    .map((message) => ({ message, nextThreadKey: resolveCanonical(message) }))
+    .filter(({ message, nextThreadKey }) => message.threadKey !== nextThreadKey)
+
+  if (changes.length === 0) return
+
+  await client.begin(async (tx) => {
+    await tx`
+      create temp table thread_repair (
+        message_id text primary key,
+        next_thread_key text not null
+      ) on commit drop
+    `
+
+    for (let index = 0; index < changes.length; index += 1000) {
+      const batch = changes.slice(index, index + 1000).map(({ message, nextThreadKey }) => ({
+        message_id: message.messageId,
+        next_thread_key: nextThreadKey
+      }))
+      await tx`insert into thread_repair ${tx(batch, 'message_id', 'next_thread_key')}`
+    }
+
+    await tx`
+      update mail_message
+      set thread_id = thread_repair.next_thread_key,
+          thread_key = thread_repair.next_thread_key
+      from thread_repair
+      where mail_message.message_id = thread_repair.message_id
+    `
+
+    await tx`delete from mail_thread_summary`
+
+    await tx`
+      insert into mail_thread_summary (
+        mailbox,
+        thread_key,
+        representative_mailbox_entry_id,
+        thread_count,
+        latest_uid,
+        latest_received_at
+      )
+      select mailbox, thread_key, id, thread_count, uid, received_at
+      from (
+        select
+          mail_message_mailbox.mailbox as mailbox,
+          mail_message.thread_key as thread_key,
+          mail_message_mailbox.id as id,
+          mail_message_mailbox.uid as uid,
+          mail_message_mailbox.received_at as received_at,
+          count(*) over (
+            partition by mail_message_mailbox.mailbox, mail_message.thread_key
+          )::int as thread_count,
+          row_number() over (
+            partition by mail_message_mailbox.mailbox, mail_message.thread_key
+            order by mail_message_mailbox.received_at desc nulls last, mail_message_mailbox.uid desc
+          ) as rn
+        from mail_message_mailbox
+        join mail_message
+          on mail_message_mailbox.message_id = mail_message.message_id
+      ) ranked
+      where rn = 1
+    `
+  })
+
+  perfLog('mail.repairThreadKeys', {
+    messages: messages.length,
+    repaired: changes.length,
+    ms: perfMs(startedAt)
+  })
 }
 
 export async function listStoredMessages(mailboxPath: string, limit = 100, offset = 0) {
