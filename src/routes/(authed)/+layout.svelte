@@ -2,7 +2,7 @@
   import favicon from '$lib/assets/favicon.svg'
   import { dev } from '$app/environment'
   import { page } from '$app/state'
-  import { setSimplifiedModeMobileActionContext } from '$lib/simplified-mode-context'
+  import { setSimplifiedModeSidebarActionContext } from '$lib/simplified-mode-context'
   import { onMount } from 'svelte'
   import {
     Inbox,
@@ -17,13 +17,16 @@
     BookOpen,
     RefreshCw,
     PanelLeft,
+    Layers,
+    ChevronRight,
+    ChevronDown,
     X
   } from 'lucide-svelte'
   import { resolve } from '$app/paths'
   import { pathToSlug } from '$lib/mailbox'
   import Composer from '$lib/components/Composer.svelte'
   import { openCompose, openDraft, type DraftRow } from '$lib/composer.svelte'
-  import { afterNavigate, goto } from '$app/navigation'
+  import { afterNavigate, goto, invalidateAll } from '$app/navigation'
   import { keyboard } from '$lib/keyboard.svelte'
 
   type ImapMailbox = { path: string; name: string; delimiter: string }
@@ -36,7 +39,11 @@
     progress: { mailbox: string; stored: number; total: number } | null
   }
   type Props = {
-    data: { imapMailboxes: ImapMailbox[]; user: { name: string; email: string } | null }
+    data: {
+      imapMailboxes: ImapMailbox[]
+      user: { name: string; email: string } | null
+      simplifiedView: boolean
+    }
     children: import('svelte').Snippet
   }
   type DraftListRow = {
@@ -44,6 +51,28 @@
     toAddr: string
     subject: string
     updatedAt: string
+  }
+  type MailboxTreeNode = {
+    key: string
+    label: string
+    slug: string | null
+    path: string | null
+    icon: typeof Folder
+    depth: number
+    parentKey: string | null
+    children: MailboxTreeNode[]
+    selectable: boolean
+  }
+  type VisibleMailboxRow = {
+    key: string
+    label: string
+    slug: string | null
+    path: string | null
+    icon: typeof Folder
+    depth: number
+    selectable: boolean
+    hasChildren: boolean
+    expanded: boolean
   }
 
   let { data, children }: Props = $props()
@@ -79,11 +108,130 @@
     return Folder
   }
 
+  let imapMailboxes = $state<ImapMailbox[]>([])
+  let expandedMailboxKeys = $state<string[]>([])
+
+  function splitMailboxPath(path: string, delimiter: string) {
+    if (!path) return []
+    if (!delimiter) return [path]
+    return path.split(delimiter).filter(Boolean)
+  }
+
+  function buildMailboxTree(mailboxes: ImapMailbox[]) {
+    const roots: MailboxTreeNode[] = []
+    const nodes = new Map<string, MailboxTreeNode>()
+
+    for (const mailbox of mailboxes) {
+      const segments = splitMailboxPath(mailbox.path, mailbox.delimiter)
+      const normalizedSegments = segments.length > 0 ? segments : [mailbox.path]
+      let parentKey: string | null = null
+
+      for (const [index, segment] of normalizedSegments.entries()) {
+        const key = normalizedSegments.slice(0, index + 1).join(mailbox.delimiter)
+        let node = nodes.get(key)
+
+        if (!node) {
+          node = {
+            key,
+            label: segment,
+            slug: null,
+            path: null,
+            icon: Folder,
+            depth: index,
+            parentKey,
+            children: [],
+            selectable: false
+          }
+          nodes.set(key, node)
+
+          if (parentKey) {
+            nodes.get(parentKey)?.children.push(node)
+          } else {
+            roots.push(node)
+          }
+        }
+
+        if (index === normalizedSegments.length - 1) {
+          node.label = mailbox.name || segment
+          node.slug = pathToSlug(mailbox.path)
+          node.path = mailbox.path
+          node.icon = iconForMailbox(mailbox.name || segment)
+          node.selectable = true
+        }
+
+        parentKey = key
+      }
+    }
+
+    return { roots, nodes }
+  }
+
+  function collectDefaultExpandedKeys(
+    tree: ReturnType<typeof buildMailboxTree>,
+    mailboxes: ImapMailbox[],
+    activeMailboxSlug: string | null
+  ) {
+    const defaults = new Set<string>()
+
+    for (const root of tree.roots) {
+      if (root.children.length > 0) defaults.add(root.key)
+    }
+
+    if (!activeMailboxSlug) return Array.from(defaults)
+
+    const activeMailbox = mailboxes.find(
+      (candidate) => pathToSlug(candidate.path) === activeMailboxSlug
+    )
+    if (!activeMailbox) return Array.from(defaults)
+
+    const segments = splitMailboxPath(activeMailbox.path, activeMailbox.delimiter)
+    for (const [index] of segments.entries()) {
+      defaults.add(segments.slice(0, index + 1).join(activeMailbox.delimiter))
+    }
+
+    return Array.from(defaults)
+  }
+
+  function flattenMailboxTree(nodes: MailboxTreeNode[], expandedKeys: Set<string>) {
+    const rows: VisibleMailboxRow[] = []
+
+    for (const node of nodes) {
+      const hasChildren = node.children.length > 0
+      const expanded = hasChildren && expandedKeys.has(node.key)
+
+      rows.push({
+        key: node.key,
+        label: node.label,
+        slug: node.slug,
+        path: node.path,
+        icon: node.icon,
+        depth: node.depth,
+        selectable: node.selectable,
+        hasChildren,
+        expanded
+      })
+
+      if (expanded) {
+        rows.push(...flattenMailboxTree(node.children, expandedKeys))
+      }
+    }
+
+    return rows
+  }
+
+  const mailboxTree = $derived(buildMailboxTree(imapMailboxes))
+  const defaultExpandedMailboxKeys = $derived(
+    collectDefaultExpandedKeys(mailboxTree, imapMailboxes, mailbox)
+  )
+  const visibleMailboxRows = $derived(
+    flattenMailboxTree(mailboxTree.roots, new Set(expandedMailboxKeys))
+  )
+  const selectableMailboxRows = $derived(visibleMailboxRows.filter((row) => row.slug !== null))
   const mailboxes = $derived(
-    data.imapMailboxes.map((mb) => ({
-      label: mb.name,
-      slug: pathToSlug(mb.path),
-      icon: iconForMailbox(mb.name)
+    selectableMailboxRows.map((row) => ({
+      label: row.label,
+      slug: row.slug ?? '',
+      icon: row.icon
     }))
   )
 
@@ -106,13 +254,47 @@
   let draftsError = $state<string | null>(null)
   let unreadCount = $state(0)
   let mobileNavOpen = $state(false)
-  let mobileSimplifiedModeAction = $state<(() => Promise<void>) | null>(null)
+  let sidebarSimplifiedModeAction = $state<((enabled: boolean) => Promise<void>) | null>(null)
+  let simplifiedViewEnabled = $state(false)
+  let savingSimplifiedView = $state(false)
   let viewportWidth = $state(1024)
+  let syncPollTimer: ReturnType<typeof setTimeout> | null = null
 
   const isMobile = $derived(viewportWidth < 768)
   const activeMailboxLabel = $derived(
-    mailboxes.find((candidate) => candidate.slug === mailbox)?.label ?? 'Mail'
+    imapMailboxes.find((candidate) => pathToSlug(candidate.path) === mailbox)?.name ?? 'Mail'
   )
+
+  function toggleMailboxExpanded(key: string) {
+    expandedMailboxKeys = expandedMailboxKeys.includes(key)
+      ? expandedMailboxKeys.filter((candidate) => candidate !== key)
+      : [...expandedMailboxKeys, key]
+  }
+
+  $effect(() => {
+    simplifiedViewEnabled = data.simplifiedView
+  })
+
+  $effect(() => {
+    imapMailboxes = data.imapMailboxes
+  })
+
+  $effect(() => {
+    const validKeys = new Set(mailboxTree.nodes.keys())
+    const merged = new Set(defaultExpandedMailboxKeys)
+
+    for (const key of expandedMailboxKeys) {
+      if (validKeys.has(key)) merged.add(key)
+    }
+
+    const nextKeys = Array.from(merged)
+    if (
+      nextKeys.length !== expandedMailboxKeys.length ||
+      nextKeys.some((key, index) => expandedMailboxKeys[index] !== key)
+    ) {
+      expandedMailboxKeys = nextKeys
+    }
+  })
 
   function formatRelative(isoString: string): string {
     const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000)
@@ -120,6 +302,27 @@
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
     return `${Math.floor(diff / 86400)}d ago`
+  }
+
+  function formatDateTime(isoString: string | null) {
+    if (!isoString) return 'Never'
+
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }).format(new Date(isoString))
+  }
+
+  function mailboxDisplayName(path: string | null | undefined) {
+    if (!path) return 'Unknown mailbox'
+    return imapMailboxes.find((candidate) => candidate.path === path)?.name ?? path
+  }
+
+  function syncStatusLabel(summary: SyncStatus) {
+    if (!summary.configured) return 'Mail not configured'
+    if (summary.hasError) return 'Sync error'
+    if (summary.syncing) return 'Syncing'
+    return 'Up to date'
   }
 
   async function fetchSyncStatus(reason = 'unknown') {
@@ -136,6 +339,20 @@
         ms: Math.round(now() - startedAt)
       })
     }
+  }
+
+  function scheduleNextSyncPoll() {
+    if (syncPollTimer) {
+      clearTimeout(syncPollTimer)
+      syncPollTimer = null
+    }
+
+    const delayMs = sync?.syncing ? 1000 : 5000
+    syncPollTimer = setTimeout(() => {
+      void fetchSyncStatus('interval').finally(() => {
+        scheduleNextSyncPoll()
+      })
+    }, delayMs)
   }
 
   async function fetchDrafts(reason = 'unknown') {
@@ -189,6 +406,27 @@
       logPerf('fetchUnreadCount', {
         reason,
         unreadCount,
+        ms: Math.round(now() - startedAt)
+      })
+    }
+  }
+
+  async function fetchMailboxes(reason = 'unknown') {
+    const startedAt = now()
+    try {
+      const res = await fetch('/api/mailboxes')
+      if (!res.ok) return
+
+      const payload = (await res.json()) as { mailboxes: ImapMailbox[] }
+      if (payload.mailboxes.length > 0) {
+        imapMailboxes = payload.mailboxes
+      }
+    } catch {
+      // ignore
+    } finally {
+      logPerf('fetchMailboxes', {
+        reason,
+        rows: imapMailboxes.length,
         ms: Math.round(now() - startedAt)
       })
     }
@@ -321,15 +559,16 @@
   onMount(() => {
     logPerf('shell hydrated', { mailbox, ms: Math.round(now() - shellInitAt) })
     logPerf('mount background fetch kick-off', { mailbox })
-    void fetchSyncStatus('mount')
+    if (imapMailboxes.length === 0) {
+      void fetchMailboxes('mount')
+    }
+    void fetchSyncStatus('mount').finally(() => {
+      scheduleNextSyncPoll()
+    })
     void fetchDrafts('mount')
     void fetchUnreadCount('mount')
     void registerPush()
 
-    const syncInterval = setInterval(() => {
-      logPerf('interval refresh', { task: 'fetchSyncStatus', everyMs: 5000 })
-      void fetchSyncStatus('interval')
-    }, 5000)
     const draftsInterval = setInterval(() => {
       logPerf('interval refresh', { task: 'fetchDrafts', everyMs: 30_000 })
       void fetchDrafts('interval')
@@ -340,7 +579,10 @@
     }, 30_000)
 
     return () => {
-      clearInterval(syncInterval)
+      if (syncPollTimer) {
+        clearTimeout(syncPollTimer)
+        syncPollTimer = null
+      }
       clearInterval(draftsInterval)
       clearInterval(unreadInterval)
     }
@@ -381,9 +623,38 @@
       .toUpperCase()
   })
 
-  setSimplifiedModeMobileActionContext({
-    setMobileSimplifiedModeAction(action) {
-      mobileSimplifiedModeAction = action
+  async function toggleSimplifiedView() {
+    if (savingSimplifiedView) return
+
+    const previousValue = simplifiedViewEnabled
+    const nextValue = !previousValue
+
+    simplifiedViewEnabled = nextValue
+    savingSimplifiedView = true
+
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ simplifiedView: nextValue })
+      })
+
+      if (!response.ok) {
+        throw new Error(await response.text())
+      }
+
+      await sidebarSimplifiedModeAction?.(nextValue)
+      await invalidateAll()
+    } catch {
+      simplifiedViewEnabled = previousValue
+    } finally {
+      savingSimplifiedView = false
+    }
+  }
+
+  setSimplifiedModeSidebarActionContext({
+    setSidebarSimplifiedModeAction(action) {
+      sidebarSimplifiedModeAction = action
     }
   })
 </script>
@@ -418,7 +689,7 @@
         : 'relative'
     ]}
   >
-    <div class="flex flex-1 flex-col overflow-hidden p-3 sm:p-4">
+    <div class="flex flex-1 flex-col overflow-visible p-3 sm:p-4">
       <div class="mb-3 flex items-center justify-between px-1 md:hidden">
         <p class="text-sm font-semibold text-zinc-300">Navigation</p>
         <button
@@ -477,31 +748,106 @@
         Mail
       </p>
       <nav bind:this={mailboxNavEl} class="space-y-1.5 overflow-y-auto">
-        {#each mailboxes as mb, i (mb.slug)}
-          <a
-            href={resolve(`/${mb.slug}`)}
-            data-mailbox-item
-            onclick={() => {
-              mobileNavOpen = false
-              keyboard.panel = 'list'
-            }}
+        {#each visibleMailboxRows as row (row.key)}
+          {@const selectableIndex = row.slug
+            ? mailboxes.findIndex((mb) => mb.slug === row.slug)
+            : -1}
+          <div
             class={[
-              'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition',
-              mailbox === mb.slug
-                ? 'bg-white/8 font-medium text-white'
+              'group flex items-center gap-1 rounded-xl transition',
+              row.selectable && mailbox === row.slug
+                ? 'bg-white/8 text-white'
                 : 'text-zinc-400 hover:bg-white/4 hover:text-zinc-200',
-              keyboard.panel === 'mailboxes' && keyboard.focusedMailboxIndex === i
+              row.selectable &&
+              keyboard.panel === 'mailboxes' &&
+              selectableIndex >= 0 &&
+              keyboard.focusedMailboxIndex === selectableIndex
                 ? 'ring-1 ring-blue-500/50 ring-inset'
                 : ''
             ]}
+            style={`padding-left: ${12 + row.depth * 14}px;`}
           >
-            <mb.icon size={15} />
-            {mb.label}
-          </a>
+            {#if row.selectable && row.slug}
+              <a
+                href={resolve(`/${row.slug}`)}
+                data-mailbox-item
+                onclick={() => {
+                  mobileNavOpen = false
+                  keyboard.panel = 'list'
+                }}
+                class={[
+                  'flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-2 text-sm transition',
+                  mailbox === row.slug ? 'font-medium text-white' : ''
+                ]}
+              >
+                <row.icon size={15} class="shrink-0" />
+                <span class="truncate">{row.label}</span>
+                {#if row.hasChildren}
+                  <button
+                    type="button"
+                    class="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-zinc-500 transition hover:bg-white/6 hover:text-zinc-200"
+                    aria-label={row.expanded ? `Collapse ${row.label}` : `Expand ${row.label}`}
+                    aria-expanded={row.expanded}
+                    onclick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      toggleMailboxExpanded(row.key)
+                    }}
+                  >
+                    {#if row.expanded}
+                      <ChevronDown size={14} />
+                    {:else}
+                      <ChevronRight size={14} />
+                    {/if}
+                  </button>
+                {/if}
+              </a>
+            {:else}
+              <button
+                type="button"
+                class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-2 text-left text-sm text-zinc-300 transition"
+                onclick={() => toggleMailboxExpanded(row.key)}
+              >
+                <row.icon size={15} class="shrink-0" />
+                <span class="truncate">{row.label}</span>
+                {#if row.hasChildren}
+                  <span
+                    class="ml-auto flex h-5 w-5 shrink-0 items-center justify-center text-zinc-500"
+                  >
+                    {#if row.expanded}
+                      <ChevronDown size={14} />
+                    {:else}
+                      <ChevronRight size={14} />
+                    {/if}
+                  </span>
+                {/if}
+              </button>
+            {/if}
+          </div>
         {/each}
       </nav>
 
       <div class="mt-auto space-y-1 pt-4">
+        <button
+          type="button"
+          onclick={() => void toggleSimplifiedView()}
+          disabled={savingSimplifiedView}
+          aria-pressed={simplifiedViewEnabled}
+          class="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-400 transition hover:bg-white/4 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span class="flex items-center gap-2.5">
+            <Layers size={15} />
+            Simplified mode
+          </span>
+          <span class="relative inline-flex items-center">
+            <span
+              class={[
+                'h-5 w-9 rounded-full transition after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition',
+                simplifiedViewEnabled ? 'bg-blue-600 after:translate-x-4' : 'bg-zinc-700'
+              ]}
+            ></span>
+          </span>
+        </button>
         <a
           href={resolve('/settings')}
           onclick={() => (mobileNavOpen = false)}
@@ -533,46 +879,98 @@
         <div class="border-t border-white/6 pt-3">
           <!-- Sync status -->
           {#if sync}
-            <div class="mb-2.5 flex items-center gap-2 px-3">
-              {#if !sync.configured}
-                <span class="h-1.5 w-1.5 rounded-full bg-zinc-600"></span>
-                <span class="text-xs text-zinc-600">Mail not configured</span>
-              {:else if sync.hasError}
-                <span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
-                <span class="truncate text-xs text-red-400" title={sync.errorMessage ?? ''}
-                  >Sync error</span
-                >
-              {:else if sync.syncing}
-                <span class="relative flex h-1.5 w-1.5 shrink-0">
-                  <span
-                    class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"
-                  ></span>
-                  <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                </span>
-                {#if sync.progress && sync.progress.total > 0}
-                  <span class="truncate text-xs text-zinc-500">
-                    {sync.progress.stored}/{sync.progress.total}
+            <div class="group relative mb-2.5 px-3">
+              <div class="flex items-center gap-2">
+                {#if !sync.configured}
+                  <span class="h-1.5 w-1.5 rounded-full bg-zinc-600"></span>
+                  <span class="text-xs text-zinc-600">Mail not configured</span>
+                {:else if sync.hasError}
+                  <span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+                  <span class="truncate text-xs text-red-400">Sync error</span>
+                {:else if sync.syncing}
+                  <span class="relative flex h-1.5 w-1.5 shrink-0">
+                    <span
+                      class="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"
+                    ></span>
+                    <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-500"></span>
                   </span>
+                  {#if sync.progress && sync.progress.total > 0}
+                    <span class="truncate text-xs text-zinc-500">
+                      {sync.progress.stored}/{sync.progress.total}
+                    </span>
+                  {:else}
+                    <span class="text-xs text-zinc-500">Syncing…</span>
+                  {/if}
                 {:else}
-                  <span class="text-xs text-zinc-500">Syncing…</span>
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                  <span class="text-xs text-zinc-600">
+                    {sync.lastSyncedAt ? formatRelative(sync.lastSyncedAt) : 'Never synced'}
+                  </span>
                 {/if}
-              {:else}
-                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                <span class="text-xs text-zinc-600">
-                  {sync.lastSyncedAt ? formatRelative(sync.lastSyncedAt) : 'Never synced'}
-                </span>
-              {/if}
-              <button
-                type="button"
-                onclick={handleRefresh}
-                class={[
-                  'ml-auto transition',
-                  refreshing ? 'animate-spin text-zinc-400' : 'text-zinc-600 hover:text-zinc-400'
-                ]}
-                title="Refresh"
+                <button
+                  type="button"
+                  onclick={handleRefresh}
+                  class={[
+                    'ml-auto transition',
+                    refreshing ? 'animate-spin text-zinc-400' : 'text-zinc-600 hover:text-zinc-400'
+                  ]}
+                  title="Refresh"
+                >
+                  <RefreshCw size={11} />
+                </button>
+              </div>
+
+              <div
+                class="pointer-events-none absolute bottom-full left-3 z-20 mb-2 hidden w-64 rounded-xl border border-white/8 bg-[#131319] p-3 opacity-0 shadow-2xl shadow-black/30 transition duration-150 group-focus-within:opacity-100 group-hover:opacity-100 md:block"
               >
-                <RefreshCw size={11} />
-              </button>
+                <div class="space-y-2">
+                  <p
+                    class={[
+                      'text-sm font-medium',
+                      !sync.configured
+                        ? 'text-zinc-300'
+                        : sync.hasError
+                          ? 'text-red-300'
+                          : sync.syncing
+                            ? 'text-zinc-200'
+                            : 'text-zinc-200'
+                    ]}
+                  >
+                    {syncStatusLabel(sync)}
+                  </p>
+
+                  <div class="space-y-1 text-xs text-zinc-400">
+                    <p class="flex items-start justify-between gap-3">
+                      <span class="text-zinc-500">Last sync</span>
+                      <span class="text-right text-zinc-300">
+                        {formatDateTime(sync.lastSyncedAt)}
+                      </span>
+                    </p>
+
+                    {#if sync.progress}
+                      <p class="flex items-start justify-between gap-3">
+                        <span class="text-zinc-500">Mailbox</span>
+                        <span class="text-right text-zinc-300">
+                          {mailboxDisplayName(sync.progress.mailbox)}
+                        </span>
+                      </p>
+                      <p class="flex items-start justify-between gap-3">
+                        <span class="text-zinc-500">Progress</span>
+                        <span class="text-right text-zinc-300">
+                          {sync.progress.stored}/{sync.progress.total}
+                        </span>
+                      </p>
+                    {/if}
+
+                    {#if sync.hasError && sync.errorMessage}
+                      <div class="border-t border-white/8 pt-2">
+                        <p class="text-zinc-500">Error</p>
+                        <p class="mt-1 break-words text-red-300">{sync.errorMessage}</p>
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+              </div>
             </div>
           {/if}
 
@@ -639,15 +1037,6 @@
         </div>
 
         <div class="flex items-center gap-2">
-          {#if mobileSimplifiedModeAction}
-            <button
-              type="button"
-              class="rounded-lg border border-white/8 bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6"
-              onclick={() => void mobileSimplifiedModeAction?.()}
-            >
-              Simple
-            </button>
-          {/if}
           <button
             type="button"
             class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-500"

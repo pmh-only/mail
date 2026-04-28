@@ -15,7 +15,6 @@
   import { resolve } from '$app/paths'
   import { page } from '$app/state'
   import { trackAppLoading } from '$lib/loading.svelte'
-  import { getSimplifiedModeContext } from '$lib/simplified-mode-context'
   import { onMount } from 'svelte'
   import { SvelteSet } from 'svelte/reactivity'
   import { openReply, openReplyAll } from '$lib/composer.svelte'
@@ -58,8 +57,6 @@
   const attachments = $derived(data.attachments)
   const role = $derived(data.mailboxRole)
   const subject = $derived(messages[0]?.subject ?? '(no subject)')
-  const simplifiedViewEnabled = $derived(Boolean(page.data.simplifiedView))
-  const { openSimplifiedMode } = getSimplifiedModeContext()
 
   // Latest message expanded by default
   let expandedIds = new SvelteSet<number>()
@@ -255,15 +252,6 @@
       </div>
 
       <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
-        {#if simplifiedViewEnabled}
-          <button
-            type="button"
-            onclick={() => void openSimplifiedMode()}
-            class="rounded-xl border border-transparent bg-white/3 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 md:border-white/8"
-          >
-            Simplified mode
-          </button>
-        {/if}
         {#if lastMessage}
           <button
             type="button"

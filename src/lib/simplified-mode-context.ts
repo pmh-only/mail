@@ -1,15 +1,8 @@
 import { createContext } from 'svelte'
 
-type SimplifiedModeContext = {
-  openSimplifiedMode: () => Promise<void>
+type SimplifiedModeSidebarActionContext = {
+  setSidebarSimplifiedModeAction: (action: ((enabled: boolean) => Promise<void>) | null) => void
 }
 
-type SimplifiedModeMobileActionContext = {
-  setMobileSimplifiedModeAction: (action: (() => Promise<void>) | null) => void
-}
-
-export const [getSimplifiedModeContext, setSimplifiedModeContext] =
-  createContext<SimplifiedModeContext>()
-
-export const [getSimplifiedModeMobileActionContext, setSimplifiedModeMobileActionContext] =
-  createContext<SimplifiedModeMobileActionContext>()
+export const [getSimplifiedModeSidebarActionContext, setSimplifiedModeSidebarActionContext] =
+  createContext<SimplifiedModeSidebarActionContext>()

@@ -4,10 +4,7 @@
   import { resolve } from '$app/paths'
   import { trackAppLoading } from '$lib/loading.svelte'
   import { pathToSlug } from '$lib/mailbox'
-  import {
-    getSimplifiedModeMobileActionContext,
-    setSimplifiedModeContext
-  } from '$lib/simplified-mode-context'
+  import { getSimplifiedModeSidebarActionContext } from '$lib/simplified-mode-context'
   import { page } from '$app/state'
   import { onMount, tick, untrack } from 'svelte'
   import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity'
@@ -20,7 +17,6 @@
     MailOpen,
     ShieldAlert,
     X,
-    Layers,
     ChevronLeft,
     ChevronRight,
     Search
@@ -73,7 +69,7 @@
   }
 
   let { data, children }: Props = $props()
-  const { setMobileSimplifiedModeAction } = getSimplifiedModeMobileActionContext()
+  const { setSidebarSimplifiedModeAction } = getSimplifiedModeSidebarActionContext()
 
   const perfPrefix = '[perf-client]'
 
@@ -104,16 +100,19 @@
       messages?: Message[]
       hasMore?: boolean
       pageSize?: number
+      total?: number
     }
 
     if (!Array.isArray(seed.messages)) return null
     if (typeof seed.hasMore !== 'boolean') return null
     if (typeof seed.pageSize !== 'number') return null
+    if (typeof seed.total !== 'number') return null
 
     return {
       messages: seed.messages,
       hasMore: seed.hasMore,
-      pageSize: seed.pageSize
+      pageSize: seed.pageSize,
+      total: seed.total
     }
   }
 
@@ -147,12 +146,14 @@
   let activeFilter = $state<'all' | 'unread'>('all')
   let sentinel = $state<HTMLDivElement | null>(null)
   let loadedCount = initialRouteListSeed?.messages.length ?? 0
+  let totalCount = $state(initialRouteListSeed?.total ?? 0)
   let lastKnownPageSize = initialRouteListSeed?.pageSize ?? 50
   let listRequestId = 0
   let listSyncKey = ''
   let loadedMailbox = ''
 
   let searchResults = $state<Message[]>([])
+  let searchTotalCount = $state(0)
   let isSearching = $state(false)
   let searchRequestId = 0
   let searchTimer: ReturnType<typeof setTimeout> | null = null
@@ -186,11 +187,16 @@
   let rowEls = $state<Map<number, HTMLElement>>(new Map())
   let listViewport: HTMLDivElement | null = null
   let listScrollRestoreId = 0
+  let viewportWidth = $state(1024)
   let simplifiedCardIndex = $state(0)
   let simplifiedDragOffsetX = $state(0)
   let simplifiedDragPointerId = $state<number | null>(null)
   let simplifiedDragging = $state(false)
   let simplifiedDragStartX = 0
+  let simplifiedDragLastX = 0
+  let simplifiedDragLastAt = 0
+  let simplifiedDragVelocityX = $state(0)
+  let simplifiedSwipeAnimating = $state(false)
   let simplifiedModeOverride = $state<boolean | null>(null)
   let lastSimplifiedModeKey = ''
   const simplifiedMode = $derived(simplifiedModeOverride ?? data.simplifiedView)
@@ -198,9 +204,24 @@
     simplifiedViewEnabled && isMailboxRoot && simplifiedMode
   )
   const simplifiedCards = $derived(listMessages)
+  const simplifiedDisplayedTotal = $derived.by(() => {
+    if (isSearchMode) return searchTotalCount
+    if (activeFilter === 'unread') return simplifiedCards.length
+    return totalCount
+  })
   const activeSimplifiedMessage = $derived(simplifiedCards[simplifiedCardIndex] ?? null)
   const canShowPreviousCard = $derived(simplifiedCardIndex > 0)
   const canShowNextCard = $derived(simplifiedCardIndex < simplifiedCards.length - 1)
+  const simplifiedCardWidthEstimate = $derived.by(() => {
+    if (viewportWidth >= 1024) {
+      return Math.min(Math.max(viewportWidth - 160, 360), 800)
+    }
+
+    return Math.min(Math.max(viewportWidth - 64, 280), 672)
+  })
+  const simplifiedSwipeProgress = $derived(
+    Math.min(Math.abs(simplifiedDragOffsetX) / (simplifiedCardWidthEstimate * 0.35), 1)
+  )
 
   $effect(() => {
     const query = searchQuery.trim()
@@ -212,6 +233,7 @@
 
     if (!query) {
       searchResults = []
+      searchTotalCount = 0
       isSearching = false
       return
     }
@@ -226,13 +248,15 @@
         )
         if (!response.ok) throw new Error('Search failed')
 
-        const payload = (await response.json()) as { messages: Message[] }
+        const payload = (await response.json()) as { messages: Message[]; total: number }
 
         if (requestId !== searchRequestId) return
         searchResults = payload.messages
+        searchTotalCount = payload.total
       } catch {
         if (requestId !== searchRequestId) return
         searchResults = []
+        searchTotalCount = 0
       } finally {
         if (requestId === searchRequestId) {
           isSearching = false
@@ -260,6 +284,8 @@
     simplifiedDragOffsetX = 0
     simplifiedDragging = false
     simplifiedDragPointerId = null
+    simplifiedDragVelocityX = 0
+    simplifiedSwipeAnimating = false
   })
 
   $effect(() => {
@@ -267,6 +293,8 @@
       simplifiedDragOffsetX = 0
       simplifiedDragging = false
       simplifiedDragPointerId = null
+      simplifiedDragVelocityX = 0
+      simplifiedSwipeAnimating = false
       return
     }
 
@@ -278,6 +306,16 @@
     if (simplifiedCardIndex > simplifiedCards.length - 1) {
       simplifiedCardIndex = simplifiedCards.length - 1
     }
+  })
+
+  $effect(() => {
+    if (!showSimplifiedMailboxView || isSearchMode || isLoadingMore || !hasMore) return
+    if (simplifiedCards.length === 0) return
+
+    const remainingCards = simplifiedCards.length - simplifiedCardIndex - 1
+    if (remainingCards > 2) return
+
+    void loadMoreMessages()
   })
 
   function formatRelativeTime(value: string | null | undefined) {
@@ -364,7 +402,7 @@
   }
 
   function applyListSeed(
-    seed: { messages: Message[]; hasMore: boolean; pageSize: number },
+    seed: { messages: Message[]; hasMore: boolean; pageSize: number; total: number },
     reason = 'unknown'
   ) {
     const startedAt = now()
@@ -375,6 +413,7 @@
     messages = seed.messages
     hasMore = seed.hasMore
     loadedCount = seed.messages.length
+    totalCount = seed.total
     loadMoreError = null
     restoreListScrollTop(scrollTop)
     logPerf('applyListSeed', {
@@ -399,7 +438,11 @@
       const response = await trackAppLoading(() => fetch(messagesUrl(0, limit)))
       if (!response.ok) throw new Error('Failed to refresh message list.')
 
-      const payload = (await response.json()) as { messages: Message[]; hasMore: boolean }
+      const payload = (await response.json()) as {
+        messages: Message[]
+        hasMore: boolean
+        total: number
+      }
 
       if (requestId !== listRequestId) return
 
@@ -407,6 +450,7 @@
       messages = payload.messages
       hasMore = payload.hasMore
       loadedCount = payload.messages.length
+      totalCount = payload.total
       loadMoreError = null
       restoreListScrollTop(scrollTop)
     } catch {
@@ -440,11 +484,16 @@
       const response = await trackAppLoading(() => fetch(messagesUrl(offset, lastKnownPageSize)))
       if (!response.ok) throw new Error('Failed to load more messages.')
 
-      const payload = (await response.json()) as { messages: Message[]; hasMore: boolean }
+      const payload = (await response.json()) as {
+        messages: Message[]
+        hasMore: boolean
+        total: number
+      }
 
       messages = [...messages, ...payload.messages]
       hasMore = payload.hasMore
       loadedCount = messages.length
+      totalCount = payload.total
     } catch (error) {
       loadMoreError = error instanceof Error ? error.message : 'Failed to load more messages.'
     } finally {
@@ -479,23 +528,25 @@
   }
 
   function showPreviousSimplifiedCard() {
-    if (!canShowPreviousCard) {
+    if (simplifiedSwipeAnimating || !canShowPreviousCard) {
       simplifiedDragOffsetX = 0
       return
     }
 
     simplifiedCardIndex -= 1
     simplifiedDragOffsetX = 0
+    simplifiedDragVelocityX = 0
   }
 
   function showNextSimplifiedCard() {
-    if (!canShowNextCard) {
+    if (simplifiedSwipeAnimating || !canShowNextCard) {
       simplifiedDragOffsetX = 0
       return
     }
 
     simplifiedCardIndex += 1
     simplifiedDragOffsetX = 0
+    simplifiedDragVelocityX = 0
   }
 
   function openSimplifiedMessage() {
@@ -510,28 +561,32 @@
     simplifiedModeOverride = true
   }
 
-  async function openSimplifiedMailboxView() {
-    enableSimplifiedMode()
-    await goto(resolve(`/${mailbox}`))
-  }
-
-  setSimplifiedModeContext({ openSimplifiedMode: openSimplifiedMailboxView })
-
-  $effect(() => {
-    setMobileSimplifiedModeAction(
-      simplifiedViewEnabled && !showSimplifiedMailboxView ? openSimplifiedMailboxView : null
-    )
-
-    return () => {
-      setMobileSimplifiedModeAction(null)
+  async function applySidebarSimplifiedMode(enabled: boolean) {
+    if (enabled) {
+      if (showSimplifiedMailboxView) return
+      enableSimplifiedMode()
+      await goto(resolve(`/${mailbox}`))
+      return
     }
-  })
+
+    if (showSimplifiedMailboxView) {
+      disableSimplifiedMode()
+    }
+  }
 
   function disableSimplifiedMode() {
     clearSelection()
     simplifiedDragOffsetX = 0
     simplifiedModeOverride = false
   }
+
+  $effect(() => {
+    setSidebarSimplifiedModeAction(applySidebarSimplifiedMode)
+
+    return () => {
+      setSidebarSimplifiedModeAction(null)
+    }
+  })
 
   function shouldStartSimplifiedCardDrag(event: PointerEvent) {
     const target = event.target
@@ -550,25 +605,80 @@
     const card = event.currentTarget as HTMLElement
     simplifiedDragPointerId = event.pointerId
     simplifiedDragging = true
+    simplifiedSwipeAnimating = false
     simplifiedDragStartX = event.clientX
+    simplifiedDragLastX = event.clientX
+    simplifiedDragLastAt = event.timeStamp
+    simplifiedDragVelocityX = 0
     simplifiedDragOffsetX = 0
     card.setPointerCapture(event.pointerId)
   }
 
+  function applySimplifiedDragResistance(deltaX: number) {
+    const swipingPastStart = deltaX > 0 && !canShowPreviousCard
+    const swipingPastEnd = deltaX < 0 && !canShowNextCard
+    const resistance = swipingPastStart || swipingPastEnd ? 0.22 : 0.9
+    const softened = Math.sign(deltaX) * Math.pow(Math.abs(deltaX), 0.92)
+    return softened * resistance
+  }
+
   function handleSimplifiedCardPointerMove(event: PointerEvent) {
     if (!simplifiedDragging || simplifiedDragPointerId !== event.pointerId) return
-    simplifiedDragOffsetX = event.clientX - simplifiedDragStartX
+    const deltaX = event.clientX - simplifiedDragStartX
+    simplifiedDragOffsetX = applySimplifiedDragResistance(deltaX)
+
+    const elapsed = Math.max(event.timeStamp - simplifiedDragLastAt, 1)
+    simplifiedDragVelocityX = (event.clientX - simplifiedDragLastX) / elapsed
+    simplifiedDragLastX = event.clientX
+    simplifiedDragLastAt = event.timeStamp
+  }
+
+  function animateSimplifiedCardSwipe(direction: 'previous' | 'next') {
+    if (simplifiedSwipeAnimating) return
+
+    const movingToPrevious = direction === 'previous'
+    if (movingToPrevious && !canShowPreviousCard) {
+      simplifiedDragOffsetX = 0
+      simplifiedDragVelocityX = 0
+      return
+    }
+    if (!movingToPrevious && !canShowNextCard) {
+      simplifiedDragOffsetX = 0
+      simplifiedDragVelocityX = 0
+      return
+    }
+
+    simplifiedSwipeAnimating = true
+    simplifiedDragOffsetX =
+      (movingToPrevious ? 1 : -1) * Math.max(simplifiedCardWidthEstimate * 1.08, 320)
+    simplifiedDragVelocityX = 0
+
+    window.setTimeout(() => {
+      if (movingToPrevious) {
+        simplifiedCardIndex -= 1
+      } else {
+        simplifiedCardIndex += 1
+      }
+
+      simplifiedDragOffsetX = 0
+      simplifiedSwipeAnimating = false
+    }, 180)
   }
 
   function finishSimplifiedCardDrag() {
-    const swipeThreshold = 80
+    const swipeThreshold = simplifiedCardWidthEstimate * 0.18
+    const swipeVelocityThreshold = 0.45
+    const movingNext = simplifiedDragOffsetX < 0
+    const canAdvanceByDistance = Math.abs(simplifiedDragOffsetX) >= swipeThreshold
+    const canAdvanceByVelocity = Math.abs(simplifiedDragVelocityX) >= swipeVelocityThreshold
 
-    if (simplifiedDragOffsetX <= -swipeThreshold) {
-      showNextSimplifiedCard()
-    } else if (simplifiedDragOffsetX >= swipeThreshold) {
-      showPreviousSimplifiedCard()
+    if ((canAdvanceByDistance || canAdvanceByVelocity) && movingNext) {
+      animateSimplifiedCardSwipe('next')
+    } else if (canAdvanceByDistance || canAdvanceByVelocity) {
+      animateSimplifiedCardSwipe('previous')
     } else {
       simplifiedDragOffsetX = 0
+      simplifiedDragVelocityX = 0
     }
 
     simplifiedDragging = false
@@ -597,6 +707,33 @@
     simplifiedDragOffsetX = 0
     simplifiedDragging = false
     simplifiedDragPointerId = null
+    simplifiedDragVelocityX = 0
+    simplifiedSwipeAnimating = false
+  }
+
+  function simplifiedCardTransform(offset: number) {
+    const progress = simplifiedSwipeProgress
+
+    if (offset === 0) {
+      const rotate = simplifiedDragOffsetX / 36
+      return `translate3d(${simplifiedDragOffsetX}px, 0, 0) rotate(${rotate}deg) scale(1)`
+    }
+
+    const directionLift = offset === 1 ? 10 : 6
+    const directionScale = offset === 1 ? 0.045 : 0.03
+    const directionOpacity = offset === 1 ? 0.16 : 0.08
+    const xParallax = simplifiedDragOffsetX * (offset === 1 ? 0.1 : 0.05)
+    const y = offset * 14 - progress * directionLift
+    const scale = 1 - offset * 0.04 + progress * directionScale
+    const opacity = 1 - offset * 0.18 + progress * directionOpacity
+
+    return `translate3d(${xParallax}px, ${y}px, 0) scale(${scale})`
+  }
+
+  function simplifiedCardOpacity(offset: number) {
+    if (offset === 0) return 1
+    const progress = simplifiedSwipeProgress
+    return 1 - offset * 0.18 + progress * (offset === 1 ? 0.16 : 0.08)
   }
 
   let lastSelectedIndex: number | null = null
@@ -668,6 +805,7 @@
     messages = []
     hasMore = false
     loadedCount = 0
+    totalCount = 0
     loadMoreError = null
 
     if (seed) {
@@ -683,6 +821,7 @@
     messages = []
     hasMore = false
     loadedCount = 0
+    totalCount = 0
     loadMoreError = null
     await refreshVisibleListWindow('toggle-threaded-reload')
 
@@ -818,7 +957,6 @@
   let listWidth = $state(readStorage('mail:listWidth', 440))
   let resizing = $state(false)
   let refreshing = $state(false)
-  let viewportWidth = $state(1024)
 
   const isDesktop = $derived(viewportWidth >= 768)
 
@@ -865,13 +1003,16 @@
   // Derived so Svelte tracks keyboard.focusedIndex as a reactive dependency
   const focusedIndex = $derived(keyboard.focusedIndex)
 
+  const selectedMessageRowClass =
+    'bg-white/14 shadow-[inset_3px_0_0_rgba(56,189,248,0.95)]'
+
   function messageRowClass(message: Message, index: number) {
     const isFocused = focusedIndex === index && !isSearchMode
     const isSelected = selectedMessageId === message.id
     return [
-      'block w-full rounded-2xl bg-white/2 px-4 py-4 text-left transition sm:px-5 md:rounded-none md:bg-transparent md:border-b md:border-white/8',
+      'block w-full rounded-2xl bg-white/2 py-4 pr-4 pl-9 text-left transition sm:pr-5 sm:pl-10 md:rounded-none md:border-b md:border-white/8 md:bg-transparent',
       isSelected
-        ? 'bg-white/6'
+        ? selectedMessageRowClass
         : isFocused
           ? 'bg-white/4 ring-1 ring-inset ring-blue-500/40'
           : 'hover:bg-white/3'
@@ -943,14 +1084,6 @@
           </button>
           <button
             type="button"
-            onclick={disableSimplifiedMode}
-            class="rounded-xl border border-transparent bg-white/3 px-2.5 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/6 sm:px-3 sm:text-sm md:border-white/8"
-          >
-            <span class="sm:hidden">Normal</span>
-            <span class="hidden sm:inline">Normal mode</span>
-          </button>
-          <button
-            type="button"
             onclick={handleRefresh}
             class={[
               'transition',
@@ -959,17 +1092,6 @@
             title="Refresh"
           >
             <RefreshCw size={15} />
-          </button>
-          <button
-            type="button"
-            onclick={() => void toggleThreadedMode()}
-            class={[
-              'transition',
-              threadedMode ? 'text-sky-400' : 'text-zinc-600 hover:text-zinc-400'
-            ]}
-            title={threadedMode ? 'Threaded view (on)' : 'Threaded view (off)'}
-          >
-            <Layers size={15} />
           </button>
           <div
             class="shrink-0 rounded-xl border border-transparent bg-white/3 p-1 text-xs md:border-white/8 md:text-sm"
@@ -1035,17 +1157,22 @@
           </p>
         </div>
       {:else}
-        <div class="flex w-full max-w-4xl flex-col items-center gap-6">
-          <div class="relative h-108 w-full max-w-2xl">
+        <div class="flex w-full max-w-5xl flex-col items-center gap-6">
+          <div class="relative h-108 w-full max-w-2xl lg:h-[34rem] lg:max-w-3xl">
             {#each simplifiedCards.slice(simplifiedCardIndex, simplifiedCardIndex + 3) as message, offset (message.id)}
               <article
                 class={[
-                  'absolute inset-0 overflow-hidden rounded-4xl border border-white/10 bg-[#131319] p-6 text-left shadow-2xl shadow-black/30 transition duration-200',
+                  'absolute inset-0 overflow-hidden rounded-3xl border border-white/10 bg-[#131319] p-6 text-left shadow-2xl shadow-black/30 lg:p-7',
                   offset === 0
-                    ? 'cursor-grab touch-pan-y active:cursor-grabbing'
+                    ? [
+                        'cursor-grab touch-pan-y will-change-transform active:cursor-grabbing',
+                        simplifiedDragging
+                          ? 'duration-0'
+                          : 'transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]'
+                      ]
                     : 'pointer-events-none'
                 ]}
-                style={`transform: translate3d(${offset === 0 ? simplifiedDragOffsetX : 0}px, ${offset * 14}px, 0) scale(${1 - offset * 0.04}); opacity: ${1 - offset * 0.18}; z-index: ${10 - offset};`}
+                style={`transform: ${simplifiedCardTransform(offset)}; opacity: ${simplifiedCardOpacity(offset)}; z-index: ${10 - offset};`}
                 onpointerdown={offset === 0 ? handleSimplifiedCardPointerDown : undefined}
                 onpointermove={offset === 0 ? handleSimplifiedCardPointerMove : undefined}
                 onpointerup={offset === 0 ? handleSimplifiedCardPointerUp : undefined}
@@ -1076,15 +1203,11 @@
                     </p>
                   </div>
 
-                  <p class="mt-6 line-clamp-6 text-base leading-7 text-zinc-400">
+                  <p class="mt-6 line-clamp-8 text-base leading-7 text-zinc-400 lg:line-clamp-10">
                     {previewLabel(message.preview)}
                   </p>
 
-                  <div class="mt-auto flex flex-wrap items-center justify-between gap-3 pt-6">
-                    <p class="text-sm text-zinc-500">
-                      Card {simplifiedCardIndex + offset + 1} of {simplifiedCards.length}
-                    </p>
-
+                  <div class="mt-auto flex flex-wrap items-center justify-end gap-3 pt-6">
                     <button
                       type="button"
                       onclick={offset === 0 ? openSimplifiedMessage : undefined}
@@ -1110,9 +1233,9 @@
             </button>
 
             <p class="min-w-28 text-center text-sm text-zinc-500">
-              {simplifiedCards.length === 0
+              {simplifiedDisplayedTotal === 0
                 ? '0 / 0'
-                : `${simplifiedCardIndex + 1} / ${simplifiedCards.length}`}
+                : `${simplifiedCardIndex + 1} / ${simplifiedDisplayedTotal}`}
             </p>
 
             <button
@@ -1132,14 +1255,9 @@
 
           {#if hasMore && !isSearchMode}
             <div bind:this={sentinel} class="h-1 w-full max-w-2xl"></div>
-            <button
-              type="button"
-              class="rounded-xl border border-transparent bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60 md:border-white/8"
-              onclick={() => void loadMoreMessages()}
-              disabled={isLoadingMore}
-            >
-              {isLoadingMore ? 'Loading...' : 'Load more'}
-            </button>
+            {#if isLoadingMore}
+              <p class="text-sm text-zinc-500">Loading more messages…</p>
+            {/if}
           {/if}
         </div>
       {/if}
@@ -1159,16 +1277,6 @@
       <div class="p-4 sm:p-5 md:border-b md:border-white/8">
         <div class="flex justify-end overflow-x-auto">
           <div class="inline-flex min-w-max items-center gap-1.5 sm:gap-2">
-            {#if simplifiedViewEnabled && isMailboxRoot}
-              <button
-                type="button"
-                onclick={enableSimplifiedMode}
-                class="hidden rounded-xl border border-transparent bg-white/3 px-2.5 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/6 sm:px-3 sm:text-sm md:inline-flex md:border-white/8"
-              >
-                <span class="sm:hidden">Simple</span>
-                <span class="hidden sm:inline">Simplified mode</span>
-              </button>
-            {/if}
             <button
               type="button"
               onclick={() => (mobileSearchOpen = !mobileSearchOpen)}
@@ -1193,17 +1301,6 @@
               title="Refresh"
             >
               <RefreshCw size={15} />
-            </button>
-            <button
-              type="button"
-              onclick={() => void toggleThreadedMode()}
-              class={[
-                'transition',
-                threadedMode ? 'text-sky-400' : 'text-zinc-600 hover:text-zinc-400'
-              ]}
-              title={threadedMode ? 'Threaded view (on)' : 'Threaded view (off)'}
-            >
-              <Layers size={15} />
             </button>
             <div
               class="shrink-0 rounded-xl border border-transparent bg-white/3 p-1 text-xs md:border-white/8 md:text-sm"
@@ -1338,9 +1435,10 @@
                   <button
                     type="button"
                     class={[
-                      'block w-full rounded-2xl bg-white/2 py-4 text-left transition md:rounded-none md:border-b md:border-white/8 md:bg-transparent',
-                      selectionMode ? 'pr-4 pl-9 sm:pr-5 sm:pl-10' : 'px-4 sm:px-5',
-                      selectedMessageId === message.id ? 'bg-white/6' : 'hover:bg-white/3'
+                      'block w-full rounded-2xl bg-white/2 py-4 pr-4 pl-9 text-left transition sm:pr-5 sm:pl-10 md:rounded-none md:border-b md:border-white/8 md:bg-transparent',
+                      selectedMessageId === message.id
+                        ? selectedMessageRowClass
+                        : 'hover:bg-white/3'
                     ].join(' ')}
                     onclick={() => selectMessage(message)}
                   >
@@ -1385,7 +1483,7 @@
               {/each}
             </div>
             <div class="px-4 py-5 text-center text-sm text-zinc-500 sm:px-5">
-              {searchResults.length} result{searchResults.length === 1 ? '' : 's'}
+              {searchTotalCount} result{searchTotalCount === 1 ? '' : 's'}
             </div>
           {/if}
         {:else if isRefreshingList && messages.length === 0}
@@ -1427,12 +1525,7 @@
                   class={messageRowClass(message, index)}
                   onclick={() => selectMessage(message)}
                 >
-                  <div
-                    class={[
-                      'flex items-start justify-between gap-3',
-                      selectionMode ? 'pl-5' : ''
-                    ].join(' ')}
-                  >
+                  <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2">
                         <p
@@ -1465,12 +1558,7 @@
                     </p>
                   </div>
 
-                  <p
-                    class={[
-                      'mt-3 line-clamp-2 text-sm leading-6 text-zinc-400',
-                      selectionMode ? 'pl-5' : ''
-                    ].join(' ')}
-                  >
+                  <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
                     {previewLabel(message.preview)}
                   </p>
                 </button>
@@ -1491,16 +1579,9 @@
 
               {#if hasMore}
                 <div bind:this={sentinel} class="h-1 w-full"></div>
-                <div class="flex justify-center">
-                  <button
-                    type="button"
-                    class="rounded-xl border border-transparent bg-white/3 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-60 md:border-white/8"
-                    onclick={() => void loadMoreMessages()}
-                    disabled={isLoadingMore}
-                  >
-                    {isLoadingMore ? 'Loading...' : 'Load more'}
-                  </button>
-                </div>
+                {#if isLoadingMore}
+                  <p class="text-center text-sm text-zinc-500">Loading more messages…</p>
+                {/if}
               {:else}
                 <p class="text-center text-sm text-zinc-500">All stored messages are loaded.</p>
               {/if}
