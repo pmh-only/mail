@@ -111,8 +111,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
       hasSmtp: Boolean(body.smtp),
       hasOidc: Boolean(body.oidc),
       compactMode: typeof body.compactMode === 'boolean' ? body.compactMode : 'unchanged',
-      simplifiedView:
-        typeof body.simplifiedView === 'boolean' ? body.simplifiedView : 'unchanged'
+      simplifiedView: typeof body.simplifiedView === 'boolean' ? body.simplifiedView : 'unchanged'
     })
     const message = err instanceof Error ? err.message : String(err)
     return error(500, `Failed to save settings: ${message}`)
