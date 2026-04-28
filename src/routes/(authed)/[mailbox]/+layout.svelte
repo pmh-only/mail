@@ -160,11 +160,23 @@
   let searchRequestId = 0
   let searchTimer: ReturnType<typeof setTimeout> | null = null
   let pendingMailboxNavigationScrollTop: number | null = null
+  let viewportHeight = $state(768)
 
   // Bulk selection
   let selectedIds = new SvelteSet<number>()
   const selectionMode = $derived(selectedIds.size > 0)
   let bulkActionPending = $state(false)
+
+  type ContextMenuAction = 'open' | 'archive' | 'trash' | 'spam' | 'inbox' | 'mark_read'
+
+  type ContextMenuState = {
+    message: Message
+    index: number
+    x: number
+    y: number
+  } | null
+
+  let contextMenu = $state<ContextMenuState>(null)
 
   const isSearchMode = $derived(searchQuery.trim().length > 0)
 
@@ -512,6 +524,7 @@
   }
 
   function selectMessage(message: Message) {
+    closeContextMenu()
     if (!message.flags.includes('\\Seen')) {
       const scrollTop = captureListScrollTop()
       messages = messages.map((m) =>
@@ -767,6 +780,64 @@
     selectedIds.clear()
   }
 
+  function inferMailboxRole(mailboxPath: string | undefined) {
+    if (!mailboxPath) return null
+    const value = mailboxPath.toLowerCase()
+    if (/\binbox\b/.test(value)) return 'inbox'
+    if (/\b(archive|all[\s._-]?mail)\b/.test(value)) return 'archive'
+    if (/\b(trash|deleted[\s._-]?(items|messages)?)\b/.test(value)) return 'trash'
+    if (/\b(spam|junk([\s._-]?email)?)\b/.test(value)) return 'spam'
+    return null
+  }
+
+  function closeContextMenu() {
+    contextMenu = null
+  }
+
+  function openContextMenu(event: MouseEvent, message: Message, index: number) {
+    event.preventDefault()
+    event.stopPropagation()
+    keyboard.focusedIndex = index
+
+    const menuWidth = 208
+    const menuHeight = 224
+    const padding = 12
+    const nextX = Math.min(event.clientX, Math.max(padding, viewportWidth - menuWidth - padding))
+    const nextY = Math.min(event.clientY, Math.max(padding, viewportHeight - menuHeight - padding))
+
+    contextMenu = { message, index, x: nextX, y: nextY }
+  }
+
+  function contextMenuItems(message: Message): Array<{ action: ContextMenuAction; label: string }> {
+    const role = inferMailboxRole(message.mailbox ?? page.params.mailbox)
+    const items: Array<{ action: ContextMenuAction; label: string }> = [
+      { action: 'open', label: 'Open' }
+    ]
+
+    if (role === 'archive' || role === 'trash' || role === 'spam') {
+      items.push({ action: 'inbox', label: 'Move to inbox' })
+    } else {
+      items.push({ action: 'archive', label: 'Archive' })
+      items.push({ action: 'trash', label: 'Move to trash' })
+      items.push({ action: 'spam', label: 'Move to spam' })
+    }
+
+    if (isUnread(message.flags)) {
+      items.push({ action: 'mark_read', label: 'Mark as read' })
+    }
+
+    return items
+  }
+
+  function updateMessageFlags(id: number, updater: (flags: string[]) => string[]) {
+    messages = messages.map((message) =>
+      message.id === id ? { ...message, flags: updater(message.flags) } : message
+    )
+    searchResults = searchResults.map((message) =>
+      message.id === id ? { ...message, flags: updater(message.flags) } : message
+    )
+  }
+
   async function bulkAction(action: string) {
     if (bulkActionPending || selectedIds.size === 0) return
     bulkActionPending = true
@@ -895,7 +966,10 @@
       },
       '*a': () => selectAll(),
       '*n': () => clearSelection(),
-      Escape: () => clearSelection()
+      Escape: () => {
+        if (contextMenu) closeContextMenu()
+        else clearSelection()
+      }
     })
 
     return () => {
@@ -905,6 +979,7 @@
   })
 
   async function archiveMessage(id: number) {
+    closeContextMenu()
     await trackAppLoading(async () => {
       await fetch(`/api/messages/${id}`, {
         method: 'POST',
@@ -917,6 +992,7 @@
   }
 
   async function trashMessage(id: number) {
+    closeContextMenu()
     await trackAppLoading(async () => {
       await fetch(`/api/messages/${id}`, {
         method: 'POST',
@@ -926,6 +1002,48 @@
 
       await refreshVisibleListWindow('trash-message')
     })
+  }
+
+  async function moveMessageAction(id: number, action: 'archive' | 'trash' | 'spam' | 'inbox') {
+    closeContextMenu()
+    await trackAppLoading(async () => {
+      await fetch(`/api/messages/${id}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action })
+      })
+
+      await refreshVisibleListWindow(`message-action:${action}`)
+    })
+  }
+
+  async function markMessageRead(id: number) {
+    closeContextMenu()
+    updateMessageFlags(id, (flags) => (flags.includes('\\Seen') ? flags : [...flags, '\\Seen']))
+
+    await trackAppLoading(async () => {
+      await fetch('/api/messages/bulk', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [id], action: 'mark_read' })
+      })
+
+      await refreshVisibleListWindow('message-action:mark-read')
+    })
+  }
+
+  async function runContextMenuAction(action: ContextMenuAction, message: Message) {
+    if (action === 'open') {
+      selectMessage(message)
+      return
+    }
+
+    if (action === 'mark_read') {
+      await markMessageRead(message.id)
+      return
+    }
+
+    await moveMessageAction(message.id, action)
   }
 
   $effect(() => {
@@ -1005,19 +1123,14 @@
   // Derived so Svelte tracks keyboard.focusedIndex as a reactive dependency
   const focusedIndex = $derived(keyboard.focusedIndex)
 
-  const selectedMessageRowClass =
-    'bg-white/14 shadow-[inset_3px_0_0_rgba(56,189,248,0.95)]'
+  const selectedMessageRowClass = 'bg-white/14 shadow-[inset_3px_0_0_rgba(56,189,248,0.95)]'
 
   function messageRowClass(message: Message, index: number) {
     const isFocused = focusedIndex === index && !isSearchMode
     const isSelected = selectedMessageId === message.id
     return [
       'block w-full rounded-2xl bg-white/2 py-4 pr-4 pl-9 text-left transition sm:pr-5 sm:pl-10 md:rounded-none md:border-b md:border-white/8 md:bg-transparent',
-      isSelected
-        ? selectedMessageRowClass
-        : isFocused
-          ? 'bg-white/4 ring-1 ring-inset ring-blue-500/40'
-          : 'hover:bg-white/3'
+      isSelected ? selectedMessageRowClass : isFocused ? 'bg-white/4' : 'hover:bg-white/3'
     ].join(' ')
   }
 
@@ -1039,6 +1152,7 @@
   }
 
   beforeNavigate((navigation) => {
+    closeContextMenu()
     if (!listViewport || navigation.willUnload) return
 
     const fromPath = navigation.from?.url.pathname
@@ -1063,7 +1177,14 @@
   <title>{folderDisplayName}</title>
 </svelte:head>
 
-<svelte:window bind:innerWidth={viewportWidth} />
+<svelte:window
+  bind:innerWidth={viewportWidth}
+  bind:innerHeight={viewportHeight}
+  onscroll={closeContextMenu}
+  onkeydown={(event) => {
+    if (event.key === 'Escape') closeContextMenu()
+  }}
+/>
 
 {#if showSimplifiedMailboxView}
   <section class="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-[#0d0d10]">
@@ -1141,7 +1262,7 @@
             bind:value={searchQuery}
             type="search"
             placeholder="Search"
-            class="w-full rounded-xl border border-transparent bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-sky-400/60 md:border-white/8"
+            class="w-full rounded-xl border border-transparent bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-white/8 md:border-white/8"
           />
         </label>
       {/if}
@@ -1278,7 +1399,7 @@
       style={isDesktop ? `width: ${listWidth}px; min-width: ${listWidth}px` : undefined}
       class={[
         'flex flex-col overflow-x-hidden bg-[#0d0d10] md:border-r',
-        keyboard.panel === 'list' ? 'md:border-blue-500/40' : 'md:border-white/8',
+        'md:border-white/8',
         isMailboxRoot ? 'flex min-w-0 flex-1 md:flex-none' : 'hidden md:flex'
       ]}
       aria-label="Message list"
@@ -1353,7 +1474,7 @@
               bind:value={searchQuery}
               type="search"
               placeholder="Search"
-              class="w-full rounded-xl border border-transparent bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-sky-400/60 md:border-white/8"
+              class="w-full rounded-xl border border-transparent bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-white/8 md:border-white/8"
             />
           </label>
         {/if}
@@ -1457,6 +1578,7 @@
                         : 'hover:bg-white/3'
                     ].join(' ')}
                     onclick={() => selectMessage(message)}
+                    oncontextmenu={(event) => openContextMenu(event, message, index)}
                   >
                     <div class="flex items-start justify-between gap-3">
                       <div class="min-w-0 flex-1">
@@ -1542,6 +1664,7 @@
                   type="button"
                   class={messageRowClass(message, index)}
                   onclick={() => selectMessage(message)}
+                  oncontextmenu={(event) => openContextMenu(event, message, index)}
                 >
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0 flex-1">
@@ -1632,5 +1755,39 @@
     >
       {@render children()}
     </section>
+  </div>
+{/if}
+
+{#if contextMenu}
+  {@const activeContextMenu = contextMenu}
+  <div
+    class="fixed inset-0 z-40"
+    role="presentation"
+    onclick={closeContextMenu}
+    oncontextmenu={(event) => {
+      event.preventDefault()
+      closeContextMenu()
+    }}
+  >
+    <div
+      class="absolute z-50 min-w-52 overflow-hidden rounded-2xl border border-white/10 bg-[#111216] p-1.5 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
+      style={`left:${activeContextMenu.x}px;top:${activeContextMenu.y}px;`}
+      role="menu"
+      tabindex="-1"
+      aria-label="Message actions"
+      onclick={(event) => event.stopPropagation()}
+      onkeydown={(event) => event.stopPropagation()}
+      oncontextmenu={(event) => event.preventDefault()}
+    >
+      {#each contextMenuItems(activeContextMenu.message) as item (item.action)}
+        <button
+          type="button"
+          class="flex w-full items-center rounded-xl px-3 py-2 text-left text-sm text-zinc-200 transition hover:bg-white/8"
+          onclick={() => void runContextMenuAction(item.action, activeContextMenu.message)}
+        >
+          {item.label}
+        </button>
+      {/each}
+    </div>
   </div>
 {/if}
