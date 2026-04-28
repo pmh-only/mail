@@ -700,8 +700,8 @@
         : 'relative'
     ]}
   >
-    <div class="flex flex-1 flex-col overflow-visible p-3 sm:p-4">
-      <div class="mb-3 flex items-center justify-between px-1 md:hidden">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
+      <div class="mb-3 flex shrink-0 items-center justify-between px-1 md:hidden">
         <p class="text-sm font-semibold text-zinc-300">Navigation</p>
         <button
           type="button"
@@ -713,7 +713,7 @@
         </button>
       </div>
 
-      <div class="mb-3 px-1">
+      <div class="mb-3 shrink-0 px-1">
         <button
           type="button"
           onclick={() => {
@@ -755,10 +755,10 @@
         {/if}
       </div>
 
-      <p class="px-3 pt-1 pb-2 text-xs font-semibold tracking-widest text-zinc-500 uppercase">
+      <p class="shrink-0 px-3 pt-1 pb-2 text-xs font-semibold tracking-widest text-zinc-500 uppercase">
         Mail
       </p>
-      <nav bind:this={mailboxNavEl} class="space-y-1.5 overflow-y-auto">
+      <nav bind:this={mailboxNavEl} class="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
         {#each visibleMailboxRows as row (row.key)}
           {@const selectableIndex = row.slug
             ? mailboxes.findIndex((mb) => mb.slug === row.slug)
@@ -850,7 +850,7 @@
         {/each}
       </nav>
 
-      <div class="mt-auto space-y-1 pt-4">
+      <div class="mt-auto shrink-0 space-y-1 pt-4">
         <button
           type="button"
           onclick={() => void toggleSimplifiedView()}
