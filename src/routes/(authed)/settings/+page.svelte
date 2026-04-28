@@ -30,6 +30,7 @@
       }
       origin: string
       simplifiedView: boolean
+      compactMode: boolean
     }
   }
 
@@ -43,24 +44,29 @@
     oidc = $state({} as OidcForm)
     signature = $state('')
     simplifiedView = $state(false)
+    compactMode = $state(false)
 
-    constructor(config: Props['data']['config'], simplifiedView: boolean) {
+    constructor(config: Props['data']['config'], simplifiedView: boolean, compactMode: boolean) {
       this.imap = { ...config.imap, password: '' }
       this.smtp = { ...config.smtp, password: '' }
       this.oidc = { ...config.oidc, clientSecret: '' }
       this.signature = config.signature
       this.simplifiedView = simplifiedView
+      this.compactMode = compactMode
     }
   }
 
   let { data }: Props = $props()
 
   // Editable form state
-  let form = $derived.by(() => new SettingsFormState(data.config, data.simplifiedView))
+  let form = $derived.by(
+    () => new SettingsFormState(data.config, data.simplifiedView, data.compactMode)
+  )
   let imap = $derived(form.imap)
   let smtp = $derived(form.smtp)
   let oidc = $derived(form.oidc)
   let simplifiedView = $derived(form.simplifiedView)
+  let compactMode = $derived(form.compactMode)
 
   type Filter = {
     id: number
@@ -171,7 +177,14 @@
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ imap, smtp, oidc, signature: form.signature, simplifiedView })
+        body: JSON.stringify({
+          imap,
+          smtp,
+          oidc,
+          signature: form.signature,
+          simplifiedView,
+          compactMode
+        })
       })
       if (!res.ok) {
         const text = await res.text()
@@ -538,6 +551,23 @@
 
           <span class="relative inline-flex cursor-pointer items-center">
             <input type="checkbox" bind:checked={simplifiedView} class="peer sr-only" />
+            <span
+              class="h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"
+            ></span>
+          </span>
+        </label>
+      </div>
+      <div class="rounded-lg border border-white/8 bg-white/3 p-4">
+        <label class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p class="text-sm font-medium text-zinc-200">Use compact message list</p>
+            <p class="mt-1 text-sm text-zinc-500">
+              Hide message previews in mailbox lists and search results.
+            </p>
+          </div>
+
+          <span class="relative inline-flex cursor-pointer items-center">
+            <input type="checkbox" bind:checked={compactMode} class="peer sr-only" />
             <span
               class="h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"
             ></span>

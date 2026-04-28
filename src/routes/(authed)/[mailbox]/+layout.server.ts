@@ -1,7 +1,7 @@
 import type { LayoutServerLoad } from './$types'
 import { getMailboxSyncStatus, resolveMailboxPath } from '$lib/server/mail'
 import { payloadBytes, perfLog, perfMs, perfNow } from '$lib/server/perf'
-import { getSimplifiedViewEnabled } from '$lib/server/preferences'
+import { getCompactModeEnabled, getSimplifiedViewEnabled } from '$lib/server/preferences'
 
 export const load: LayoutServerLoad = async ({ params, parent, cookies }) => {
   const startedAt = perfNow()
@@ -12,7 +12,8 @@ export const load: LayoutServerLoad = async ({ params, parent, cookies }) => {
 
   const body = {
     sync,
-    simplifiedView: getSimplifiedViewEnabled(cookies)
+    simplifiedView: getSimplifiedViewEnabled(cookies),
+    compactMode: getCompactModeEnabled(cookies)
   }
 
   perfLog('load.mailboxLayout', {

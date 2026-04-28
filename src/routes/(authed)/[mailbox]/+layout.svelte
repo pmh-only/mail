@@ -64,6 +64,7 @@
       sync: SyncData
       imapMailboxes: ImapMailbox[]
       simplifiedView: boolean
+      compactMode: boolean
     }
     children: import('svelte').Snippet
   }
@@ -91,6 +92,7 @@
   const sync = $derived(data.sync)
   const mailbox = $derived(page.params.mailbox ?? 'inbox')
   const simplifiedViewEnabled = $derived(data.simplifiedView)
+  const compactModeEnabled = $derived(data.compactMode)
   const isMailboxRoot = $derived(!page.params.id && !page.params.threadId)
 
   function readRouteListSeed() {
@@ -1475,9 +1477,11 @@
                       </div>
                     </div>
 
-                    <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
-                      {previewLabel(message.preview)}
-                    </p>
+                    {#if !compactModeEnabled}
+                      <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
+                        {previewLabel(message.preview)}
+                      </p>
+                    {/if}
                   </button>
                 </div>
               {/each}
@@ -1558,9 +1562,11 @@
                     </p>
                   </div>
 
-                  <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
-                    {previewLabel(message.preview)}
-                  </p>
+                  {#if !compactModeEnabled}
+                    <p class="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
+                      {previewLabel(message.preview)}
+                    </p>
+                  {/if}
                 </button>
               </div>
             {:else}

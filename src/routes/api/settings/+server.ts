@@ -4,7 +4,12 @@ import { db } from '$lib/server/db'
 import { mailConfig } from '$lib/server/db/schema'
 import { getDisplayConfig, invalidateConfigCache } from '$lib/server/config'
 import { invalidateAuth } from '$lib/server/auth'
-import { getSimplifiedViewEnabled, setSimplifiedViewEnabled } from '$lib/server/preferences'
+import {
+  getCompactModeEnabled,
+  getSimplifiedViewEnabled,
+  setCompactModeEnabled,
+  setSimplifiedViewEnabled
+} from '$lib/server/preferences'
 import { logServerError } from '$lib/server/perf'
 // Note: signature cache invalidation is client-side only (composer.svelte.ts)
 
@@ -12,7 +17,8 @@ export const GET: RequestHandler = async ({ cookies }) => {
   const config = await getDisplayConfig()
   return json({
     ...config,
-    simplifiedView: getSimplifiedViewEnabled(cookies)
+    simplifiedView: getSimplifiedViewEnabled(cookies),
+    compactMode: getCompactModeEnabled(cookies)
   })
 }
 
@@ -90,6 +96,10 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
       setSimplifiedViewEnabled(cookies, body.simplifiedView)
     }
 
+    if (typeof body.compactMode === 'boolean') {
+      setCompactModeEnabled(cookies, body.compactMode)
+    }
+
     if (shouldPersistConfig) {
       invalidateConfigCache()
       invalidateAuth()
@@ -100,6 +110,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
       hasImap: Boolean(body.imap),
       hasSmtp: Boolean(body.smtp),
       hasOidc: Boolean(body.oidc),
+      compactMode: typeof body.compactMode === 'boolean' ? body.compactMode : 'unchanged',
       simplifiedView:
         typeof body.simplifiedView === 'boolean' ? body.simplifiedView : 'unchanged'
     })

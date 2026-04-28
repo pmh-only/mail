@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types'
 import { getDisplayConfig } from '$lib/server/config'
-import { getSimplifiedViewEnabled } from '$lib/server/preferences'
+import { getCompactModeEnabled, getSimplifiedViewEnabled } from '$lib/server/preferences'
 import { env } from '$env/dynamic/private'
 
 export const load: PageServerLoad = async ({ cookies }) => {
@@ -8,6 +8,7 @@ export const load: PageServerLoad = async ({ cookies }) => {
   return {
     config,
     origin: env.ORIGIN ?? '',
-    simplifiedView: getSimplifiedViewEnabled(cookies)
+    simplifiedView: getSimplifiedViewEnabled(cookies),
+    compactMode: getCompactModeEnabled(cookies)
   }
 }
