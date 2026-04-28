@@ -8,7 +8,7 @@ RUN corepack enable
 FROM base AS build
 RUN apk add --no-cache python3 make g++
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile
 COPY . .
 RUN DATABASE_URL=postgres://build:build@localhost:5432/build \
