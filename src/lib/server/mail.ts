@@ -69,6 +69,7 @@ export type MailListRow = {
 export type MailRow = MailListRow & {
   textContent: string
   htmlContent: string | null
+  replyTo: string | null
   inReplyTo: string | null
   references: string | null
 }
@@ -96,18 +97,26 @@ const yieldToEventLoop = () => new Promise<void>((resolve) => setImmediate(resol
 let activeSync: Promise<void> | null = null
 let syncTimer: ReturnType<typeof setInterval> | null = null
 
-type ActiveSyncProgress = {
-  mailbox: string
-  stored: number
-  total: number
-}
-let activeSyncProgress: ActiveSyncProgress | null = null
-
 function summarizeAddresses(input: unknown) {
   if (!input || typeof input !== 'object' || !('value' in input)) return ''
-  const addresses = (input as { value?: Array<{ name?: string; address?: string }> }).value ?? []
+  const addressObject = input as {
+    text?: string
+    value?: Array<{ name?: string; address?: string }>
+  }
+
+  if (addressObject.text?.trim()) {
+    return addressObject.text.trim()
+  }
+
+  const addresses = addressObject.value ?? []
   return addresses
     .map((entry) => entry.name || entry.address || '')
+    .map((entry, index) => {
+      const source = addresses[index]
+      if (!source?.name || !source.address) return entry
+      return `${source.name} <${source.address}>`
+    })
+    .map((entry) => entry.trim())
     .filter(Boolean)
     .join(', ')
 }
@@ -264,7 +273,6 @@ async function saveSyncRuntime(values: Partial<typeof syncRuntime.$inferInsert>)
 }
 
 async function setSyncProgress(mailbox: string | null, stored: number, total: number) {
-  activeSyncProgress = mailbox ? { mailbox, stored, total } : null
   await saveSyncRuntime({
     isSyncing: mailbox !== null,
     activeMailbox: mailbox,
@@ -285,15 +293,6 @@ function fallbackMailboxName(path: string) {
 
 function isAllMailMailbox(path: string) {
   return /\ball[\s._-]?mail\b/i.test(path)
-}
-
-function asDate(value: unknown): Date | null {
-  if (value instanceof Date) return value
-  if (typeof value === 'string' || typeof value === 'number') {
-    const parsed = new Date(value)
-    return Number.isNaN(parsed.getTime()) ? null : parsed
-  }
-  return null
 }
 
 function getMailboxSortRank(mailbox: { path: string; name: string }) {
@@ -433,6 +432,9 @@ async function storeMessageContent(
   const cc = sanitizePgText(
     summarizeAddresses(message.cc as Parameters<typeof summarizeAddresses>[0])
   )
+  const replyTo = sanitizeNullablePgText(
+    summarizeAddresses(message.replyTo as Parameters<typeof summarizeAddresses>[0]) || null
+  )
 
   // Resolve thread key
   const refList = references ? references.split(/\s+/).filter(Boolean) : []
@@ -446,6 +448,7 @@ async function storeMessageContent(
       from: sanitizePgText(summarizeAddresses(message.from)),
       to: sanitizePgText(summarizeAddresses(message.to)),
       cc,
+      replyTo,
       preview: createPreview(textContent),
       textContent,
       htmlContent,
@@ -882,7 +885,6 @@ async function runSyncAll(config: ImapConfig): Promise<void> {
     }
 
     console.log(`[sync] all mailboxes done`)
-    activeSyncProgress = null
     await saveSyncRuntime({
       isSyncing: false,
       activeMailbox: null,
@@ -893,7 +895,6 @@ async function runSyncAll(config: ImapConfig): Promise<void> {
       lastError: null
     })
   } catch (error) {
-    activeSyncProgress = null
     await saveSyncRuntime({
       isSyncing: false,
       activeMailbox: null,
@@ -1159,6 +1160,7 @@ const detailSelect = {
   ...listSelect,
   textContent: mailMessage.textContent,
   htmlContent: mailMessage.htmlContent,
+  replyTo: mailMessage.replyTo,
   inReplyTo: mailMessage.inReplyTo,
   references: mailMessage.references
 }

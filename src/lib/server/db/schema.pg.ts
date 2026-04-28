@@ -83,9 +83,7 @@ export const imapJob = pgTable(
     attemptCount: integer('attempt_count').notNull().default(0),
     availableAt: timestamp('available_at', { withTimezone: true, mode: 'date' }).notNull(),
     lastError: text('last_error'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
       .$onUpdate(() => /* @__PURE__ */ new Date())
@@ -106,6 +104,7 @@ export const mailMessage = pgTable(
     from: text('from').notNull().default(''),
     to: text('to').notNull().default(''),
     cc: text('cc').notNull().default(''),
+    replyTo: text('reply_to'),
     preview: text('preview').notNull().default(''),
     textContent: text('text_content').notNull().default(''),
     htmlContent: text('html_content'),
@@ -130,9 +129,7 @@ export const mailMessageMailbox = pgTable(
     uid: integer('uid').notNull(),
     flags: text('flags').notNull().default('[]'),
     receivedAt: timestamp('received_at', { withTimezone: true, mode: 'date' }),
-    syncedAt: timestamp('synced_at', { withTimezone: true, mode: 'date' })
-      .defaultNow()
-      .notNull()
+    syncedAt: timestamp('synced_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull()
   },
   (table) => [
     uniqueIndex('mail_message_mailbox_mailbox_uid_idx').on(table.mailbox, table.uid),
