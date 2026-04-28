@@ -672,9 +672,9 @@
       }}
     >
       <div
-        class="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl"
+        class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl"
       >
-        <div class="flex items-center justify-between border-b border-white/8 px-5 py-4">
+        <div class="flex shrink-0 items-center justify-between border-b border-white/8 px-5 py-4">
           <div>
             <h3 class="text-base font-semibold text-white">Message Metadata</h3>
             <p class="mt-1 text-sm text-zinc-500">{subjectLabel(message.subject)}</p>
@@ -689,7 +689,7 @@
           </button>
         </div>
 
-        <div class="overflow-y-auto p-5">
+        <div class="min-h-0 flex-1 overflow-y-auto p-5">
           <dl class="space-y-3">
             {#each metadataRows(message) as row (row.label)}
               <div
