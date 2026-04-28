@@ -8,6 +8,7 @@
     Forward,
     Share2,
     Check,
+    Info,
     Paperclip,
     Download,
     FileText,
@@ -15,7 +16,8 @@
     FileImage,
     X,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    MoreVertical
   } from 'lucide-svelte'
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
@@ -34,6 +36,7 @@
     from: string | null
     to: string | null
     cc: string | null
+    replyTo: string | null
     preview: string | null
     htmlContent: string | null
     textContent: string | null
@@ -66,6 +69,7 @@
   let sharing = $state(false)
   let shareCopied = $state(false)
   let metadataOpen = $state(false)
+  let moreOpen = $state(false)
 
   function gotoMailbox() {
     return goto(resolve(`/${page.params.mailbox}`), { noScroll: true, keepFocus: true })
@@ -91,6 +95,16 @@
     } finally {
       sharing = false
     }
+  }
+
+  async function shareFromMore() {
+    moreOpen = false
+    await shareMessage()
+  }
+
+  async function spamFromMore() {
+    moreOpen = false
+    await performAction('spam')
   }
 
   async function performAction(action: 'archive' | 'trash' | 'spam' | 'inbox') {
@@ -157,11 +171,16 @@
     return Boolean(value && value.trim())
   }
 
+  function compactAddress(value: string | null | undefined) {
+    return value?.trim() || ''
+  }
+
   function metadataRows(msg: Message) {
     return [
       { label: 'From', value: msg.from },
       { label: 'To', value: msg.to },
       { label: 'Cc', value: msg.cc },
+      { label: 'Reply-To', value: msg.replyTo },
       { label: 'Mailbox', value: msg.mailbox },
       { label: 'Message-ID', value: msg.messageId },
       { label: 'UID', value: String(msg.uid) },
@@ -282,7 +301,13 @@
       f: () => openForward(message),
       e: () => void performAction('archive'),
       '#': () => void performAction('trash'),
-      Escape: () => gotoMailbox(),
+      Escape: () => {
+        if (moreOpen) {
+          moreOpen = false
+          return
+        }
+        gotoMailbox()
+      },
       ArrowLeft: () => gotoMailbox(),
       ArrowDown: () => scrollEmail(60),
       ArrowUp: () => scrollEmail(-60)
@@ -295,6 +320,15 @@
 <svelte:head>
   <title>{subjectLabel(message.subject)} · Inbox</title>
 </svelte:head>
+
+<svelte:window
+  onclick={(event) => {
+    if (!moreOpen) return
+    const target = event.target
+    if (target instanceof Element && target.closest('[data-more-menu]')) return
+    moreOpen = false
+  }}
+/>
 
 <div class="flex h-full flex-col">
   <div class="p-4 sm:p-5 md:border-b md:border-white/8">
@@ -392,31 +426,7 @@
               Delete
             </span>
           </div>
-          <div class="group relative">
-            <button
-              type="button"
-              aria-label="Move to spam"
-              disabled={acting}
-              onclick={() => performAction('spam')}
-              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
-            >
-              <ShieldAlert size={16} />
-            </button>
-            <span
-              class="pointer-events-none absolute top-full left-1/2 mt-2 -translate-x-1/2 rounded-md bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-zinc-200 opacity-0 transition-opacity group-hover:opacity-100"
-            >
-              Move to spam
-            </span>
-          </div>
         {/if}
-        <button
-          type="button"
-          aria-label="View metadata"
-          onclick={() => (metadataOpen = true)}
-          class="rounded-lg border border-transparent bg-white/3 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100 md:hidden"
-        >
-          Metadata
-        </button>
         <button
           type="button"
           aria-label="Reply"
@@ -443,28 +453,57 @@
         </button>
         <button
           type="button"
-          aria-label={shareCopied ? 'Copied!' : 'Share'}
-          disabled={sharing}
-          onclick={shareMessage}
-          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:hidden"
+          aria-label="View metadata"
+          onclick={() => (metadataOpen = true)}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
         >
-          {#if shareCopied}
-            <Check size={16} class="text-emerald-400" />
-          {:else}
-            <Share2 size={16} />
-          {/if}
+          <Info size={16} />
         </button>
+        <div data-more-menu class="relative md:hidden">
+          <button
+            type="button"
+            aria-label="More actions"
+            aria-expanded={moreOpen}
+            onclick={() => (moreOpen = !moreOpen)}
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+          >
+            <MoreVertical size={16} />
+          </button>
+          {#if moreOpen}
+            <div
+              class="absolute right-0 z-30 mt-1 min-w-40 overflow-hidden rounded-lg border border-white/10 bg-zinc-950 py-1 shadow-2xl shadow-black/40"
+            >
+              {#if role !== 'archive' && role !== 'trash' && role !== 'spam'}
+                <button
+                  type="button"
+                  disabled={acting}
+                  onclick={() => void spamFromMore()}
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ShieldAlert size={14} />
+                  Spam
+                </button>
+              {/if}
+              <button
+                type="button"
+                disabled={sharing}
+                onclick={() => void shareFromMore()}
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {#if shareCopied}
+                  <Check size={14} class="text-emerald-400" />
+                  Copied
+                {:else}
+                  <Share2 size={14} />
+                  Share
+                {/if}
+              </button>
+            </div>
+          {/if}
+        </div>
       </div>
 
       <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
-        <button
-          type="button"
-          aria-label="View metadata"
-          onclick={() => (metadataOpen = true)}
-          class="rounded-lg border border-white/8 bg-white/3 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100"
-        >
-          Metadata
-        </button>
         <div class="group relative">
           <button
             type="button"
@@ -513,22 +552,59 @@
         <div class="group relative">
           <button
             type="button"
-            aria-label="Share"
-            disabled={sharing}
-            onclick={shareMessage}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
+            aria-label="View metadata"
+            onclick={() => (metadataOpen = true)}
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
           >
-            {#if shareCopied}
-              <Check size={16} class="text-emerald-400" />
-            {:else}
-              <Share2 size={16} />
-            {/if}
+            <Info size={16} />
           </button>
           <span
-            class="pointer-events-none absolute top-full right-0 mt-2 rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-200 opacity-0 transition-opacity group-hover:opacity-100"
+            class="pointer-events-none absolute top-full right-0 mt-2 rounded-md bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-zinc-200 opacity-0 transition-opacity group-hover:opacity-100"
           >
-            {shareCopied ? 'Copied!' : 'Share'}
+            Metadata
           </span>
+        </div>
+        <div data-more-menu class="relative">
+          <button
+            type="button"
+            aria-label="More actions"
+            aria-expanded={moreOpen}
+            onclick={() => (moreOpen = !moreOpen)}
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
+          >
+            <MoreVertical size={16} />
+          </button>
+          {#if moreOpen}
+            <div
+              class="absolute right-0 z-30 mt-1 min-w-40 overflow-hidden rounded-lg border border-white/10 bg-zinc-950 py-1 shadow-2xl shadow-black/40"
+            >
+              {#if role !== 'archive' && role !== 'trash' && role !== 'spam'}
+                <button
+                  type="button"
+                  disabled={acting}
+                  onclick={() => void spamFromMore()}
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ShieldAlert size={14} />
+                  Spam
+                </button>
+              {/if}
+              <button
+                type="button"
+                disabled={sharing}
+                onclick={() => void shareFromMore()}
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {#if shareCopied}
+                  <Check size={14} class="text-emerald-400" />
+                  Copied
+                {:else}
+                  <Share2 size={14} />
+                  Share
+                {/if}
+              </button>
+            </div>
+          {/if}
         </div>
       </div>
     </div>
@@ -551,6 +627,26 @@
             <p class="truncate text-sm font-medium text-zinc-200">{senderName(message.from)}</p>
             {#if senderAddress(message.from)}
               <p class="truncate text-sm text-zinc-500">&lt;{senderAddress(message.from)}&gt;</p>
+            {/if}
+          </div>
+          <div class="mt-2 space-y-1 text-xs text-zinc-500">
+            {#if compactAddress(message.to)}
+              <p class="truncate">
+                <span class="mr-1 font-medium text-zinc-400">To</span>
+                <span>{compactAddress(message.to)}</span>
+              </p>
+            {/if}
+            {#if compactAddress(message.cc)}
+              <p class="truncate">
+                <span class="mr-1 font-medium text-zinc-400">Cc</span>
+                <span>{compactAddress(message.cc)}</span>
+              </p>
+            {/if}
+            {#if compactAddress(message.replyTo)}
+              <p class="truncate">
+                <span class="mr-1 font-medium text-zinc-400">Reply-To</span>
+                <span>{compactAddress(message.replyTo)}</span>
+              </p>
             {/if}
           </div>
         </div>
@@ -665,14 +761,14 @@
 
   {#if metadataOpen}
     <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       role="presentation"
       onclick={(event) => {
         if (event.target === event.currentTarget) metadataOpen = false
       }}
     >
       <div
-        class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl"
+        class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/8 bg-[#0d0d10]"
       >
         <div class="flex shrink-0 items-center justify-between border-b border-white/8 px-5 py-4">
           <div>
@@ -683,7 +779,7 @@
             type="button"
             aria-label="Close metadata"
             onclick={() => (metadataOpen = false)}
-            class="rounded-lg border border-white/8 bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
           >
             <X size={16} />
           </button>
@@ -693,7 +789,7 @@
           <dl class="space-y-3">
             {#each metadataRows(message) as row (row.label)}
               <div
-                class="grid gap-1 border-b border-white/6 pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[108px_minmax(0,1fr)] sm:gap-4"
+                class="grid gap-1 border-b border-white/6 py-2 first:pt-0 last:border-b-0 last:pb-0 sm:grid-cols-[108px_minmax(0,1fr)] sm:gap-4"
               >
                 <dt class="text-xs font-medium tracking-wide text-zinc-500 uppercase">
                   {row.label}
@@ -704,21 +800,21 @@
           </dl>
 
           <div class="mt-6 space-y-4">
-            <details class="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+            <details class="rounded-xl border border-white/8 bg-white/[0.02] p-3">
               <summary class="cursor-pointer text-sm font-medium text-zinc-200">
                 HTML Source
               </summary>
               <pre
-                class="mt-3 max-h-80 overflow-auto rounded-xl border border-white/6 bg-black/20 p-3 text-xs leading-6 whitespace-pre-wrap text-zinc-300">{message.htmlContent ||
+                class="mt-3 max-h-[50vh] overflow-auto rounded-lg border border-white/6 bg-black/20 p-3 text-xs leading-6 whitespace-pre-wrap text-zinc-300">{message.htmlContent ||
                   'No HTML content available.'}</pre>
             </details>
 
-            <details class="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+            <details class="rounded-xl border border-white/8 bg-white/[0.02] p-3">
               <summary class="cursor-pointer text-sm font-medium text-zinc-200">
                 Text Source
               </summary>
               <pre
-                class="mt-3 max-h-80 overflow-auto rounded-xl border border-white/6 bg-black/20 p-3 text-xs leading-6 whitespace-pre-wrap text-zinc-300">{message.textContent ||
+                class="mt-3 max-h-[50vh] overflow-auto rounded-lg border border-white/6 bg-black/20 p-3 text-xs leading-6 whitespace-pre-wrap text-zinc-300">{message.textContent ||
                   'No text content available.'}</pre>
             </details>
           </div>

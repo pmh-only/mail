@@ -700,7 +700,7 @@
         : 'relative'
     ]}
   >
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
+    <div class="flex min-h-0 flex-1 flex-col overflow-visible p-3 sm:p-4">
       <div class="mb-3 flex shrink-0 items-center justify-between px-1 md:hidden">
         <p class="text-sm font-semibold text-zinc-300">Navigation</p>
         <button
@@ -755,7 +755,9 @@
         {/if}
       </div>
 
-      <p class="shrink-0 px-3 pt-1 pb-2 text-xs font-semibold tracking-widest text-zinc-500 uppercase">
+      <p
+        class="shrink-0 px-3 pt-1 pb-2 text-xs font-semibold tracking-widest text-zinc-500 uppercase"
+      >
         Mail
       </p>
       <nav bind:this={mailboxNavEl} class="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
@@ -944,7 +946,7 @@
               </div>
 
               <div
-                class="pointer-events-none absolute bottom-full left-3 z-20 mb-2 hidden w-64 rounded-xl border border-white/8 bg-[#131319] p-3 opacity-0 shadow-2xl shadow-black/30 transition duration-150 group-focus-within:opacity-100 group-hover:opacity-100 md:block"
+                class="pointer-events-none absolute bottom-full left-3 z-50 mb-2 hidden w-64 rounded-xl border border-white/8 bg-[#131319] p-3 opacity-0 shadow-2xl shadow-black/30 transition duration-150 group-focus-within:opacity-100 group-hover:opacity-100 md:block"
               >
                 <div class="space-y-2">
                   <p
