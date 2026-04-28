@@ -41,6 +41,7 @@
   type Props = {
     data: {
       imapMailboxes: ImapMailbox[]
+      unreadCounts: Record<string, number>
       user: { name: string; email: string } | null
       simplifiedView: boolean
     }
@@ -73,6 +74,7 @@
     selectable: boolean
     hasChildren: boolean
     expanded: boolean
+    unreadCount: number
   }
 
   let { data, children }: Props = $props()
@@ -109,6 +111,7 @@
   }
 
   let imapMailboxes = $state<ImapMailbox[]>([])
+  let unreadCounts = $state<Record<string, number>>({})
   let expandedMailboxKeys = $state<string[]>([])
 
   function splitMailboxPath(path: string, delimiter: string) {
@@ -208,7 +211,8 @@
         depth: node.depth,
         selectable: node.selectable,
         hasChildren,
-        expanded
+        expanded,
+        unreadCount: node.path ? (unreadCounts[node.path] ?? 0) : 0
       })
 
       if (expanded) {
@@ -277,6 +281,10 @@
 
   $effect(() => {
     imapMailboxes = data.imapMailboxes
+  })
+
+  $effect(() => {
+    unreadCounts = data.unreadCounts
   })
 
   $effect(() => {
@@ -417,10 +425,14 @@
       const res = await fetch('/api/mailboxes')
       if (!res.ok) return
 
-      const payload = (await res.json()) as { mailboxes: ImapMailbox[] }
+      const payload = (await res.json()) as {
+        mailboxes: ImapMailbox[]
+        unreadCounts: Record<string, number>
+      }
       if (payload.mailboxes.length > 0) {
         imapMailboxes = payload.mailboxes
       }
+      unreadCounts = payload.unreadCounts
     } catch {
       // ignore
     } finally {
@@ -559,9 +571,7 @@
   onMount(() => {
     logPerf('shell hydrated', { mailbox, ms: Math.round(now() - shellInitAt) })
     logPerf('mount background fetch kick-off', { mailbox })
-    if (imapMailboxes.length === 0) {
-      void fetchMailboxes('mount')
-    }
+    void fetchMailboxes('mount')
     void fetchSyncStatus('mount').finally(() => {
       scheduleNextSyncPoll()
     })
@@ -576,6 +586,7 @@
     const unreadInterval = setInterval(() => {
       logPerf('interval refresh', { task: 'fetchUnreadCount', everyMs: 30_000 })
       void fetchUnreadCount('interval')
+      void fetchMailboxes('interval')
     }, 30_000)
 
     return () => {
@@ -782,10 +793,17 @@
               >
                 <row.icon size={15} class="shrink-0" />
                 <span class="truncate">{row.label}</span>
+                {#if row.unreadCount > 0}
+                  <span
+                    class="ml-auto shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium text-zinc-200"
+                  >
+                    {row.unreadCount}
+                  </span>
+                {/if}
                 {#if row.hasChildren}
                   <button
                     type="button"
-                    class="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-zinc-500 transition hover:bg-white/6 hover:text-zinc-200"
+                    class="shrink-0 rounded-md text-zinc-500 transition hover:bg-white/6 hover:text-zinc-200"
                     aria-label={row.expanded ? `Collapse ${row.label}` : `Expand ${row.label}`}
                     aria-expanded={row.expanded}
                     onclick={(event) => {
@@ -810,10 +828,15 @@
               >
                 <row.icon size={15} class="shrink-0" />
                 <span class="truncate">{row.label}</span>
-                {#if row.hasChildren}
+                {#if row.unreadCount > 0}
                   <span
-                    class="ml-auto flex h-5 w-5 shrink-0 items-center justify-center text-zinc-500"
+                    class="ml-auto shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium text-zinc-200"
                   >
+                    {row.unreadCount}
+                  </span>
+                {/if}
+                {#if row.hasChildren}
+                  <span class="shrink-0 text-zinc-500">
                     {#if row.expanded}
                       <ChevronDown size={14} />
                     {:else}
