@@ -22,7 +22,8 @@
     X,
     ChevronLeft,
     ChevronRight,
-    Search
+    Search,
+    Sparkles
   } from 'lucide-svelte'
   import { openCompose } from '$lib/composer.svelte'
   import { keyboard, setupKeyboardHandler } from '$lib/keyboard.svelte'
@@ -1118,6 +1119,9 @@
   let listWidth = $state(readStorage('mail:listWidth', 440))
   let resizing = $state(false)
   let refreshing = $state(false)
+  let summarizing = $state(false)
+  let recentSummary = $state<string | null>(null)
+  let recentSummaryError = $state<string | null>(null)
 
   const isDesktop = $derived(viewportWidth >= 768)
 
@@ -1134,6 +1138,52 @@
       rows: messages.length,
       ms: Math.round(now() - startedAt)
     })
+  }
+
+  async function readTextStream(response: Response, onChunk: (chunk: string) => void) {
+    if (!response.body) {
+      onChunk(await response.text())
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      onChunk(decoder.decode(value, { stream: true }))
+    }
+
+    const tail = decoder.decode()
+    if (tail) onChunk(tail)
+  }
+
+  async function summarizeRecentMail() {
+    if (summarizing) return
+    summarizing = true
+    recentSummaryError = null
+    recentSummary = ''
+    try {
+      const response = await trackAppLoading(() =>
+        fetch(`/api/ai/recent-summary?mailbox=${encodeURIComponent(mailbox)}&limit=12`)
+      )
+
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || 'Failed to summarize recent mail.')
+      }
+
+      await readTextStream(response, (chunk) => {
+        recentSummary = `${recentSummary ?? ''}${chunk}`
+      })
+    } catch (error) {
+      recentSummaryError =
+        error instanceof Error ? error.message : 'Failed to summarize recent mail.'
+      if (!recentSummary) recentSummary = null
+    } finally {
+      summarizing = false
+    }
   }
 
   function startResize(e: PointerEvent) {
@@ -1277,6 +1327,19 @@
             >
               <RefreshCw size={15} />
             </button>
+            <button
+              type="button"
+              onclick={() => void summarizeRecentMail()}
+              disabled={summarizing}
+              class={[
+                'transition disabled:cursor-not-allowed disabled:opacity-40',
+                recentSummary || summarizing ? 'text-sky-300' : 'text-zinc-600 hover:text-zinc-400'
+              ]}
+              title="Summarize recent mail"
+              aria-label="Summarize recent mail"
+            >
+              <Sparkles size={15} />
+            </button>
             <div
               class="shrink-0 rounded-xl border border-transparent bg-white/3 p-1 text-xs md:border-white/8 md:text-sm"
             >
@@ -1320,6 +1383,41 @@
             class="w-full rounded-xl border border-transparent bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-white/8 md:border-white/8"
           />
         </label>
+      {/if}
+
+      {#if recentSummary || recentSummaryError || summarizing}
+        <div class="mt-3 rounded-xl border border-white/8 bg-black/20 p-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex min-w-0 items-center gap-2">
+              <Sparkles size={14} class="shrink-0 text-sky-300" />
+              <p class="truncate text-xs font-semibold text-zinc-200">Recent summary</p>
+            </div>
+            {#if recentSummary}
+              <button
+                type="button"
+                onclick={() => {
+                  recentSummary = null
+                  recentSummaryError = null
+                }}
+                class="shrink-0 text-xs text-zinc-500 hover:text-zinc-300"
+              >
+                Hide
+              </button>
+            {/if}
+          </div>
+          {#if recentSummary}
+            <div class="mt-2 text-xs leading-5 whitespace-pre-wrap text-zinc-300">
+              {recentSummary}
+            </div>
+            {#if summarizing}
+              <p class="mt-2 text-xs text-zinc-500">Summarizing…</p>
+            {/if}
+          {:else if recentSummaryError}
+            <p class="mt-2 text-xs text-rose-300">{recentSummaryError}</p>
+          {:else if summarizing}
+            <p class="mt-2 text-xs text-zinc-500">Summarizing…</p>
+          {/if}
+        </div>
       {/if}
     </div>
 
@@ -1518,6 +1616,21 @@
               >
                 <RefreshCw size={15} />
               </button>
+              <button
+                type="button"
+                onclick={() => void summarizeRecentMail()}
+                disabled={summarizing}
+                class={[
+                  'transition disabled:cursor-not-allowed disabled:opacity-40',
+                  recentSummary || summarizing
+                    ? 'text-sky-300'
+                    : 'text-zinc-600 hover:text-zinc-400'
+                ]}
+                title="Summarize recent mail"
+                aria-label="Summarize recent mail"
+              >
+                <Sparkles size={15} />
+              </button>
               <div
                 class="shrink-0 rounded-xl border border-transparent bg-white/3 p-1 text-xs md:border-white/8 md:text-sm"
               >
@@ -1557,6 +1670,41 @@
               class="w-full rounded-xl border border-transparent bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-white/8 md:border-white/8"
             />
           </label>
+        {/if}
+
+        {#if recentSummary || recentSummaryError || summarizing}
+          <div class="mt-3 rounded-xl border border-white/8 bg-black/20 p-3">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex min-w-0 items-center gap-2">
+                <Sparkles size={14} class="shrink-0 text-sky-300" />
+                <p class="truncate text-xs font-semibold text-zinc-200">Recent summary</p>
+              </div>
+              {#if recentSummary}
+                <button
+                  type="button"
+                  onclick={() => {
+                    recentSummary = null
+                    recentSummaryError = null
+                  }}
+                  class="shrink-0 text-xs text-zinc-500 hover:text-zinc-300"
+                >
+                  Hide
+                </button>
+              {/if}
+            </div>
+            {#if recentSummary}
+              <div class="mt-2 text-xs leading-5 whitespace-pre-wrap text-zinc-300">
+                {recentSummary}
+              </div>
+              {#if summarizing}
+                <p class="mt-2 text-xs text-zinc-500">Summarizing…</p>
+              {/if}
+            {:else if recentSummaryError}
+              <p class="mt-2 text-xs text-rose-300">{recentSummaryError}</p>
+            {:else if summarizing}
+              <p class="mt-2 text-xs text-zinc-500">Summarizing…</p>
+            {/if}
+          </div>
         {/if}
       </div>
 

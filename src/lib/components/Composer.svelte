@@ -33,10 +33,12 @@
     Minus as HrIcon,
     Paperclip,
     FileText,
-    Trash2
+    Trash2,
+    Sparkles
   } from 'lucide-svelte'
   import { composer, closeComposer } from '$lib/composer.svelte'
   import AddressInput from '$lib/components/AddressInput.svelte'
+  import { notifyMailboxStateChanged } from '$lib/mailbox-state'
   import {
     attachmentSignature,
     MAX_ATTACHMENT_COUNT,
@@ -59,6 +61,8 @@
   let discardDialogWasMinimized = $state(false)
   let attachmentInput = $state<HTMLInputElement | undefined>(undefined)
   let viewportWidth = $state(1024)
+  let composingAi = $state(false)
+  let aiComposeError = $state<string | null>(null)
 
   const isMobile = $derived(viewportWidth < 640)
   const useFullscreenLayout = $derived(composer.fullscreen || (isMobile && !composer.minimized))
@@ -98,6 +102,7 @@
       showBcc = !!composer.bcc
       lastSavedContent = draftSnapshot(composer.initialHtml || '<p></p>')
       attachmentError = null
+      aiComposeError = null
     }
     if (!composer.open && prevOpen) lastSavedContent = ''
     prevOpen = composer.open
@@ -138,9 +143,11 @@
       })
       if (res.ok) {
         const data = await res.json()
+        const wasNewDraft = composer.draftId === null
         composer.draftId = data.id
         composer.lastSavedAt = Date.now()
         lastSavedContent = key
+        notifyMailboxStateChanged(wasNewDraft ? 'draft-created' : 'draft-updated')
       }
     } catch {
       // silent — draft save failures shouldn't interrupt composition
@@ -149,8 +156,10 @@
 
   async function deleteDraft() {
     if (!composer.draftId) return
+    const draftId = composer.draftId
     try {
-      await fetch(`/api/drafts/${composer.draftId}`, { method: 'DELETE' })
+      await fetch(`/api/drafts/${draftId}`, { method: 'DELETE' })
+      notifyMailboxStateChanged('draft-deleted')
     } catch {
       // ignore
     }
@@ -226,6 +235,56 @@
     const existing = editor?.getAttributes('link').href as string | undefined
     linkInputValue = existing ?? ''
     showLinkInput = true
+  }
+
+  function splitQuotedHtml(html: string) {
+    const quoteIndex = html.search(/<blockquote\b/i)
+    if (quoteIndex === -1) return { editableHtml: html, quotedHtml: '' }
+
+    return {
+      editableHtml: html.slice(0, quoteIndex),
+      quotedHtml: html.slice(quoteIndex)
+    }
+  }
+
+  async function composeWithAi() {
+    if (!editor || composingAi) return
+
+    aiComposeError = null
+    composingAi = true
+
+    try {
+      const currentHtml = editor.getHTML()
+      const { editableHtml, quotedHtml } = splitQuotedHtml(currentHtml)
+      const res = await fetch('/api/ai/compose', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          mode: composer.mode,
+          to: composer.to,
+          cc: composer.cc,
+          bcc: composer.bcc,
+          subject: composer.subject,
+          html: editableHtml
+        })
+      })
+
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || 'AI compose failed.')
+      }
+
+      const data = (await res.json()) as { html?: string }
+      if (!data.html) throw new Error('AI compose returned an empty draft.')
+
+      editor.commands.setContent(`${data.html}${quotedHtml}`)
+      editor.commands.focus('end')
+      await saveDraft()
+    } catch (error) {
+      aiComposeError = error instanceof Error ? error.message : 'AI compose failed.'
+    } finally {
+      composingAi = false
+    }
   }
 
   async function send() {
@@ -797,8 +856,20 @@
           <Paperclip size={14} />
           Attach
         </button>
+        <button
+          type="button"
+          disabled={sending || composingAi}
+          onclick={composeWithAi}
+          class="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-white/10 hover:text-sky-300 disabled:cursor-wait disabled:opacity-40"
+        >
+          <Sparkles size={14} class={composingAi ? 'animate-pulse' : ''} />
+          {composingAi ? 'Writing...' : 'AI'}
+        </button>
         {#if sendError}
           <p class="text-xs text-rose-400">{sendError}</p>
+        {/if}
+        {#if aiComposeError}
+          <p class="text-xs text-rose-400">{aiComposeError}</p>
         {/if}
       </div>
       <button type="button" onclick={discard} class="text-xs text-zinc-500 hover:text-zinc-300">

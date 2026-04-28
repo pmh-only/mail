@@ -17,7 +17,8 @@
     FileImage,
     X,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Languages
   } from 'lucide-svelte'
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
@@ -70,9 +71,90 @@
   let sharing = $state(false)
   let shareCopied = $state(false)
   let metadataOpen = $state(false)
+  let translating = $state(false)
+  let translationText = $state<string | null>(null)
+  let translatedHtmlContent = $state<string | null>(null)
+  let translationError = $state<string | null>(null)
+  let activeMessageId = $state<number | null>(null)
+  let translationAbortController: AbortController | null = null
+  let translationRequestId = 0
+
+  type HtmlTranslationSegment = {
+    node: Text
+    prefix: string
+    text: string
+    suffix: string
+  }
+
+  type HtmlTranslationPlan = {
+    doc: Document
+    segments: HtmlTranslationSegment[]
+  }
+
+  $effect(() => {
+    if (activeMessageId === null) {
+      activeMessageId = data.message.id
+      return
+    }
+
+    if (data.message.id === activeMessageId) return
+
+    activeMessageId = data.message.id
+    translationRequestId += 1
+    translationAbortController?.abort()
+    translationAbortController = null
+    translating = false
+    translationText = null
+    translatedHtmlContent = null
+    translationError = null
+  })
 
   function gotoMailbox() {
     return goto(resolve(`/${page.params.mailbox}`), { noScroll: true, keepFocus: true })
+  }
+
+  function splitTextNodeValue(value: string) {
+    const match = value.match(/^(\s*)([\s\S]*?)(\s*)$/)
+    return {
+      prefix: match?.[1] ?? '',
+      text: match?.[2] ?? value.trim(),
+      suffix: match?.[3] ?? ''
+    }
+  }
+
+  function createHtmlTranslationPlan(html: string): HtmlTranslationPlan {
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    const root = doc.body ?? doc.documentElement
+    const segments: HtmlTranslationSegment[] = []
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement
+        if (!parent) return NodeFilter.FILTER_REJECT
+        if (parent.closest('script, style, noscript, template, svg, math')) {
+          return NodeFilter.FILTER_REJECT
+        }
+        return node.nodeValue?.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+      }
+    })
+
+    let current = walker.nextNode()
+    while (current) {
+      const node = current as Text
+      const { prefix, text, suffix } = splitTextNodeValue(node.nodeValue ?? '')
+      if (text) segments.push({ node, prefix, text, suffix })
+      current = walker.nextNode()
+    }
+
+    return { doc, segments }
+  }
+
+  function applyHtmlTranslations(plan: HtmlTranslationPlan, translations: string[]) {
+    for (let index = 0; index < plan.segments.length; index += 1) {
+      const segment = plan.segments[index]
+      segment.node.nodeValue = `${segment.prefix}${translations[index] ?? segment.text}${segment.suffix}`
+    }
+
+    return plan.doc.documentElement.outerHTML
   }
 
   async function shareMessage() {
@@ -114,6 +196,82 @@
       }
     } finally {
       acting = false
+    }
+  }
+
+  async function translateMessage() {
+    if (translating) return
+    const requestId = ++translationRequestId
+    const messageId = data.message.id
+    const controller = new AbortController()
+    const htmlPlan = data.message.htmlContent
+      ? createHtmlTranslationPlan(data.message.htmlContent)
+      : null
+    const textSegments = htmlPlan?.segments.map((segment) => segment.text) ?? [
+      data.message.textContent || data.message.preview || ''
+    ]
+
+    if (textSegments.length === 0) {
+      translationError = 'No text found to translate.'
+      return
+    }
+
+    translationAbortController = controller
+    translating = true
+    translationError = null
+    if (data.message.htmlContent) {
+      translatedHtmlContent = null
+      translationText = null
+    } else {
+      translatedHtmlContent = null
+      translationText = null
+    }
+    try {
+      const res = await trackAppLoading(() =>
+        fetch('/api/ai/translate', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            id: messageId,
+            targetLanguage: 'Korean',
+            format: htmlPlan ? 'html' : 'text',
+            segments: textSegments
+          }),
+          signal: controller.signal
+        })
+      )
+
+      if (requestId !== translationRequestId || data.message.id !== messageId) return
+
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || 'Translation failed')
+      }
+
+      const payload = (await res.json()) as { translations?: string[] }
+      const translations = payload.translations ?? []
+      if (translations.length !== textSegments.length) {
+        throw new Error('Translation response did not match the source text.')
+      }
+
+      if (requestId !== translationRequestId || data.message.id !== messageId) return
+
+      if (htmlPlan) {
+        translatedHtmlContent = applyHtmlTranslations(htmlPlan, translations)
+      } else {
+        translationText = translations[0] ?? null
+      }
+    } catch (error) {
+      if (controller.signal.aborted) return
+      if (requestId !== translationRequestId || data.message.id !== messageId) return
+      translationError = error instanceof Error ? error.message : 'Translation failed'
+      if (!translationText) translationText = null
+      if (!translatedHtmlContent) translatedHtmlContent = null
+    } finally {
+      if (requestId === translationRequestId) {
+        translationAbortController = null
+        translating = false
+      }
     }
   }
 
@@ -203,6 +361,7 @@
   }
 
   function bodyText(msg: Message) {
+    if (translationText) return translationText
     return msg.textContent || msg.preview || 'No message body available.'
   }
 
@@ -228,7 +387,10 @@
     return SCROLLBAR_STYLE + LINK_SCRIPT + html
   }
 
-  const srcdoc = $derived(message.htmlContent ? injectScrollbarStyle(message.htmlContent) : null)
+  const srcdoc = $derived.by(() => {
+    const html = translatedHtmlContent || message.htmlContent
+    return html ? injectScrollbarStyle(html) : null
+  })
 
   const attachments = $derived(data.attachments)
 
@@ -457,6 +619,15 @@
         >
           <Info size={16} />
         </button>
+        <button
+          type="button"
+          aria-label="Translate"
+          disabled={translating}
+          onclick={() => void translateMessage()}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:hidden"
+        >
+          <Languages size={16} />
+        </button>
         {#if role !== 'archive' && role !== 'trash' && role !== 'spam'}
           <button
             type="button"
@@ -553,6 +724,22 @@
             Metadata
           </span>
         </div>
+        <div class="group relative">
+          <button
+            type="button"
+            aria-label="Translate"
+            disabled={translating}
+            onclick={() => void translateMessage()}
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
+          >
+            <Languages size={16} />
+          </button>
+          <span
+            class="pointer-events-none absolute top-full right-0 mt-2 rounded-md bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-zinc-200 opacity-0 transition-opacity group-hover:opacity-100"
+          >
+            Translate
+          </span>
+        </div>
       </div>
     </div>
   </div>
@@ -606,6 +793,40 @@
   </div>
 
   <div bind:this={scrollContainer} class="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    {#if translationText || translatedHtmlContent || translationError || translating}
+      <section class="border-b border-white/8 bg-[#101116] p-4 sm:p-5">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex min-w-0 items-center gap-2">
+            <Languages size={15} class="shrink-0 text-sky-300" />
+            <p class="truncate text-sm font-semibold text-white">
+              {translatedHtmlContent ? 'Translated email body' : 'Korean translation'}
+            </p>
+          </div>
+          {#if translationText || translatedHtmlContent}
+            <button
+              type="button"
+              onclick={() => {
+                translationText = null
+                translatedHtmlContent = null
+                translationError = null
+              }}
+              class="shrink-0 text-xs text-zinc-500 transition hover:text-zinc-300"
+            >
+              Show original
+            </button>
+          {/if}
+        </div>
+
+        {#if translationError}
+          <p class="mt-3 text-sm text-rose-300">{translationError}</p>
+        {:else if translating}
+          <p class="mt-3 text-sm text-zinc-500">Translating…</p>
+        {:else if translationText || translatedHtmlContent}
+          <p class="mt-3 text-sm text-zinc-500">Translated content is shown in the email body.</p>
+        {/if}
+      </section>
+    {/if}
+
     {#if srcdoc}
       <iframe
         title={`Email body for ${subjectLabel(message.subject)}`}

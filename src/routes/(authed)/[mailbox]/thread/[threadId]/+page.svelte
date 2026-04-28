@@ -13,6 +13,7 @@
     Download,
     FileImage,
     FileText,
+    Sparkles,
     X
   } from 'lucide-svelte'
   import { goto } from '$app/navigation'
@@ -78,6 +79,10 @@
   let splitError = $state<string | null>(null)
   let metadataMessage = $state<Message | null>(null)
   let scrollToLatestPending = $state(false)
+  let threadSummary = $state<string | null>(null)
+  let threadSummaryError = $state<string | null>(null)
+  let summarizingThread = $state(false)
+  let threadSummaryAbort = $state<AbortController | null>(null)
 
   function gotoMailbox() {
     return goto(resolve(`/${page.params.mailbox}`), { noScroll: true, keepFocus: true })
@@ -165,6 +170,61 @@
       splitError = error instanceof Error ? error.message : 'Failed to split thread.'
     } finally {
       splittingId = null
+    }
+  }
+
+  async function readTextStream(response: Response, onChunk: (chunk: string) => void) {
+    if (!response.body) {
+      onChunk(await response.text())
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      onChunk(decoder.decode(value, { stream: true }))
+    }
+
+    const rest = decoder.decode()
+    if (rest) onChunk(rest)
+  }
+
+  async function summarizeThread() {
+    if (summarizingThread) return
+
+    threadSummaryAbort?.abort()
+    threadSummaryAbort = new AbortController()
+    summarizingThread = true
+    threadSummary = ''
+    threadSummaryError = null
+
+    try {
+      const params = new URLSearchParams({
+        mailbox: page.params.mailbox ?? 'inbox',
+        threadId: data.threadId
+      })
+      const response = await fetch(`/api/ai/thread-summary?${params.toString()}`, {
+        signal: threadSummaryAbort.signal
+      })
+
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || 'Failed to summarize thread.')
+      }
+
+      await readTextStream(response, (chunk) => {
+        threadSummary = `${threadSummary ?? ''}${chunk}`
+      })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      threadSummaryError = error instanceof Error ? error.message : 'Failed to summarize thread.'
+      threadSummary = null
+    } finally {
+      summarizingThread = false
+      threadSummaryAbort = null
     }
   }
 
@@ -288,6 +348,11 @@
 
     expandedIds = new SvelteSet<number>()
     collapsedDefaultIds = new SvelteSet<number>()
+    threadSummaryAbort?.abort()
+    threadSummaryAbort = null
+    threadSummary = null
+    threadSummaryError = null
+    summarizingThread = false
     initializedThreadId = data.threadId
     void settleThreadScrollAtBottom()
   })
@@ -376,6 +441,15 @@
         >
           <Mail size={16} />
         </button>
+        <button
+          type="button"
+          aria-label="Summarize thread"
+          disabled={summarizingThread}
+          onclick={() => summarizeThread()}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
+        >
+          <Sparkles size={16} class={summarizingThread ? 'animate-pulse' : ''} />
+        </button>
         {#if lastMessage}
           <button
             type="button"
@@ -424,6 +498,23 @@
     </p>
     {#if splitError}
       <p class="mt-2 text-sm text-rose-300">{splitError}</p>
+    {/if}
+    {#if threadSummary !== null || threadSummaryError}
+      <div class="mt-3 rounded-lg border border-white/8 bg-white/[0.03] p-3">
+        <div class="mb-2 flex items-center justify-between gap-3">
+          <p class="text-xs font-medium tracking-wide text-zinc-400 uppercase">Thread Summary</p>
+          {#if summarizingThread}
+            <p class="text-xs text-sky-300">Summarizing...</p>
+          {/if}
+        </div>
+        {#if threadSummaryError}
+          <p class="text-sm text-rose-300">{threadSummaryError}</p>
+        {:else}
+          <p class="text-sm leading-6 whitespace-pre-wrap text-zinc-200">
+            {threadSummary || '요약을 생성하는 중입니다.'}
+          </p>
+        {/if}
+      </div>
     {/if}
   </div>
 

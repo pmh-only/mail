@@ -64,6 +64,7 @@
     "lucide-svelte": "^0.468.0",
     "mailparser": "^3.9.8",
     "nodemailer": "^8.0.5",
+    "openai": "^6.34.0",
     "postgres": "^3.4.9",
     "web-push": "^3.6.7"
   }

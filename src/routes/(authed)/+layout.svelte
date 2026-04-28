@@ -391,6 +391,7 @@
       const res = await fetch(`/api/drafts/${id}`)
       if (!res.ok) {
         draftsError = await res.text()
+        await fetchDrafts('draft-open-failed')
         return
       }
 
@@ -591,6 +592,7 @@
           ? event.detail.reason
           : 'mailbox-state-changed'
       void refreshMailboxState(reason)
+      void fetchDrafts(reason)
     }
     window.addEventListener(MAILBOX_STATE_CHANGED_EVENT, onMailboxStateChanged)
 
