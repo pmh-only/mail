@@ -1,68 +1,82 @@
-import { json } from '@sveltejs/kit'
+import { error, json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import { db } from '$lib/server/db'
-import { mailMessage } from '$lib/server/db/schema'
-import { or, like } from 'drizzle-orm'
+import { mailContact } from '$lib/server/db/schema'
+import {
+  findContactByEmail,
+  importContactsFromMessages,
+  listContacts,
+  normalizeEmail,
+  upsertContacts
+} from '$lib/server/contacts'
+import { eq } from 'drizzle-orm'
 
-type Contact = { name: string; email: string; display: string }
+function parseId(url: URL) {
+  const id = Number(url.searchParams.get('id'))
+  return Number.isFinite(id) && id > 0 ? id : null
+}
 
-const EMAIL_RE = /([^<,]*?)\s*<([^>]+)>/g
-const BARE_EMAIL_RE = /[\w.+%-]+@[\w.-]+\.[a-z]{2,}/gi
-
-function parseAddresses(field: string): Contact[] {
-  const contacts: Contact[] = []
-  let match: RegExpExecArray | null
-
-  EMAIL_RE.lastIndex = 0
-  while ((match = EMAIL_RE.exec(field)) !== null) {
-    const name = match[1].trim().replace(/^["']|["']$/g, '')
-    const email = match[2].trim().toLowerCase()
-    if (email) contacts.push({ name, email, display: name ? `${name} <${email}>` : email })
-  }
-
-  // Also catch bare emails not inside angle brackets
-  BARE_EMAIL_RE.lastIndex = 0
-  while ((match = BARE_EMAIL_RE.exec(field)) !== null) {
-    const email = match[0].toLowerCase()
-    if (!contacts.some((c) => c.email === email)) {
-      contacts.push({ name: '', email, display: email })
-    }
-  }
-
-  return contacts
+function readString(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 export const GET: RequestHandler = async ({ url }) => {
-  const q = url.searchParams.get('q')?.trim() ?? ''
-  if (!q) return json({ contacts: [] })
+  const q = url.searchParams.get('q') ?? ''
+  const limit = Number(url.searchParams.get('limit') ?? 50)
+  const contacts = await listContacts(
+    q,
+    Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 100) : 50
+  )
+  return json({ contacts })
+}
 
-  const pattern = `%${q}%`
-  const rows = await db
-    .select({ from: mailMessage.from, to: mailMessage.to, cc: mailMessage.cc })
-    .from(mailMessage)
-    .where(
-      or(
-        like(mailMessage.from, pattern),
-        like(mailMessage.to, pattern),
-        like(mailMessage.cc, pattern)
-      )
-    )
-    .limit(200)
+export const POST: RequestHandler = async ({ request }) => {
+  const body = await request.json().catch(() => null)
 
-  const seen = new Map<string, Contact>()
-  for (const row of rows) {
-    for (const field of [row.from, row.to, row.cc].filter(Boolean)) {
-      for (const c of parseAddresses(field)) {
-        if (
-          !seen.has(c.email) &&
-          (c.email.includes(q) || c.name.toLowerCase().includes(q.toLowerCase()))
-        ) {
-          seen.set(c.email, c)
-        }
-      }
-    }
+  if (body?.action === 'import') {
+    const imported = await importContactsFromMessages()
+    return json({ imported })
   }
 
-  const contacts = [...seen.values()].slice(0, 10)
-  return json({ contacts })
+  const email = normalizeEmail(readString(body?.email))
+  if (!email) return error(400, 'Email is required')
+
+  await upsertContacts([
+    {
+      email,
+      name: readString(body?.name),
+      source: 'manual',
+      useCount: 0,
+      lastUsedAt: null
+    }
+  ])
+
+  const contact = await findContactByEmail(email)
+  return json({ contact }, { status: 201 })
+}
+
+export const PATCH: RequestHandler = async ({ request, url }) => {
+  const id = parseId(url)
+  if (!id) return error(400, 'Contact id is required')
+
+  const body = await request.json().catch(() => null)
+  const name = readString(body?.name)
+  const email = normalizeEmail(readString(body?.email))
+  if (!email) return error(400, 'Email is required')
+
+  await db
+    .update(mailContact)
+    .set({ name, email, source: 'manual', updatedAt: new Date() })
+    .where(eq(mailContact.id, id))
+
+  const contact = await findContactByEmail(email)
+  return json({ contact })
+}
+
+export const DELETE: RequestHandler = async ({ url }) => {
+  const id = parseId(url)
+  if (!id) return error(400, 'Contact id is required')
+
+  await db.delete(mailContact).where(eq(mailContact.id, id))
+  return json({ success: true })
 }

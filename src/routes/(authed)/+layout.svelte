@@ -15,6 +15,7 @@
     Pencil,
     Settings,
     BookOpen,
+    Users,
     RefreshCw,
     PanelLeft,
     Layers,
@@ -887,6 +888,19 @@
             ></span>
           </span>
         </button>
+        <a
+          href={resolve('/contacts')}
+          onclick={() => (mobileNavOpen = false)}
+          class={[
+            'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition',
+            page.url.pathname === '/contacts'
+              ? 'bg-white/8 font-medium text-white'
+              : 'text-zinc-400 hover:bg-white/4 hover:text-zinc-200'
+          ]}
+        >
+          <Users size={15} />
+          Contacts
+        </a>
         <a
           href={resolve('/settings')}
           onclick={() => (mobileNavOpen = false)}

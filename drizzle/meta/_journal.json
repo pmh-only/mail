@@ -15,6 +15,13 @@
       "when": 1777373266140,
       "tag": "0001_lovely_mac_gargan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777375541000,
+      "tag": "0002_address_book",
+      "breakpoints": true
     }
   ]
 }

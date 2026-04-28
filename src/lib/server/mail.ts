@@ -18,6 +18,7 @@ import { enqueueMarkRead, enqueueMarkUnread, enqueueMoveMessage } from './imap-q
 import { getImapConfig, type ImapConfig } from './config'
 import { logServerError, perfError, perfLog, perfMs, perfNow } from './perf'
 import { withRetry } from './retry'
+import { parseAddressFields, upsertContacts } from './contacts'
 
 const IMAP_CONNECT_TIMEOUT_MS = 20_000
 const INITIAL_SYNC_FAILURE_RETRY_MS = 10 * 60 * 1000
@@ -101,24 +102,29 @@ function summarizeAddresses(input: unknown) {
   if (!input || typeof input !== 'object' || !('value' in input)) return ''
   const addressObject = input as {
     text?: string
-    value?: Array<{ name?: string; address?: string }>
+    value?: Array<{
+      name?: string
+      address?: string
+      group?: Array<{ name?: string; address?: string }>
+    }>
   }
 
-  if (addressObject.text?.trim()) {
-    return addressObject.text.trim()
-  }
-
-  const addresses = addressObject.value ?? []
-  return addresses
+  const addresses = (addressObject.value ?? []).flatMap((entry) => entry.group ?? [entry])
+  const formatted = addresses
     .map((entry) => entry.name || entry.address || '')
     .map((entry, index) => {
       const source = addresses[index]
       if (!source?.name || !source.address) return entry
-      return `${source.name} <${source.address}>`
+      if (source.name.trim().toLowerCase() === source.address.trim().toLowerCase()) {
+        return source.address
+      }
+      return `${source.name.trim()} <${source.address.trim()}>`
     })
     .map((entry) => entry.trim())
     .filter(Boolean)
     .join(', ')
+
+  return formatted || addressObject.text?.trim() || ''
 }
 
 function createPreview(text: string) {
@@ -432,6 +438,8 @@ async function storeMessageContent(
   const cc = sanitizePgText(
     summarizeAddresses(message.cc as Parameters<typeof summarizeAddresses>[0])
   )
+  const from = sanitizePgText(summarizeAddresses(message.from))
+  const to = sanitizePgText(summarizeAddresses(message.to))
   const replyTo = sanitizeNullablePgText(
     summarizeAddresses(message.replyTo as Parameters<typeof summarizeAddresses>[0]) || null
   )
@@ -445,8 +453,8 @@ async function storeMessageContent(
     .values({
       messageId: sanitizedMessageId,
       subject: sanitizePgText(message.subject?.trim() ?? '(no subject)'),
-      from: sanitizePgText(summarizeAddresses(message.from)),
-      to: sanitizePgText(summarizeAddresses(message.to)),
+      from,
+      to,
       cc,
       replyTo,
       preview: createPreview(textContent),
@@ -462,6 +470,17 @@ async function storeMessageContent(
     .returning({ id: mailMessage.id })
 
   const isNew = result.length > 0
+
+  if (isNew) {
+    await upsertContacts(
+      parseAddressFields([from, to, cc, replyTo]).map((contact) => ({
+        ...contact,
+        source: 'auto' as const,
+        useCount: 1,
+        lastUsedAt: receivedAt
+      }))
+    )
+  }
 
   // Store attachments for newly inserted messages only
   if (isNew && message.attachments?.length) {

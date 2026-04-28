@@ -5,6 +5,7 @@ import { getSmtpConfig } from '$lib/server/config'
 import { parseComposerAttachments } from '$lib/mail-attachments'
 import { logServerError, logServerEvent } from '$lib/server/perf'
 import { withRetry } from '$lib/server/retry'
+import { parseAddressFields, upsertContacts } from '$lib/server/contacts'
 
 export const POST: RequestHandler = async ({ request }) => {
   const smtpConfig = await getSmtpConfig()
@@ -69,6 +70,14 @@ export const POST: RequestHandler = async ({ request }) => {
           attachments: attachments.length > 0 ? attachments : undefined
         }),
       { label: 'smtp sendMail', maxAttempts: 3, baseDelayMs: 1000 }
+    )
+    await upsertContacts(
+      parseAddressFields([to, cc, bcc]).map((contact) => ({
+        ...contact,
+        source: 'auto' as const,
+        useCount: 1,
+        lastUsedAt: new Date()
+      }))
     )
     return json({ success: true })
   } catch (err) {

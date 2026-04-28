@@ -197,6 +197,28 @@ export const mailDraft = pgTable('mail_draft', {
   inReplyTo: text('in_reply_to')
 })
 
+export const mailContact = pgTable(
+  'mail_contact',
+  {
+    id: serial('id').primaryKey(),
+    email: text('email').notNull(),
+    name: text('name').notNull().default(''),
+    source: text('source').notNull().default('auto'),
+    useCount: integer('use_count').notNull().default(0),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull()
+  },
+  (table) => [
+    uniqueIndex('mail_contact_email_idx').on(table.email),
+    index('mail_contact_last_used_at_idx').on(table.lastUsedAt),
+    index('mail_contact_use_count_idx').on(table.useCount)
+  ]
+)
+
 export const mailFilter = pgTable('mail_filter', {
   id: serial('id').primaryKey(),
   sortOrder: integer('sort_order').notNull().default(0),
