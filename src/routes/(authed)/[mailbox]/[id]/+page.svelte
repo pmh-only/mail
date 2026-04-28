@@ -73,13 +73,25 @@
   let metadataOpen = $state(false)
   let translating = $state(false)
   let translationText = $state<string | null>(null)
-  let translatedHtmlContent = $state<string | null>(null)
+  let translatedHtmlSegments = $state<string[] | null>(null)
   let translationError = $state<string | null>(null)
+  let translationResolvedCount = $state(0)
+  let translationSegmentCount = $state(0)
   let activeMessageId = $state<number | null>(null)
   let translationAbortController: AbortController | null = null
   let translationRequestId = 0
+  let messageFrame = $state<HTMLIFrameElement | undefined>(undefined)
 
-  type HtmlTranslationSegment = {
+  type TranslationStreamPayload = {
+    translations?: string[]
+    resolved?: number
+    done?: boolean
+    error?: string
+  }
+
+  type HtmlTranslationSegment = { text: string }
+
+  type FrameTranslationSegment = {
     node: Text
     prefix: string
     text: string
@@ -87,8 +99,72 @@
   }
 
   type HtmlTranslationPlan = {
-    doc: Document
     segments: HtmlTranslationSegment[]
+  }
+
+  function messageFrameTranslationSegments() {
+    const doc = messageFrame?.contentDocument
+    const root = doc?.body ?? doc?.documentElement
+    if (!root || !doc) return []
+
+    const segments: FrameTranslationSegment[] = []
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement
+        if (!parent) return NodeFilter.FILTER_REJECT
+        if (parent.closest('script, style, noscript, template, svg, math')) {
+          return NodeFilter.FILTER_REJECT
+        }
+        return node.nodeValue?.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+      }
+    })
+
+    let current = walker.nextNode()
+    while (current) {
+      const node = current as Text
+      const { prefix, text, suffix } = splitTextNodeValue(node.nodeValue ?? '')
+      if (text) segments.push({ node, prefix, text, suffix })
+      current = walker.nextNode()
+    }
+
+    return segments
+  }
+
+  function syncMessageFrameHeight() {
+    const doc = messageFrame?.contentDocument
+    if (!doc || !messageFrame) return
+    const height = doc.documentElement.scrollHeight
+    if (height > 50) messageFrame.style.height = `${height}px`
+  }
+
+  function applyTranslationsToMessageFrame(translations: string[] | null) {
+    const segments = messageFrameTranslationSegments()
+    if (segments.length === 0) return
+
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = segments[index]
+      const next = translations?.[index] ?? segment.text
+      segment.node.nodeValue = `${segment.prefix}${next}${segment.suffix}`
+    }
+
+    syncMessageFrameHeight()
+  }
+
+  function resetTranslationState() {
+    translating = false
+    translationText = null
+    translatedHtmlSegments = null
+    translationError = null
+    translationResolvedCount = 0
+    translationSegmentCount = 0
+    applyTranslationsToMessageFrame(null)
+  }
+
+  function cancelTranslation() {
+    translationRequestId += 1
+    translationAbortController?.abort()
+    translationAbortController = null
+    resetTranslationState()
   }
 
   $effect(() => {
@@ -100,13 +176,7 @@
     if (data.message.id === activeMessageId) return
 
     activeMessageId = data.message.id
-    translationRequestId += 1
-    translationAbortController?.abort()
-    translationAbortController = null
-    translating = false
-    translationText = null
-    translatedHtmlContent = null
-    translationError = null
+    cancelTranslation()
   })
 
   function gotoMailbox() {
@@ -140,21 +210,56 @@
     let current = walker.nextNode()
     while (current) {
       const node = current as Text
-      const { prefix, text, suffix } = splitTextNodeValue(node.nodeValue ?? '')
-      if (text) segments.push({ node, prefix, text, suffix })
+      const { text } = splitTextNodeValue(node.nodeValue ?? '')
+      if (text) segments.push({ text })
       current = walker.nextNode()
     }
 
-    return { doc, segments }
+    return { segments }
   }
 
-  function applyHtmlTranslations(plan: HtmlTranslationPlan, translations: string[]) {
-    for (let index = 0; index < plan.segments.length; index += 1) {
-      const segment = plan.segments[index]
-      segment.node.nodeValue = `${segment.prefix}${translations[index] ?? segment.text}${segment.suffix}`
+  function applyMessageTranslations(plan: HtmlTranslationPlan | null, translations: string[]) {
+    if (plan) {
+      translatedHtmlSegments = translations
+      applyTranslationsToMessageFrame(translations)
+      return
     }
 
-    return plan.doc.documentElement.outerHTML
+    translationText = translations[0] ?? null
+  }
+
+  async function readJsonLines(
+    response: Response,
+    onEvent: (payload: TranslationStreamPayload) => void
+  ) {
+    if (!response.body) {
+      onEvent((await response.json()) as TranslationStreamPayload)
+      return
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      if (!value) continue
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed) continue
+        onEvent(JSON.parse(trimmed) as TranslationStreamPayload)
+      }
+    }
+
+    buffer += decoder.decode()
+    const trimmed = buffer.trim()
+    if (trimmed) onEvent(JSON.parse(trimmed) as TranslationStreamPayload)
   }
 
   async function shareMessage() {
@@ -219,13 +324,11 @@
     translationAbortController = controller
     translating = true
     translationError = null
-    if (data.message.htmlContent) {
-      translatedHtmlContent = null
-      translationText = null
-    } else {
-      translatedHtmlContent = null
-      translationText = null
-    }
+    translationResolvedCount = 0
+    translationSegmentCount = textSegments.length
+    translatedHtmlSegments = null
+    translationText = null
+    applyTranslationsToMessageFrame(null)
     try {
       const res = await trackAppLoading(() =>
         fetch('/api/ai/translate', {
@@ -235,7 +338,8 @@
             id: messageId,
             targetLanguage: 'Korean',
             format: htmlPlan ? 'html' : 'text',
-            segments: textSegments
+            segments: textSegments,
+            stream: true
           }),
           signal: controller.signal
         })
@@ -248,25 +352,27 @@
         throw new Error(text || 'Translation failed')
       }
 
-      const payload = (await res.json()) as { translations?: string[] }
-      const translations = payload.translations ?? []
-      if (translations.length !== textSegments.length) {
-        throw new Error('Translation response did not match the source text.')
-      }
+      await readJsonLines(res, (payload) => {
+        if (requestId !== translationRequestId || data.message.id !== messageId) return
+        if (payload.error) throw new Error(payload.error)
 
-      if (requestId !== translationRequestId || data.message.id !== messageId) return
+        const translations = payload.translations ?? []
+        if (translations.length !== textSegments.length) {
+          throw new Error('Translation response did not match the source text.')
+        }
 
-      if (htmlPlan) {
-        translatedHtmlContent = applyHtmlTranslations(htmlPlan, translations)
-      } else {
-        translationText = translations[0] ?? null
-      }
+        translationResolvedCount = Math.min(
+          payload.resolved ?? translations.length,
+          textSegments.length
+        )
+        applyMessageTranslations(htmlPlan, translations)
+      })
     } catch (error) {
       if (controller.signal.aborted) return
       if (requestId !== translationRequestId || data.message.id !== messageId) return
       translationError = error instanceof Error ? error.message : 'Translation failed'
       if (!translationText) translationText = null
-      if (!translatedHtmlContent) translatedHtmlContent = null
+      if (!translatedHtmlSegments) translatedHtmlSegments = null
     } finally {
       if (requestId === translationRequestId) {
         translationAbortController = null
@@ -388,7 +494,7 @@
   }
 
   const srcdoc = $derived.by(() => {
-    const html = translatedHtmlContent || message.htmlContent
+    const html = message.htmlContent
     return html ? injectScrollbarStyle(html) : null
   })
 
@@ -793,23 +899,19 @@
   </div>
 
   <div bind:this={scrollContainer} class="flex min-h-0 flex-1 flex-col overflow-y-auto">
-    {#if translationText || translatedHtmlContent || translationError || translating}
+    {#if translationText || translatedHtmlSegments || translationError || translating}
       <section class="border-b border-white/8 bg-[#101116] p-4 sm:p-5">
         <div class="flex items-center justify-between gap-3">
           <div class="flex min-w-0 items-center gap-2">
             <Languages size={15} class="shrink-0 text-sky-300" />
             <p class="truncate text-sm font-semibold text-white">
-              {translatedHtmlContent ? 'Translated email body' : 'Korean translation'}
+              {translatedHtmlSegments ? 'Translated email body' : 'Korean translation'}
             </p>
           </div>
-          {#if translationText || translatedHtmlContent}
+          {#if translationText || translatedHtmlSegments}
             <button
               type="button"
-              onclick={() => {
-                translationText = null
-                translatedHtmlContent = null
-                translationError = null
-              }}
+              onclick={() => cancelTranslation()}
               class="shrink-0 text-xs text-zinc-500 transition hover:text-zinc-300"
             >
               Show original
@@ -820,8 +922,14 @@
         {#if translationError}
           <p class="mt-3 text-sm text-rose-300">{translationError}</p>
         {:else if translating}
-          <p class="mt-3 text-sm text-zinc-500">Translating…</p>
-        {:else if translationText || translatedHtmlContent}
+          <p class="mt-3 text-sm text-zinc-500">
+            {#if translationResolvedCount > 0}
+              Translating… {translationResolvedCount}/{translationSegmentCount} segments applied.
+            {:else}
+              Translating…
+            {/if}
+          </p>
+        {:else if translationText || translatedHtmlSegments}
           <p class="mt-3 text-sm text-zinc-500">Translated content is shown in the email body.</p>
         {/if}
       </section>
@@ -829,6 +937,7 @@
 
     {#if srcdoc}
       <iframe
+        bind:this={messageFrame}
         title={`Email body for ${subjectLabel(message.subject)}`}
         sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-scripts"
         {srcdoc}
@@ -840,6 +949,8 @@
             const h = doc.documentElement.scrollHeight
             if (h > 50) iframe.style.height = `${h}px`
           }
+
+          applyTranslationsToMessageFrame(translatedHtmlSegments)
         }}
       ></iframe>
     {:else}

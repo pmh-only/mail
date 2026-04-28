@@ -18,11 +18,6 @@ function getOpenAIConfig(): OpenAIConfig {
   }
 }
 
-function truncateInput(value: string) {
-  if (value.length <= MAX_INPUT_CHARS) return value
-  return `${value.slice(0, MAX_INPUT_CHARS)}\n\n[Input truncated]`
-}
-
 function truncateInputAt(value: string, maxInputChars = MAX_INPUT_CHARS) {
   if (value.length <= maxInputChars) return value
   return `${value.slice(0, maxInputChars)}\n\n[Input truncated]`
@@ -153,6 +148,7 @@ export async function createOpenAITextStream({
   instructions,
   input,
   maxOutputTokens = 900,
+  maxInputChars,
   onComplete,
   onError
 }: OpenAITextParams & {
@@ -170,7 +166,7 @@ export async function createOpenAITextStream({
         const openaiStream = await client.responses.create({
           model,
           instructions,
-          input: truncateInput(input),
+          input: truncateInputAt(input, maxInputChars),
           max_output_tokens: maxOutputTokens,
           store: false,
           stream: true
@@ -212,4 +208,41 @@ export async function createOpenAITextStream({
       }
     }
   })
+}
+
+export async function generateOpenAITextFromStream(params: OpenAITextParams) {
+  let completedText = ''
+  let streamError: unknown = null
+  const decoder = new TextDecoder()
+  const stream = await createOpenAITextStream({
+    ...params,
+    onComplete: (text) => {
+      completedText = text
+    },
+    onError: (error) => {
+      streamError = error
+    }
+  })
+
+  const reader = stream.getReader()
+  let streamedText = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) streamedText += decoder.decode(value, { stream: true })
+    }
+
+    streamedText += decoder.decode()
+  } catch (error) {
+    throw streamError ?? error
+  }
+
+  const outputText = (completedText || streamedText).trim()
+  if (!outputText) {
+    throw new Error('OpenAI returned an empty response')
+  }
+
+  return outputText
 }
