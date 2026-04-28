@@ -297,15 +297,74 @@
 :root{padding:12px}
 </style>`
 
-  const LINK_SCRIPT =
-    `<script>document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.protocol!=='javascript:'){e.preventDefault();window.open(a.href,'_blank','noopener,noreferrer');}});</scr` +
-    `ipt>`
+  const LINK_TARGET_BASE = '<base target="_blank">'
+  const OPENABLE_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:'])
 
   function injectScrollbarStyle(html: string): string {
     const headClose = html.indexOf('</head>')
     if (headClose !== -1)
-      return html.slice(0, headClose) + SCROLLBAR_STYLE + LINK_SCRIPT + html.slice(headClose)
-    return SCROLLBAR_STYLE + LINK_SCRIPT + html
+      return html.slice(0, headClose) + LINK_TARGET_BASE + SCROLLBAR_STYLE + html.slice(headClose)
+    return LINK_TARGET_BASE + SCROLLBAR_STYLE + html
+  }
+
+  function closestEmailLink(target: EventTarget | null) {
+    if (!target || typeof target !== 'object') return null
+
+    const candidate = target as {
+      closest?: (selector: string) => Element | null
+      parentElement?: { closest?: (selector: string) => Element | null }
+    }
+
+    return (candidate.closest?.('a[href]') ??
+      candidate.parentElement?.closest?.('a[href]') ??
+      null) as HTMLAnchorElement | null
+  }
+
+  function openEmailLinkInNewWindow(event: MouseEvent) {
+    const anchor = closestEmailLink(event.target)
+    const rawHref = anchor?.getAttribute('href')?.trim()
+    if (!anchor || !rawHref || rawHref.startsWith('#')) return
+
+    let url: URL
+    try {
+      url = new URL(rawHref, anchor.ownerDocument?.baseURI ?? window.location.href)
+    } catch {
+      return
+    }
+
+    if (!OPENABLE_LINK_PROTOCOLS.has(url.protocol)) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    window.open(url.href, '_blank', 'noopener,noreferrer')
+  }
+
+  function retargetEmailLinks(doc: Document) {
+    for (const anchor of doc.querySelectorAll('a[href]')) {
+      const rawHref = anchor.getAttribute('href')?.trim()
+      if (!rawHref || rawHref.startsWith('#')) continue
+
+      try {
+        const url = new URL(rawHref, doc.baseURI)
+        if (!OPENABLE_LINK_PROTOCOLS.has(url.protocol)) continue
+      } catch {
+        continue
+      }
+
+      anchor.setAttribute('target', '_blank')
+      anchor.setAttribute('rel', 'noopener noreferrer')
+    }
+  }
+
+  function setupEmailIframe(iframe: HTMLIFrameElement) {
+    const doc = iframe.contentDocument
+    if (!doc) return
+
+    retargetEmailLinks(doc)
+    doc.addEventListener('click', openEmailLinkInNewWindow)
+
+    const height = doc.documentElement.scrollHeight
+    if (height > 50) iframe.style.height = `${height + 24}px`
   }
 
   function getMessageAttachments(messageId: string) {
@@ -603,11 +662,7 @@
                   class="min-h-[300px] w-full rounded-lg border border-white/8 bg-white"
                   onload={(e) => {
                     const iframe = e.currentTarget as HTMLIFrameElement
-                    const doc = iframe.contentDocument
-                    if (doc) {
-                      const height = doc.documentElement.scrollHeight
-                      if (height > 50) iframe.style.height = `${height + 24}px`
-                    }
+                    setupEmailIframe(iframe)
                     if (scrollToLatestPending && msg.id === defaultExpandedId) {
                       scrollThreadToBottom()
                     }

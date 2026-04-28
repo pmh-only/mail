@@ -1,5 +1,6 @@
 import { env } from '$env/dynamic/private'
 import OpenAI from 'openai'
+import type { Response as OpenAIResponse } from 'openai/resources/responses/responses'
 
 const DEFAULT_MODEL = 'gpt-4.1-mini'
 const MAX_INPUT_CHARS = 14_000
@@ -32,6 +33,74 @@ function outputTextDelta(event: unknown) {
   const record = event as Record<string, unknown>
   if (record.type !== 'response.output_text.delta') return ''
   return typeof record.delta === 'string' ? record.delta : ''
+}
+
+function outputTextDone(event: unknown) {
+  if (!event || typeof event !== 'object') return ''
+  const record = event as Record<string, unknown>
+  if (record.type !== 'response.output_text.done') return ''
+  return typeof record.text === 'string' ? record.text : ''
+}
+
+function responseDone(event: unknown) {
+  if (!event || typeof event !== 'object') return null
+  const record = event as Record<string, unknown>
+  if (record.type !== 'response.completed' && record.type !== 'response.incomplete') return null
+  return record.response && typeof record.response === 'object'
+    ? (record.response as OpenAIResponse)
+    : null
+}
+
+function outputTextFromItems(response: OpenAIResponse) {
+  const textParts: string[] = []
+
+  for (const item of response.output) {
+    if (item.type !== 'message') continue
+
+    for (const content of item.content) {
+      if (content.type === 'output_text') {
+        textParts.push(content.text)
+      }
+    }
+  }
+
+  return textParts.join('')
+}
+
+function refusalFromItems(response: OpenAIResponse) {
+  const refusals: string[] = []
+
+  for (const item of response.output) {
+    if (item.type !== 'message') continue
+
+    for (const content of item.content) {
+      if (content.type === 'refusal' && content.refusal.trim()) {
+        refusals.push(content.refusal.trim())
+      }
+    }
+  }
+
+  return refusals.join(' ')
+}
+
+function responseDiagnostic(response: OpenAIResponse | null) {
+  if (!response) return ''
+  if (response.error) return `: ${response.error.message}`
+
+  const refusal = refusalFromItems(response)
+  if (refusal) return `: ${refusal}`
+
+  const reason = response.incomplete_details?.reason
+  if (reason) return `: response incomplete (${reason})`
+
+  if (response.status && response.status !== 'completed')
+    return `: response status ${response.status}`
+
+  return ''
+}
+
+function extractOutputText(response: OpenAIResponse) {
+  return (response.output_text || outputTextFromItems(response)).trim()
 }
 
 type OpenAITextParams = {
@@ -72,8 +141,10 @@ export async function generateOpenAIText({
     text: textConfig
   })
 
-  const outputText = response.output_text?.trim() ?? ''
-  if (!outputText) throw new Error('OpenAI returned an empty response')
+  const outputText = extractOutputText(response)
+  if (!outputText) {
+    throw new Error(`OpenAI returned an empty response${responseDiagnostic(response)}`)
+  }
 
   return outputText
 }
@@ -89,32 +160,51 @@ export async function createOpenAITextStream({
   onError?: (error: unknown) => void
 }) {
   const { client, model } = createClientConfig()
-  const openaiStream = await client.responses.create({
-    model,
-    instructions,
-    input: truncateInput(input),
-    max_output_tokens: maxOutputTokens,
-    store: false,
-    stream: true
-  })
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       let text = ''
+      let finalResponse: OpenAIResponse | null = null
 
       try {
-        for await (const event of openaiStream) {
-          const delta = outputTextDelta(event)
-          if (!delta) continue
+        const openaiStream = await client.responses.create({
+          model,
+          instructions,
+          input: truncateInput(input),
+          max_output_tokens: maxOutputTokens,
+          store: false,
+          stream: true
+        })
 
-          text += delta
-          controller.enqueue(encoder.encode(delta))
+        for await (const event of openaiStream) {
+          finalResponse = responseDone(event) ?? finalResponse
+
+          const delta = outputTextDelta(event)
+          if (delta) {
+            text += delta
+            controller.enqueue(encoder.encode(delta))
+            continue
+          }
+
+          const doneText = outputTextDone(event)
+          if (doneText && !text) {
+            text = doneText
+            controller.enqueue(encoder.encode(doneText))
+          }
         }
 
         const trimmed = text.trim()
-        if (!trimmed) throw new Error('OpenAI returned an empty response')
+        if (!trimmed) {
+          const fallback = finalResponse ? extractOutputText(finalResponse) : ''
+          if (!fallback) {
+            throw new Error(`OpenAI returned an empty response${responseDiagnostic(finalResponse)}`)
+          }
 
-        onComplete?.(trimmed)
+          text = fallback
+          controller.enqueue(encoder.encode(fallback))
+        }
+
+        onComplete?.(text.trim())
         controller.close()
       } catch (error) {
         onError?.(error)
