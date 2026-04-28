@@ -9,6 +9,7 @@
     Share2,
     Check,
     Info,
+    Mail,
     Paperclip,
     Download,
     FileText,
@@ -26,6 +27,7 @@
   import { onMount } from 'svelte'
   import { openReply, openReplyAll, openForward } from '$lib/composer.svelte'
   import { setupKeyboardHandler } from '$lib/keyboard.svelte'
+  import { notifyMailboxStateChanged } from '$lib/mailbox-state'
 
   type Message = {
     id: number
@@ -107,6 +109,27 @@
     await performAction('spam')
   }
 
+  async function markUnreadFromMore() {
+    if (acting) return
+    moreOpen = false
+    acting = true
+    try {
+      const res = await trackAppLoading(() =>
+        fetch('/api/messages/bulk', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ids: [data.message.id], action: 'mark_unread' })
+        })
+      )
+      if (res.ok) {
+        notifyMailboxStateChanged('message-action:mark-unread')
+        await gotoMailbox()
+      }
+    } finally {
+      acting = false
+    }
+  }
+
   async function performAction(action: 'archive' | 'trash' | 'spam' | 'inbox') {
     if (acting) return
     acting = true
@@ -119,6 +142,7 @@
         })
       )
       if (res.ok) {
+        notifyMailboxStateChanged(`message-action:${action}`)
         await gotoMailbox()
       }
     } finally {
@@ -294,6 +318,8 @@
   }
 
   onMount(() => {
+    setTimeout(() => notifyMailboxStateChanged('message-opened'), 0)
+
     const teardown = setupKeyboardHandler('message', {
       u: () => gotoMailbox(),
       r: () => openReply(message),
@@ -486,6 +512,15 @@
               {/if}
               <button
                 type="button"
+                disabled={acting}
+                onclick={() => void markUnreadFromMore()}
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Mail size={14} />
+                Mark unread
+              </button>
+              <button
+                type="button"
                 disabled={sharing}
                 onclick={() => void shareFromMore()}
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
@@ -589,6 +624,15 @@
                   Spam
                 </button>
               {/if}
+              <button
+                type="button"
+                disabled={acting}
+                onclick={() => void markUnreadFromMore()}
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/6 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Mail size={14} />
+                Mark unread
+              </button>
               <button
                 type="button"
                 disabled={sharing}

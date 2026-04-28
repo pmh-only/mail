@@ -35,7 +35,7 @@ export const load: PageServerLoad = async ({ params }) => {
     error(404, 'Message not found')
   }
 
-  void markMessageAsRead(message)
+  await markMessageAsRead(message)
 
   // Load attachment metadata (no content blobs — served via /api/attachments/[id])
   const attachments = await db

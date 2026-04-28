@@ -28,6 +28,8 @@
   import { openCompose, openDraft, type DraftRow } from '$lib/composer.svelte'
   import { afterNavigate, goto, invalidateAll } from '$app/navigation'
   import { keyboard } from '$lib/keyboard.svelte'
+  import { MAILBOX_STATE_CHANGED_EVENT } from '$lib/mailbox-state'
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity'
 
   type ImapMailbox = { path: string; name: string; delimiter: string }
   type SyncStatus = {
@@ -122,7 +124,7 @@
 
   function buildMailboxTree(mailboxes: ImapMailbox[]) {
     const roots: MailboxTreeNode[] = []
-    const nodes = new Map<string, MailboxTreeNode>()
+    const nodes = new SvelteMap<string, MailboxTreeNode>()
 
     for (const mailbox of mailboxes) {
       const segments = splitMailboxPath(mailbox.path, mailbox.delimiter)
@@ -174,7 +176,7 @@
     mailboxes: ImapMailbox[],
     activeMailboxSlug: string | null
   ) {
-    const defaults = new Set<string>()
+    const defaults = new SvelteSet<string>()
 
     for (const root of tree.roots) {
       if (root.children.length > 0) defaults.add(root.key)
@@ -228,7 +230,7 @@
     collectDefaultExpandedKeys(mailboxTree, imapMailboxes, mailbox)
   )
   const visibleMailboxRows = $derived(
-    flattenMailboxTree(mailboxTree.roots, new Set(expandedMailboxKeys))
+    flattenMailboxTree(mailboxTree.roots, new SvelteSet(expandedMailboxKeys))
   )
   const selectableMailboxRows = $derived(visibleMailboxRows.filter((row) => row.slug !== null))
   const mailboxes = $derived(
@@ -288,8 +290,8 @@
   })
 
   $effect(() => {
-    const validKeys = new Set(mailboxTree.nodes.keys())
-    const merged = new Set(defaultExpandedMailboxKeys)
+    const validKeys = new SvelteSet(mailboxTree.nodes.keys())
+    const merged = new SvelteSet(defaultExpandedMailboxKeys)
 
     for (const key of expandedMailboxKeys) {
       if (validKeys.has(key)) merged.add(key)
@@ -444,6 +446,10 @@
     }
   }
 
+  async function refreshMailboxState(reason = 'unknown') {
+    await Promise.all([fetchUnreadCount(reason), fetchMailboxes(reason)])
+  }
+
   let faviconLinkEl: HTMLLinkElement | null = null
   function updateFaviconAndTitle(count: number) {
     // Update page title
@@ -571,22 +577,29 @@
   onMount(() => {
     logPerf('shell hydrated', { mailbox, ms: Math.round(now() - shellInitAt) })
     logPerf('mount background fetch kick-off', { mailbox })
-    void fetchMailboxes('mount')
+    void refreshMailboxState('mount')
     void fetchSyncStatus('mount').finally(() => {
       scheduleNextSyncPoll()
     })
     void fetchDrafts('mount')
-    void fetchUnreadCount('mount')
     void registerPush()
+
+    const onMailboxStateChanged = (event: Event) => {
+      const reason =
+        event instanceof CustomEvent && typeof event.detail?.reason === 'string'
+          ? event.detail.reason
+          : 'mailbox-state-changed'
+      void refreshMailboxState(reason)
+    }
+    window.addEventListener(MAILBOX_STATE_CHANGED_EVENT, onMailboxStateChanged)
 
     const draftsInterval = setInterval(() => {
       logPerf('interval refresh', { task: 'fetchDrafts', everyMs: 30_000 })
       void fetchDrafts('interval')
     }, 30_000)
     const unreadInterval = setInterval(() => {
-      logPerf('interval refresh', { task: 'fetchUnreadCount', everyMs: 30_000 })
-      void fetchUnreadCount('interval')
-      void fetchMailboxes('interval')
+      logPerf('interval refresh', { task: 'refreshMailboxState', everyMs: 30_000 })
+      void refreshMailboxState('interval')
     }, 30_000)
 
     return () => {
@@ -594,6 +607,7 @@
         clearTimeout(syncPollTimer)
         syncPollTimer = null
       }
+      window.removeEventListener(MAILBOX_STATE_CHANGED_EVENT, onMailboxStateChanged)
       clearInterval(draftsInterval)
       clearInterval(unreadInterval)
     }

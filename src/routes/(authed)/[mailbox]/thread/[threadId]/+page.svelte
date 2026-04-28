@@ -3,6 +3,7 @@
     Archive,
     Trash2,
     ShieldAlert,
+    Mail,
     Reply,
     ReplyAll,
     Scissors,
@@ -18,10 +19,11 @@
   import { resolve } from '$app/paths'
   import { page } from '$app/state'
   import { trackAppLoading } from '$lib/loading.svelte'
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
   import { SvelteSet } from 'svelte/reactivity'
   import { openReply, openReplyAll } from '$lib/composer.svelte'
   import { setupKeyboardHandler } from '$lib/keyboard.svelte'
+  import { notifyMailboxStateChanged } from '$lib/mailbox-state'
 
   type Message = {
     id: number
@@ -52,6 +54,7 @@
   type Props = {
     data: {
       threadId: string
+      mailbox: string
       messages: Message[]
       attachments: Attachment[]
       mailboxRole: 'inbox' | 'archive' | 'trash' | 'spam' | null
@@ -74,6 +77,7 @@
   let splittingId = $state<number | null>(null)
   let splitError = $state<string | null>(null)
   let metadataMessage = $state<Message | null>(null)
+  let scrollToLatestPending = $state(false)
 
   function gotoMailbox() {
     return goto(resolve(`/${page.params.mailbox}`), { noScroll: true, keepFocus: true })
@@ -97,7 +101,7 @@
     if (acting) return
     acting = true
     try {
-      const ids = messages.map((m) => m.id)
+      const ids = messages.filter((m) => m.mailbox === data.mailbox).map((m) => m.id)
       await trackAppLoading(async () => {
         await fetch('/api/messages/bulk', {
           method: 'POST',
@@ -105,6 +109,26 @@
           body: JSON.stringify({ ids, action })
         })
       })
+      notifyMailboxStateChanged(`thread-action:${action}`)
+      await gotoMailbox()
+    } finally {
+      acting = false
+    }
+  }
+
+  async function markThreadUnread() {
+    if (acting) return
+    acting = true
+    try {
+      const ids = messages.map((m) => m.id)
+      await trackAppLoading(async () => {
+        await fetch('/api/messages/bulk', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ids, action: 'mark_unread' })
+        })
+      })
+      notifyMailboxStateChanged('thread-action:mark-unread')
       await gotoMailbox()
     } finally {
       acting = false
@@ -232,15 +256,45 @@
 
   let scrollContainer = $state<HTMLDivElement | undefined>(undefined)
 
+  function scrollThreadToBottom() {
+    const container = scrollContainer
+    if (!container) return
+
+    container.scrollTop = container.scrollHeight
+  }
+
+  function nextFrame() {
+    return new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve())
+    })
+  }
+
+  async function settleThreadScrollAtBottom() {
+    scrollToLatestPending = true
+
+    await tick()
+    scrollThreadToBottom()
+    await nextFrame()
+    scrollThreadToBottom()
+
+    window.setTimeout(() => {
+      scrollThreadToBottom()
+      scrollToLatestPending = false
+    }, 150)
+  }
+
   $effect(() => {
     if (initializedThreadId === data.threadId) return
 
     expandedIds = new SvelteSet<number>()
     collapsedDefaultIds = new SvelteSet<number>()
     initializedThreadId = data.threadId
+    void settleThreadScrollAtBottom()
   })
 
   onMount(() => {
+    setTimeout(() => notifyMailboxStateChanged('thread-opened'), 0)
+
     const teardown = setupKeyboardHandler('message', {
       u: () => gotoMailbox(),
       r: () => lastMessage && openReply(lastMessage),
@@ -313,6 +367,15 @@
             <ShieldAlert size={16} />
           </button>
         {/if}
+        <button
+          type="button"
+          aria-label="Mark thread unread"
+          disabled={acting}
+          onclick={() => markThreadUnread()}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
+        >
+          <Mail size={16} />
+        </button>
         {#if lastMessage}
           <button
             type="button"
@@ -453,6 +516,9 @@
                     if (doc) {
                       const height = doc.documentElement.scrollHeight
                       if (height > 50) iframe.style.height = `${height + 24}px`
+                    }
+                    if (scrollToLatestPending && msg.id === defaultExpandedId) {
+                      scrollThreadToBottom()
                     }
                   }}
                 ></iframe>

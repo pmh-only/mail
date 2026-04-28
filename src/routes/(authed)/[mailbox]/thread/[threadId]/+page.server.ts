@@ -44,13 +44,11 @@ export const load: PageServerLoad = async ({ params }) => {
     redirect(302, `/${params.mailbox}/${messages[0].id}`)
   }
 
-  // Mark all unread messages as read in the background
-  for (const msg of messages) {
+  const unreadMessages = messages.filter((msg) => {
     const flags: string[] = JSON.parse(msg.flags)
-    if (!flags.includes('\\Seen')) {
-      void markMessageAsRead(msg)
-    }
-  }
+    return !flags.includes('\\Seen')
+  })
+  await Promise.all(unreadMessages.map((msg) => markMessageAsRead(msg)))
 
   const messageIds = messages.map((m) => m.messageId)
 
@@ -73,6 +71,7 @@ export const load: PageServerLoad = async ({ params }) => {
 
   const body = {
     threadId: params.threadId,
+    mailbox: mailboxPath,
     messages: messages.map(serializeMessage),
     attachments,
     mailboxRole

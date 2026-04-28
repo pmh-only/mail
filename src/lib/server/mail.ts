@@ -14,7 +14,7 @@ import {
   mailAttachment,
   syncRuntime
 } from './db/schema'
-import { enqueueMarkRead, enqueueMoveMessage } from './imap-queue'
+import { enqueueMarkRead, enqueueMarkUnread, enqueueMoveMessage } from './imap-queue'
 import { getImapConfig, type ImapConfig } from './config'
 import { logServerError, perfError, perfLog, perfMs, perfNow } from './perf'
 import { withRetry } from './retry'
@@ -1300,7 +1300,11 @@ export async function listStoredThreads(
         preview: mailMessage.preview,
         receivedAt: mailThreadSummary.latestReceivedAt,
         threadId: mailThreadSummary.threadKey,
-        threadCount: mailThreadSummary.threadCount
+        threadCount: sql<number>`(
+          select count(*)
+          from ${mailMessage} as thread_message
+          where thread_message.thread_key = ${mailThreadSummary.threadKey}
+        )`
       })
       .from(mailThreadSummary)
       .innerJoin(
@@ -1323,6 +1327,7 @@ export async function listStoredThreads(
 
     return rows.map((row) => ({
       ...row,
+      threadCount: Number(row.threadCount),
       receivedAt: row.receivedAt != null ? new Date(row.receivedAt) : null
     }))
   } catch (error) {
@@ -1371,20 +1376,29 @@ export async function getMessagesInThread(
       return []
     }
 
-    const rows = await db
+    const mailboxRows = await db
       .select(detailSelect)
       .from(mailMessage)
       .innerJoin(mailMessageMailbox, eq(mailMessageMailbox.messageId, mailMessage.messageId))
       .where(
-        and(
-          eq(mailMessageMailbox.mailbox, mailboxPath),
-          inArray(
-            mailMessage.messageId,
-            threadMessages.map((message: { messageId: string }) => message.messageId)
-          )
+        inArray(
+          mailMessage.messageId,
+          threadMessages.map((message: { messageId: string }) => message.messageId)
         )
       )
       .orderBy(asc(mailMessage.receivedAt), asc(mailMessageMailbox.uid))
+
+    const rowByMessageId = new Map<string, MailRow>()
+    for (const row of mailboxRows) {
+      const current = rowByMessageId.get(row.messageId)
+      if (!current || row.mailbox === mailboxPath) {
+        rowByMessageId.set(row.messageId, row)
+      }
+    }
+
+    const rows = threadMessages
+      .map((message) => rowByMessageId.get(message.messageId))
+      .filter((row): row is MailRow => Boolean(row))
 
     perfLog('mail.getMessagesInThread', {
       mailbox: mailboxPath,
@@ -1568,10 +1582,42 @@ export async function markMessageAsRead(message: MailRow) {
     })
   }
 
+  await refreshThreadSummaries(message.mailbox, [message.threadId ?? message.messageId])
+
   try {
     await enqueueMarkRead(message.uid, message.mailbox)
   } catch (error) {
     logServerError('mail.markMessageAsRead.enqueue', error, {
+      messageId: message.id,
+      mailbox: message.mailbox,
+      uid: message.uid
+    })
+  }
+}
+
+export async function markMessageAsUnread(message: MailRow) {
+  const flags: string[] = JSON.parse(message.flags)
+  if (!flags.includes('\\Seen')) return
+
+  try {
+    await db
+      .update(mailMessageMailbox)
+      .set({ flags: JSON.stringify(flags.filter((flag) => flag !== '\\Seen')) })
+      .where(eq(mailMessageMailbox.id, message.id))
+  } catch (error) {
+    logServerError('mail.markMessageAsUnread.update', error, {
+      messageId: message.id,
+      mailbox: message.mailbox,
+      uid: message.uid
+    })
+  }
+
+  await refreshThreadSummaries(message.mailbox, [message.threadId ?? message.messageId])
+
+  try {
+    await enqueueMarkUnread(message.uid, message.mailbox)
+  } catch (error) {
+    logServerError('mail.markMessageAsUnread.enqueue', error, {
       messageId: message.id,
       mailbox: message.mailbox,
       uid: message.uid

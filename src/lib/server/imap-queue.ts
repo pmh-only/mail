@@ -136,6 +136,27 @@ async function runMarkRead(config: MailConfig, job: ImapJobRow) {
   }
 }
 
+async function runMarkUnread(config: MailConfig, job: ImapJobRow) {
+  let client: ImapFlow | null = null
+  try {
+    client = await connectImap(config, `mark-unread ${job.mailbox}`)
+    const lock = await client.getMailboxLock(job.mailbox)
+    try {
+      await client.messageFlagsRemove(String(job.uid), ['\\Seen'], { uid: true })
+    } finally {
+      lock.release()
+    }
+  } finally {
+    if (client) {
+      try {
+        await client.logout()
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
 async function runMove(config: MailConfig, job: ImapJobRow) {
   if (!job.targetMailbox) {
     throw new Error('Missing target mailbox for move job')
@@ -169,6 +190,11 @@ async function runJob(job: ImapJobRow) {
 
   if (job.type === 'mark_read') {
     await runMarkRead(toConfig(config), job)
+    return
+  }
+
+  if (job.type === 'mark_unread') {
+    await runMarkUnread(toConfig(config), job)
     return
   }
 
@@ -250,7 +276,40 @@ export async function enqueueMarkRead(uid: number, mailbox: string) {
     })
 }
 
-export async function enqueueMoveMessage(uid: number, sourceMailbox: string, targetMailbox: string) {
+export async function enqueueMarkUnread(uid: number, mailbox: string) {
+  const now = new Date()
+  await db
+    .insert(imapJob)
+    .values({
+      type: 'mark_unread',
+      mailbox,
+      uid,
+      targetMailbox: null,
+      status: 'pending',
+      dedupeKey: `mark_unread:${mailbox}:${uid}`,
+      attemptCount: 0,
+      availableAt: now,
+      lastError: null,
+      createdAt: now,
+      updatedAt: now
+    })
+    .onConflictDoUpdate({
+      target: imapJob.dedupeKey,
+      set: {
+        status: 'pending',
+        attemptCount: 0,
+        availableAt: now,
+        lastError: null,
+        updatedAt: now
+      }
+    })
+}
+
+export async function enqueueMoveMessage(
+  uid: number,
+  sourceMailbox: string,
+  targetMailbox: string
+) {
   const now = new Date()
   await db
     .insert(imapJob)

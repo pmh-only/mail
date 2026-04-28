@@ -4,6 +4,7 @@
   import { resolve } from '$app/paths'
   import { trackAppLoading } from '$lib/loading.svelte'
   import { pathToSlug } from '$lib/mailbox'
+  import { notifyMailboxStateChanged } from '$lib/mailbox-state'
   import { getSimplifiedModeSidebarActionContext } from '$lib/simplified-mode-context'
   import { page } from '$app/state'
   import { onMount, tick, untrack } from 'svelte'
@@ -12,6 +13,7 @@
     RefreshCw,
     CheckSquare,
     Square,
+    Mail,
     Archive,
     Trash2,
     MailOpen,
@@ -171,7 +173,14 @@
   const selectionMode = $derived(selectedIds.size > 0)
   let bulkActionPending = $state(false)
 
-  type ContextMenuAction = 'open' | 'archive' | 'trash' | 'spam' | 'inbox' | 'mark_read'
+  type ContextMenuAction =
+    | 'open'
+    | 'archive'
+    | 'trash'
+    | 'spam'
+    | 'inbox'
+    | 'mark_read'
+    | 'mark_unread'
 
   type ContextMenuState = {
     message: Message
@@ -828,6 +837,8 @@
 
     if (isUnread(message.flags)) {
       items.push({ action: 'mark_read', label: 'Mark as read' })
+    } else {
+      items.push({ action: 'mark_unread', label: 'Mark as unread' })
     }
 
     return items
@@ -855,6 +866,7 @@
 
         clearSelection()
         await refreshVisibleListWindow(`bulk-action:${action}`)
+        notifyMailboxStateChanged(`bulk-action:${action}`)
       })
     } finally {
       bulkActionPending = false
@@ -992,6 +1004,7 @@
       })
 
       await refreshVisibleListWindow('archive-message')
+      notifyMailboxStateChanged('archive-message')
     })
   }
 
@@ -1005,6 +1018,7 @@
       })
 
       await refreshVisibleListWindow('trash-message')
+      notifyMailboxStateChanged('trash-message')
     })
   }
 
@@ -1018,6 +1032,7 @@
       })
 
       await refreshVisibleListWindow(`message-action:${action}`)
+      notifyMailboxStateChanged(`message-action:${action}`)
     })
   }
 
@@ -1033,6 +1048,23 @@
       })
 
       await refreshVisibleListWindow('message-action:mark-read')
+      notifyMailboxStateChanged('message-action:mark-read')
+    })
+  }
+
+  async function markMessageUnread(id: number) {
+    closeContextMenu()
+    updateMessageFlags(id, (flags) => flags.filter((flag) => flag !== '\\Seen'))
+
+    await trackAppLoading(async () => {
+      await fetch('/api/messages/bulk', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ids: [id], action: 'mark_unread' })
+      })
+
+      await refreshVisibleListWindow('message-action:mark-unread')
+      notifyMailboxStateChanged('message-action:mark-unread')
     })
   }
 
@@ -1044,6 +1076,11 @@
 
     if (action === 'mark_read') {
       await markMessageRead(message.id)
+      return
+    }
+
+    if (action === 'mark_unread') {
+      await markMessageUnread(message.id)
       return
     }
 
@@ -1555,6 +1592,15 @@
               class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
             >
               <MailOpen size={13} /> Mark read
+            </button>
+            <button
+              type="button"
+              title="Mark unread"
+              onclick={() => void bulkAction('mark_unread')}
+              disabled={bulkActionPending}
+              class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+            >
+              <Mail size={13} /> Mark unread
             </button>
           </div>
           <button
