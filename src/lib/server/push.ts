@@ -41,7 +41,7 @@ export async function sendPushToAll(payload: {
   const data = JSON.stringify(payload)
 
   await Promise.allSettled(
-    subscriptions.map(async (sub: typeof subscriptions[number]) => {
+    subscriptions.map(async (sub: (typeof subscriptions)[number]) => {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
