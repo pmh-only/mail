@@ -11,28 +11,22 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN DATABASE_URL=build-placeholder \
+RUN DATABASE_URL=postgres://build:build@localhost:5432/build \
     BETTER_AUTH_SECRET=build-placeholder \
     BETTER_AUTH_URL=http://localhost \
-    pnpm build
+    pnpm build:web
 
 
 # ── runtime stage ──────────────────────────────────────────────────────────────
 FROM base AS runtime
-RUN apk add --no-cache python3 make g++
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --prod --frozen-lockfile && pnpm rebuild better-sqlite3
+RUN pnpm install --prod --frozen-lockfile
 COPY --from=build /app/build ./build
-COPY drizzle ./drizzle
 
-RUN mkdir -p /data
-VOLUME /data
-
-EXPOSE 3000
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=3000 \
-    DATABASE_URL=/data/local.db
+    PORT=3000
 
+EXPOSE 3000
 CMD ["node", "build/index.js"]

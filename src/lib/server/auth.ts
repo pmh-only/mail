@@ -16,7 +16,7 @@ async function createAuth(): Promise<AuthInstance> {
   return betterAuth({
     baseURL: env.ORIGIN,
     secret: env.BETTER_AUTH_SECRET,
-    database: drizzleAdapter(db, { provider: 'sqlite' }),
+    database: drizzleAdapter(db, { provider: 'pg' }),
     plugins: [
       genericOAuth({
         config: [

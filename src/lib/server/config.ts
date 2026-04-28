@@ -2,9 +2,8 @@
  * Mail configuration loader.
  * DB values (mail_config table, id=1) take priority over environment variables.
  */
-import { env } from '$env/dynamic/private'
-import { db } from '$lib/server/db'
-import { mailConfig } from '$lib/server/db/schema'
+import { db } from './db'
+import { mailConfig } from './db/schema'
 import { eq } from 'drizzle-orm'
 
 export type ImapConfig = {
@@ -33,6 +32,7 @@ export type OidcConfig = {
 }
 
 export type MailConfigRow = typeof mailConfig.$inferSelect
+const env = process.env
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (value == null || value === '') return fallback
@@ -49,7 +49,7 @@ let cachedRow: MailConfigRow | null | undefined = undefined // undefined = not l
 async function loadConfigRow(): Promise<MailConfigRow | null> {
   const [row] = await db.select().from(mailConfig).where(eq(mailConfig.id, 1)).limit(1)
   cachedRow = row ?? null
-  return cachedRow
+  return cachedRow ?? null
 }
 
 /** Call after saving settings to bust the cache. */
