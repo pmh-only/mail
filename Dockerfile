@@ -15,13 +15,14 @@ RUN DATABASE_URL=postgres://build:build@localhost:5432/build \
     BETTER_AUTH_SECRET=build-placeholder \
     BETTER_AUTH_URL=http://localhost \
     pnpm build:web
+RUN pnpm prune --prod
 
 
 # ── runtime stage ──────────────────────────────────────────────────────────────
 FROM base AS runtime
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --prod --frozen-lockfile
+COPY package.json ./
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
 
 ENV NODE_ENV=production \
