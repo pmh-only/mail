@@ -15,15 +15,16 @@ RUN DATABASE_URL=postgres://build:build@localhost:5432/build \
     BETTER_AUTH_SECRET=build-placeholder \
     BETTER_AUTH_URL=http://localhost \
     pnpm build:web
-RUN pnpm prune --prod
 
 
 # ── runtime stage ──────────────────────────────────────────────────────────────
 FROM base AS runtime
 WORKDIR /app
 COPY package.json ./
+COPY drizzle.config.ts ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
+COPY --from=build /app/src ./src
 
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
