@@ -1374,6 +1374,14 @@
                           <span class="h-2 w-2 shrink-0 rounded-full bg-sky-400"></span>
                           <span class="text-xs font-medium text-sky-300">Unread</span>
                         {/if}
+                        {#if threadedMode && message.threadCount && message.threadCount > 1}
+                          <span
+                            class="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/8 px-2 py-0.5 text-xs font-medium text-zinc-300"
+                          >
+                            <Mails size={12} />
+                            Thread
+                          </span>
+                        {/if}
                       </div>
 
                       <h2
@@ -1398,7 +1406,9 @@
                       onclick={offset === 0 ? openSimplifiedMessage : undefined}
                       class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500"
                     >
-                      Open message
+                      {threadedMode && message.threadCount && message.threadCount > 1
+                        ? 'Open thread'
+                        : 'Open message'}
                     </button>
                   </div>
                 </div>
