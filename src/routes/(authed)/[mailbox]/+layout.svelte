@@ -1124,13 +1124,14 @@
   const focusedIndex = $derived(keyboard.focusedIndex)
 
   const selectedMessageRowClass = 'bg-white/14 shadow-[inset_3px_0_0_rgba(56,189,248,0.95)]'
+  const focusedMessageRowClass = 'bg-white/10 shadow-[inset_3px_0_0_rgba(255,255,255,0.25)]'
 
   function messageRowClass(message: Message, index: number) {
     const isFocused = focusedIndex === index && !isSearchMode
     const isSelected = selectedMessageId === message.id
     return [
       'block w-full rounded-2xl bg-white/2 py-4 pr-4 pl-9 text-left transition sm:pr-5 sm:pl-10 md:rounded-none md:border-b md:border-white/8 md:bg-transparent',
-      isSelected ? selectedMessageRowClass : isFocused ? 'bg-white/4' : 'hover:bg-white/3'
+      isSelected ? selectedMessageRowClass : isFocused ? focusedMessageRowClass : 'hover:bg-white/3'
     ].join(' ')
   }
 
