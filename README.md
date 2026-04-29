@@ -8,6 +8,12 @@
 
 The next webmail client
 
+## Live demo
+
+Try it now: https://maildemo.pmh.codes/
+
+The demo runs with preloaded data and resets automatically, so you can explore the full UI without configuring PostgreSQL, IMAP, SMTP, or OIDC.
+
 ## Screenshots
 
 > Click to zoom in
@@ -33,6 +39,8 @@ The next webmail client
 ## How to run
 
 > You need running PostgreSQL instance.
+
+Want to try it first without local setup? Use the live demo: https://maildemo.pmh.codes/
 
 1. Clone this repository
 2. Copy `.env.example` to `.env` and replace placeholders
