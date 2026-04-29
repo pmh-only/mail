@@ -5,9 +5,16 @@ import { mailMessageMailbox } from '$lib/server/db/schema'
 import { and, eq, notLike, sql } from 'drizzle-orm'
 import { getImapConfig } from '$lib/server/config'
 import { perfLog, perfMs, perfNow } from '$lib/server/perf'
+import { getDemoUnreadCount, isDemoModeEnabled } from '$lib/server/demo'
 
 export const GET: RequestHandler = async () => {
   const startedAt = perfNow()
+  if (isDemoModeEnabled()) {
+    const count = getDemoUnreadCount()
+    perfLog('api.unreadCount.GET', { configured: true, count, ms: perfMs(startedAt), demo: true })
+    return json({ count })
+  }
+
   const config = await getImapConfig()
   if ('missing' in config) {
     perfLog('api.unreadCount.GET', {

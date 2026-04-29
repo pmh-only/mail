@@ -5,8 +5,12 @@ import { mailConfig } from '$lib/server/db/schema'
 import { invalidateConfigCache, isOidcConfigured } from '$lib/server/config'
 import { invalidateAuth } from '$lib/server/auth'
 import { env } from '$env/dynamic/private'
+import { isDemoModeEnabled } from '$lib/server/demo'
 
 export const load: PageServerLoad = async () => {
+  if (isDemoModeEnabled()) {
+    redirect(302, '/')
+  }
   if (await isOidcConfigured()) {
     redirect(302, '/')
   }
@@ -15,6 +19,9 @@ export const load: PageServerLoad = async () => {
 
 export const actions: Actions = {
   default: async ({ request }) => {
+    if (isDemoModeEnabled()) {
+      redirect(302, '/')
+    }
     const form = await request.formData()
 
     const discoveryUrl = (form.get('discoveryUrl') as string)?.trim()

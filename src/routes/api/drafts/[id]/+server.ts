@@ -5,10 +5,30 @@ import { mailDraft } from '$lib/server/db/schema'
 import { parseComposerAttachments } from '$lib/mail-attachments'
 import { logServerError, logServerEvent } from '$lib/server/perf'
 import { eq } from 'drizzle-orm'
+import { deleteDemoDraft, getDemoDraft, isDemoModeEnabled } from '$lib/server/demo'
 
 export const GET: RequestHandler = async ({ params }) => {
   const id = Number(params.id)
   if (!Number.isFinite(id)) return error(400, 'Invalid draft ID')
+
+  if (isDemoModeEnabled()) {
+    const draft = getDemoDraft(id)
+    if (!draft) return error(404, 'Draft not found')
+
+    return json({
+      draft: {
+        id: draft.id,
+        toAddr: draft.toAddr,
+        cc: draft.cc,
+        bcc: draft.bcc,
+        subject: draft.subject,
+        html: draft.html,
+        attachments: JSON.parse(draft.attachments),
+        inReplyTo: draft.inReplyTo,
+        updatedAt: draft.updatedAt.toISOString()
+      }
+    })
+  }
 
   const [draft] = await db.select().from(mailDraft).where(eq(mailDraft.id, id)).limit(1)
   if (!draft) return error(404, 'Draft not found')
@@ -48,6 +68,11 @@ export const GET: RequestHandler = async ({ params }) => {
 export const DELETE: RequestHandler = async ({ params }) => {
   const id = Number(params.id)
   if (!Number.isFinite(id)) return error(400, 'Invalid draft ID')
+
+  if (isDemoModeEnabled()) {
+    deleteDemoDraft(id)
+    return json({ ok: true })
+  }
 
   await db.delete(mailDraft).where(eq(mailDraft.id, id))
   return json({ ok: true })

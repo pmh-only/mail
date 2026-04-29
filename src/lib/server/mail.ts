@@ -19,6 +19,26 @@ import { getImapConfig, type ImapConfig } from './config'
 import { logServerError, perfError, perfLog, perfMs, perfNow } from './perf'
 import { withRetry } from './retry'
 import { parseAddressFields, upsertContacts } from './contacts'
+import {
+  countDemoSearchMessages,
+  countDemoStoredMessages,
+  countDemoStoredThreads,
+  createDemoShareToken,
+  getDemoImapMailboxes,
+  getDemoMailboxSyncStatus,
+  getDemoMessageByShareToken,
+  getDemoStoredMessageById,
+  getDemoSyncSummary,
+  getDemoMessagesInThread,
+  isDemoModeEnabled,
+  listDemoStoredMessages,
+  listDemoStoredThreads,
+  markDemoMessageAsRead,
+  markDemoMessageAsUnread,
+  moveDemoMessage,
+  searchDemoMessages,
+  splitDemoThreadFromMessage
+} from './demo'
 
 const IMAP_CONNECT_TIMEOUT_MS = 20_000
 const INITIAL_SYNC_FAILURE_RETRY_MS = 10 * 60 * 1000
@@ -943,6 +963,7 @@ function scheduleSyncTimer(pollMs: number) {
 }
 
 export async function startMailboxSync() {
+  if (isDemoModeEnabled()) return
   startMailboxCacheRefresh()
 
   const config = await getImapConfig()
@@ -965,6 +986,7 @@ export async function getSyncSummary(): Promise<{
   errorMessage: string | null
   progress: { mailbox: string; stored: number; total: number } | null
 }> {
+  if (isDemoModeEnabled()) return getDemoSyncSummary()
   const startedAt = perfNow()
   const config = await getImapConfig()
   const runtime = await readSyncRuntime()
@@ -1034,6 +1056,7 @@ export async function getSyncSummary(): Promise<{
 }
 
 export async function getMailboxSyncStatus(mailboxPath: string): Promise<SyncResult> {
+  if (isDemoModeEnabled()) return getDemoMailboxSyncStatus(mailboxPath)
   const config = await getImapConfig()
   const runtime = await readSyncRuntime()
 
@@ -1148,6 +1171,7 @@ export function listImapMailboxes(): ImapMailbox[] {
 export async function getImapMailboxes(options?: {
   waitForCache?: boolean
 }): Promise<ImapMailbox[]> {
+  if (isDemoModeEnabled()) return getDemoImapMailboxes()
   const rows = await readMailboxCatalogRows()
   if (rows.length > 0) return rows
   if (!options?.waitForCache) return rows
@@ -1377,6 +1401,7 @@ export async function repairThreadKeys() {
 }
 
 export async function listStoredMessages(mailboxPath: string, limit = 100, offset = 0) {
+  if (isDemoModeEnabled()) return listDemoStoredMessages(mailboxPath, limit, offset)
   const startedAt = perfNow()
 
   try {
@@ -1414,6 +1439,7 @@ export async function listStoredMessages(mailboxPath: string, limit = 100, offse
 }
 
 export async function countStoredMessages(mailboxPath: string) {
+  if (isDemoModeEnabled()) return countDemoStoredMessages(mailboxPath)
   const [row] = await db
     .select({ value: count() })
     .from(mailMessageMailbox)
@@ -1428,6 +1454,7 @@ export async function listStoredThreads(
   limit = 100,
   offset = 0
 ): Promise<ThreadRow[]> {
+  if (isDemoModeEnabled()) return listDemoStoredThreads(mailboxPath, limit, offset)
   const startedAt = perfNow()
 
   try {
@@ -1488,6 +1515,7 @@ export async function listStoredThreads(
 }
 
 export async function countStoredThreads(mailboxPath: string) {
+  if (isDemoModeEnabled()) return countDemoStoredThreads(mailboxPath)
   const [row] = await db
     .select({ value: count() })
     .from(mailThreadSummary)
@@ -1501,6 +1529,7 @@ export async function getMessagesInThread(
   threadKey: string,
   mailboxPath: string
 ): Promise<MailRow[]> {
+  if (isDemoModeEnabled()) return getDemoMessagesInThread(threadKey, mailboxPath)
   const startedAt = perfNow()
 
   try {
@@ -1569,6 +1598,9 @@ export async function splitThreadFromMessage(
   mailboxPath: string,
   mailboxEntryId: number
 ): Promise<{ threadKey: string; splitCount: number; remainingCount: number } | null> {
+  if (isDemoModeEnabled()) {
+    return splitDemoThreadFromMessage(threadKey, mailboxPath, mailboxEntryId)
+  }
   const currentThreadRows = await db
     .select({
       messageId: mailMessage.messageId,
@@ -1628,6 +1660,7 @@ export async function splitThreadFromMessage(
 }
 
 export async function searchMessages(query: string, limit: number, offset: number) {
+  if (isDemoModeEnabled()) return searchDemoMessages(query, limit, offset)
   const startedAt = perfNow()
   if (!query.trim()) {
     perfLog('mail.searchMessages', {
@@ -1678,6 +1711,7 @@ export async function searchMessages(query: string, limit: number, offset: numbe
 }
 
 export async function countSearchMessages(query: string) {
+  if (isDemoModeEnabled()) return countDemoSearchMessages(query)
   const trimmed = query.trim()
   if (!trimmed) return 0
 
@@ -1699,6 +1733,7 @@ export async function countSearchMessages(query: string) {
 }
 
 export async function getStoredMessageById(id: string | number): Promise<MailRow | null> {
+  if (isDemoModeEnabled()) return getDemoStoredMessageById(id)
   const numericId = typeof id === 'string' ? parseInt(id, 10) : id
   const [message] = await db
     .select(detailSelect)
@@ -1711,6 +1746,10 @@ export async function getStoredMessageById(id: string | number): Promise<MailRow
 }
 
 export async function markMessageAsRead(message: MailRow) {
+  if (isDemoModeEnabled()) {
+    markDemoMessageAsRead(message)
+    return
+  }
   const flags: string[] = JSON.parse(message.flags)
   if (flags.includes('\\Seen')) return
 
@@ -1741,6 +1780,10 @@ export async function markMessageAsRead(message: MailRow) {
 }
 
 export async function markMessageAsUnread(message: MailRow) {
+  if (isDemoModeEnabled()) {
+    markDemoMessageAsUnread(message)
+    return
+  }
   const flags: string[] = JSON.parse(message.flags)
   if (!flags.includes('\\Seen')) return
 
@@ -1793,6 +1836,7 @@ async function findMailboxForAction(action: MessageAction): Promise<string | nul
 }
 
 export async function createShareToken(mailboxEntryId: number): Promise<string | null> {
+  if (isDemoModeEnabled()) return createDemoShareToken(mailboxEntryId)
   const [row] = await db
     .select({ messageId: mailMessage.messageId })
     .from(mailMessageMailbox)
@@ -1808,6 +1852,7 @@ export async function createShareToken(mailboxEntryId: number): Promise<string |
 }
 
 export async function getMessageByShareToken(token: string): Promise<MailRow | null> {
+  if (isDemoModeEnabled()) return getDemoMessageByShareToken(token)
   const [share] = await db.select().from(mailShare).where(eq(mailShare.token, token)).limit(1)
 
   if (!share) return null
@@ -1823,6 +1868,7 @@ export async function getMessageByShareToken(token: string): Promise<MailRow | n
 }
 
 export async function moveMessage(message: MailRow, action: MessageAction): Promise<string | null> {
+  if (isDemoModeEnabled()) return moveDemoMessage(message, action)
   const targetMailbox = await findMailboxForAction(action)
   if (!targetMailbox || targetMailbox === message.mailbox) return null
 

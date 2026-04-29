@@ -3,12 +3,19 @@ import type { RequestHandler } from './$types'
 import { db } from '$lib/server/db'
 import { mailFilter } from '$lib/server/db/schema'
 import { eq } from 'drizzle-orm'
+import { deleteDemoFilter, isDemoModeEnabled, updateDemoFilter } from '$lib/server/demo'
 
 export const PUT: RequestHandler = async ({ params, request }) => {
   const id = Number(params.id)
   if (!Number.isFinite(id)) return error(400, 'Invalid filter ID')
 
   const body = await request.json()
+
+  if (isDemoModeEnabled()) {
+    updateDemoFilter(id, body as Record<string, unknown>)
+    return json({ ok: true })
+  }
+
   const updates: Partial<typeof mailFilter.$inferInsert> = {}
 
   if (typeof body.field === 'string') updates.field = body.field
@@ -26,6 +33,11 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 export const DELETE: RequestHandler = async ({ params }) => {
   const id = Number(params.id)
   if (!Number.isFinite(id)) return error(400, 'Invalid filter ID')
+
+  if (isDemoModeEnabled()) {
+    deleteDemoFilter(id)
+    return json({ ok: true })
+  }
 
   await db.delete(mailFilter).where(eq(mailFilter.id, id))
   return json({ ok: true })

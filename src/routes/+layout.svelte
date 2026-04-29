@@ -4,9 +4,9 @@
   import './layout.css'
   import type { Snippet } from 'svelte'
 
-  const isLoading = $derived(Boolean(navigating.to) || appLoading.pending > 0)
+  let { children, data }: { children: Snippet; data: { demoMode: boolean } } = $props()
 
-  let { children }: { children: Snippet } = $props()
+  const isLoading = $derived(Boolean(navigating.to) || appLoading.pending > 0)
 </script>
 
 <div aria-hidden="true" class={['route-loading-bar', isLoading && 'active']}></div>

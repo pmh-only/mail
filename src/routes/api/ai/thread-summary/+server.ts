@@ -4,6 +4,7 @@ import { getMessagesInThread, resolveMailboxPath } from '$lib/server/mail'
 import { createOpenAITextStream } from '$lib/server/openai'
 import { logServerError } from '$lib/server/perf'
 import { getTranslationTargetLanguage } from '$lib/server/preferences'
+import { generateDemoThreadSummary, isDemoModeEnabled } from '$lib/server/demo'
 
 const encoder = new TextEncoder()
 const STREAM_HEADERS = {
@@ -81,6 +82,21 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
   const mailboxPath = await resolveMailboxPath(mailboxSlug)
   const messages = await getMessagesInThread(threadId, mailboxPath)
+
+  if (isDemoModeEnabled()) {
+    const summary = generateDemoThreadSummary(mailboxPath, threadId, targetLanguage)
+    if (!summary) error(404, 'Thread not found')
+
+    return new Response(textStream(summary), {
+      headers: {
+        ...STREAM_HEADERS,
+        'x-ai-cache': 'demo',
+        'x-ai-thread-message-count': String(messages.length),
+        'x-ai-mailbox': mailboxPath
+      }
+    })
+  }
+
   const cacheKey = `${mailboxPath}:${threadId}:${targetLanguage}`
   const fingerprint = threadFingerprint(messages)
 

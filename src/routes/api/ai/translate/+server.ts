@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types'
 import { getStoredMessageById } from '$lib/server/mail'
 import { createOpenAITextStream, generateOpenAITextFromStream } from '$lib/server/openai'
 import { logServerError } from '$lib/server/perf'
+import { generateDemoTranslations, isDemoModeEnabled } from '$lib/server/demo'
 
 const MAX_SEGMENTS = 300
 const TRANSLATION_PROMPT_VERSION = 'from-to-v2'
@@ -279,7 +280,7 @@ function buildTranslations(translated: string, segments: string[]) {
 }
 
 function responseHeaders(
-  cacheStatus: 'hit' | 'miss',
+  cacheStatus: 'hit' | 'miss' | 'demo',
   messageId: string,
   translationFormat: string
 ) {
@@ -446,6 +447,27 @@ export const POST: RequestHandler = async ({ request }) => {
   const fingerprint = messageFingerprint(message, segments)
   const cached = translationCache.get(cacheKey)
   const headers = responseHeaders('hit', message.messageId, translationFormat)
+
+  if (isDemoModeEnabled()) {
+    const translations = generateDemoTranslations(segments, targetLanguage)
+    if (streamRequested) {
+      return streamResponse(
+        {
+          translations,
+          resolved: translations.length,
+          done: true
+        },
+        { ...STREAM_HEADERS, ...responseHeaders('demo', message.messageId, translationFormat) }
+      )
+    }
+
+    return json(
+      { translations },
+      {
+        headers: responseHeaders('demo', message.messageId, translationFormat)
+      }
+    )
+  }
 
   if (cached?.fingerprint === fingerprint) {
     if (streamRequested) {

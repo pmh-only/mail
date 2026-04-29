@@ -2,6 +2,7 @@ import { error, json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import { generateOpenAIText } from '$lib/server/openai'
 import { logServerError } from '$lib/server/perf'
+import { generateDemoAiCompose, isDemoModeEnabled } from '$lib/server/demo'
 
 const MAX_HTML_CHARS = 12_000
 
@@ -33,6 +34,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
   if (!subject && !html) {
     error(400, 'Subject or draft content is required for AI compose.')
+  }
+
+  if (isDemoModeEnabled()) {
+    return json({ html: generateDemoAiCompose({ mode, subject, html, to }) })
   }
 
   try {

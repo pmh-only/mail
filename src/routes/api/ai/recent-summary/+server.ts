@@ -4,6 +4,7 @@ import { listStoredMessages, resolveMailboxPath } from '$lib/server/mail'
 import { createOpenAITextStream } from '$lib/server/openai'
 import { logServerError } from '$lib/server/perf'
 import { getTranslationTargetLanguage } from '$lib/server/preferences'
+import { generateDemoRecentSummary, isDemoModeEnabled } from '$lib/server/demo'
 
 const DEFAULT_LIMIT = 12
 const MAX_LIMIT = 25
@@ -71,6 +72,19 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
   const targetLanguage = getTranslationTargetLanguage(cookies)
   const mailboxPath = await resolveMailboxPath(mailboxSlug)
   const messages = await listStoredMessages(mailboxPath, limit, 0)
+
+  if (isDemoModeEnabled()) {
+    const summary = generateDemoRecentSummary(mailboxPath, targetLanguage, limit)
+    return new Response(textStream(summary), {
+      headers: {
+        ...STREAM_HEADERS,
+        'x-ai-cache': 'demo',
+        'x-ai-mail-count': String(messages.length),
+        'x-ai-mailbox': mailboxPath
+      }
+    })
+  }
+
   const cacheKey = `${mailboxPath}:${limit}:${targetLanguage}`
   const fingerprint = recentMailFingerprint(messages)
 

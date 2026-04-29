@@ -3,8 +3,14 @@ import type { RequestHandler } from './$types'
 import nodemailer from 'nodemailer'
 import { getSmtpConfig } from '$lib/server/config'
 import { logServerError } from '$lib/server/perf'
+import { isDemoModeEnabled } from '$lib/server/demo'
 
 export const POST: RequestHandler = async ({ request }) => {
+  if (isDemoModeEnabled()) {
+    await request.json().catch(() => null)
+    return json({ ok: true, message: 'Demo mode: SMTP connection simulated successfully.' })
+  }
+
   const body = await request.json().catch(() => ({}))
 
   const saved = await getSmtpConfig()

@@ -10,6 +10,7 @@ import { db } from '$lib/server/db'
 import { mailAttachment } from '$lib/server/db/schema'
 import { payloadBytes, perfLog, perfMs, perfNow } from '$lib/server/perf'
 import { inArray } from 'drizzle-orm'
+import { isDemoModeEnabled, listDemoAttachmentsForMessages } from '$lib/server/demo'
 
 function serializeMessage(message: Awaited<ReturnType<typeof getMessagesInThread>>[number]) {
   return {
@@ -55,16 +56,18 @@ export const load: PageServerLoad = async ({ params }) => {
   // Load attachment metadata for all messages in the thread
   const attachments =
     messageIds.length > 0
-      ? await db
-          .select({
-            id: mailAttachment.id,
-            messageId: mailAttachment.messageId,
-            filename: mailAttachment.filename,
-            contentType: mailAttachment.contentType,
-            size: mailAttachment.size
-          })
-          .from(mailAttachment)
-          .where(inArray(mailAttachment.messageId, messageIds))
+      ? isDemoModeEnabled()
+        ? listDemoAttachmentsForMessages(messageIds)
+        : await db
+            .select({
+              id: mailAttachment.id,
+              messageId: mailAttachment.messageId,
+              filename: mailAttachment.filename,
+              contentType: mailAttachment.contentType,
+              size: mailAttachment.size
+            })
+            .from(mailAttachment)
+            .where(inArray(mailAttachment.messageId, messageIds))
       : []
 
   const mailboxRole = getMailboxRole(mailboxPath)

@@ -6,12 +6,16 @@ import { env } from '$env/dynamic/private'
 import { getRequestEvent } from '$app/server'
 import { db } from '$lib/server/db'
 import { getOidcConfig } from '$lib/server/config'
+import { isDemoModeEnabled } from '$lib/server/demo'
 
 type AuthInstance = ReturnType<typeof betterAuth>
 
 let _auth: AuthInstance | null = null
 
 async function createAuth(): Promise<AuthInstance> {
+  if (isDemoModeEnabled()) {
+    throw new Error('better-auth is disabled in demo mode')
+  }
   const oidc = await getOidcConfig()
   return betterAuth({
     baseURL: env.ORIGIN,

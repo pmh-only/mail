@@ -6,6 +6,13 @@ import { env } from '$env/dynamic/private'
 import { db } from './db'
 import { mailConfig } from './db/schema'
 import { eq } from 'drizzle-orm'
+import {
+  getDemoDisplayConfig,
+  getDemoImapConfig,
+  getDemoOidcConfig,
+  getDemoSmtpConfig,
+  isDemoModeEnabled
+} from './demo'
 
 export type ImapConfig = {
   host: string
@@ -58,11 +65,13 @@ export function invalidateConfigCache() {
 }
 
 async function getRow(): Promise<MailConfigRow | null> {
+  if (isDemoModeEnabled()) return null
   if (cachedRow !== undefined) return cachedRow
   return loadConfigRow()
 }
 
 export async function getImapConfig(): Promise<ImapConfig | { missing: string[] }> {
+  if (isDemoModeEnabled()) return getDemoImapConfig()
   const row = await getRow()
 
   const host = row?.imapHost || env.IMAP_HOST || ''
@@ -90,6 +99,7 @@ export async function getImapConfig(): Promise<ImapConfig | { missing: string[] 
 }
 
 export async function getSmtpConfig(): Promise<SmtpConfig | { missing: string[] }> {
+  if (isDemoModeEnabled()) return getDemoSmtpConfig()
   const row = await getRow()
 
   const host = row?.smtpHost || env.SMTP_HOST || ''
@@ -116,6 +126,7 @@ export async function getSmtpConfig(): Promise<SmtpConfig | { missing: string[] 
 }
 
 export async function getOidcConfig(): Promise<OidcConfig> {
+  if (isDemoModeEnabled()) return getDemoOidcConfig()
   const row = await getRow()
   return {
     discoveryUrl: row?.oidcDiscoveryUrl || env.OIDC_DISCOVERY_URL || '',
@@ -125,17 +136,20 @@ export async function getOidcConfig(): Promise<OidcConfig> {
 }
 
 export async function isOidcConfigured(): Promise<boolean> {
+  if (isDemoModeEnabled()) return true
   const oidc = await getOidcConfig()
   return !!(oidc.discoveryUrl && oidc.clientId && oidc.clientSecret)
 }
 
 export async function getSignature(): Promise<string> {
+  if (isDemoModeEnabled()) return getDemoDisplayConfig().signature
   const row = await getRow()
   return row?.signature ?? ''
 }
 
 /** Returns the effective values shown in the settings UI (masks password). */
 export async function getDisplayConfig() {
+  if (isDemoModeEnabled()) return getDemoDisplayConfig()
   const row = await getRow()
   return {
     signature: row?.signature ?? '',

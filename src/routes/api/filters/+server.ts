@@ -4,8 +4,12 @@ import { db } from '$lib/server/db'
 import { mailFilter } from '$lib/server/db/schema'
 import { logServerEvent } from '$lib/server/perf'
 import { asc } from 'drizzle-orm'
+import { createDemoFilter, isDemoModeEnabled, listDemoFilters } from '$lib/server/demo'
 
 export const GET: RequestHandler = async () => {
+  if (isDemoModeEnabled()) {
+    return json({ filters: listDemoFilters() })
+  }
   const filters = await db.select().from(mailFilter).orderBy(asc(mailFilter.sortOrder))
   return json({ filters })
 }
@@ -15,6 +19,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
   if (!body.field || !body.operator || !body.value || !body.action) {
     return error(400, 'Missing required fields: field, operator, value, action')
+  }
+
+  if (isDemoModeEnabled()) {
+    return json({ id: createDemoFilter(body as Record<string, unknown>) })
   }
 
   const [inserted] = await db

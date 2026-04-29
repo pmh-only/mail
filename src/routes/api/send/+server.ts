@@ -6,14 +6,9 @@ import { parseComposerAttachments } from '$lib/mail-attachments'
 import { logServerError, logServerEvent } from '$lib/server/perf'
 import { withRetry } from '$lib/server/retry'
 import { parseAddressFields, upsertContacts } from '$lib/server/contacts'
+import { isDemoModeEnabled, sendDemoMessage } from '$lib/server/demo'
 
 export const POST: RequestHandler = async ({ request }) => {
-  const smtpConfig = await getSmtpConfig()
-  if ('missing' in smtpConfig) {
-    logServerEvent('api.send.POST.missingSmtpConfig', { missing: smtpConfig.missing })
-    return error(500, `Missing SMTP config: ${smtpConfig.missing.join(', ')}`)
-  }
-
   const {
     to,
     cc,
@@ -30,6 +25,25 @@ export const POST: RequestHandler = async ({ request }) => {
   const parsedAttachments = parseComposerAttachments(rawAttachments)
   if (!parsedAttachments.ok) {
     return error(400, parsedAttachments.error)
+  }
+
+  if (isDemoModeEnabled()) {
+    await sendDemoMessage({
+      to,
+      cc,
+      bcc,
+      subject,
+      html,
+      inReplyTo,
+      attachments: parsedAttachments.attachments
+    })
+    return json({ success: true, demo: true })
+  }
+
+  const smtpConfig = await getSmtpConfig()
+  if ('missing' in smtpConfig) {
+    logServerEvent('api.send.POST.missingSmtpConfig', { missing: smtpConfig.missing })
+    return error(500, `Missing SMTP config: ${smtpConfig.missing.join(', ')}`)
   }
 
   const attachments = parsedAttachments.attachments.map((attachment) => {

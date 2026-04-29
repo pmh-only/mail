@@ -6,9 +6,29 @@ import { parseComposerAttachments } from '$lib/mail-attachments'
 import { logServerEvent } from '$lib/server/perf'
 import { desc, eq } from 'drizzle-orm'
 import { payloadBytes, perfLog, perfMs, perfNow } from '$lib/server/perf'
+import { isDemoModeEnabled, listDemoDrafts, saveDemoDraft } from '$lib/server/demo'
 
 export const GET: RequestHandler = async () => {
   const startedAt = perfNow()
+  if (isDemoModeEnabled()) {
+    const body = {
+      drafts: listDemoDrafts().map((draft) => ({
+        id: draft.id,
+        toAddr: draft.toAddr,
+        subject: draft.subject,
+        updatedAt: draft.updatedAt.toISOString()
+      }))
+    }
+
+    perfLog('api.drafts.GET', {
+      rows: body.drafts.length,
+      payloadBytes: payloadBytes(body),
+      ms: perfMs(startedAt)
+    })
+
+    return json(body)
+  }
+
   const drafts = await db
     .select({
       id: mailDraft.id,
@@ -44,6 +64,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
   if (!parsedAttachments.ok) {
     return error(400, parsedAttachments.error)
+  }
+
+  if (isDemoModeEnabled()) {
+    return json(saveDemoDraft(body as Record<string, unknown>, JSON.stringify(parsedAttachments.attachments)))
   }
 
   const id = typeof body.id === 'number' ? body.id : null

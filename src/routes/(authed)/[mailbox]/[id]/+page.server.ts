@@ -5,6 +5,7 @@ import { db } from '$lib/server/db'
 import { mailAttachment } from '$lib/server/db/schema'
 import { payloadBytes, perfLog, perfMs, perfNow } from '$lib/server/perf'
 import { eq } from 'drizzle-orm'
+import { isDemoModeEnabled, listDemoAttachmentsForMessage } from '$lib/server/demo'
 
 function serializeMessage(message: NonNullable<Awaited<ReturnType<typeof getStoredMessageById>>>) {
   return {
@@ -38,15 +39,17 @@ export const load: PageServerLoad = async ({ params }) => {
   await markMessageAsRead(message)
 
   // Load attachment metadata (no content blobs — served via /api/attachments/[id])
-  const attachments = await db
-    .select({
-      id: mailAttachment.id,
-      filename: mailAttachment.filename,
-      contentType: mailAttachment.contentType,
-      size: mailAttachment.size
-    })
-    .from(mailAttachment)
-    .where(eq(mailAttachment.messageId, message.messageId))
+  const attachments = isDemoModeEnabled()
+    ? listDemoAttachmentsForMessage(message.messageId)
+    : await db
+        .select({
+          id: mailAttachment.id,
+          filename: mailAttachment.filename,
+          contentType: mailAttachment.contentType,
+          size: mailAttachment.size
+        })
+        .from(mailAttachment)
+        .where(eq(mailAttachment.messageId, message.messageId))
 
   const body = {
     message: serializeMessage(message),

@@ -13,6 +13,7 @@ import {
   setTranslationTargetLanguage
 } from '$lib/server/preferences'
 import { logServerError } from '$lib/server/perf'
+import { isDemoModeEnabled, saveDemoSettings } from '$lib/server/demo'
 // Note: signature cache invalidation is client-side only (composer.svelte.ts)
 
 export const GET: RequestHandler = async ({ cookies }) => {
@@ -27,6 +28,25 @@ export const GET: RequestHandler = async ({ cookies }) => {
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
   const body = await request.json()
+
+  if (isDemoModeEnabled()) {
+    saveDemoSettings(body as Record<string, unknown>)
+
+    if (typeof body.simplifiedView === 'boolean') {
+      setSimplifiedViewEnabled(cookies, body.simplifiedView)
+    }
+
+    if (typeof body.compactMode === 'boolean') {
+      setCompactModeEnabled(cookies, body.compactMode)
+    }
+
+    if (typeof body.translationTargetLanguage === 'string') {
+      setTranslationTargetLanguage(cookies, body.translationTargetLanguage)
+    }
+
+    return json({ success: true })
+  }
+
   let shouldPersistConfig = false
 
   const values: typeof mailConfig.$inferInsert = {

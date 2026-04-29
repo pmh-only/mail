@@ -10,6 +10,7 @@ import {
   type MessageAction
 } from '$lib/server/mail'
 import { enqueueMarkRead, enqueueMarkUnread } from '$lib/server/imap-queue'
+import { isDemoModeEnabled, markDemoMessagesSeen } from '$lib/server/demo'
 
 const VALID_MOVE_ACTIONS = new Set<MessageAction>(['archive', 'trash', 'spam', 'inbox'])
 
@@ -69,6 +70,10 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   if (action === 'mark_read' || action === 'mark_unread') {
+    if (isDemoModeEnabled()) {
+      const count = markDemoMessagesSeen(ids, action === 'mark_read')
+      return json({ ok: true, count })
+    }
     const count = await markSeen(ids, action === 'mark_read')
     return json({ ok: true, count })
   }

@@ -4,8 +4,19 @@ import { mailMessageMailbox } from '$lib/server/db/schema'
 import { getImapMailboxes } from '$lib/server/mail'
 import { getSimplifiedViewEnabled, getTranslationTargetLanguage } from '$lib/server/preferences'
 import { notLike, sql } from 'drizzle-orm'
+import { getDemoUnreadCounts, isDemoModeEnabled } from '$lib/server/demo'
 
 export const load: LayoutServerLoad = async ({ locals, cookies }) => {
+  if (isDemoModeEnabled()) {
+    return {
+      imapMailboxes: await getImapMailboxes(),
+      unreadCounts: getDemoUnreadCounts(),
+      user: locals.user ?? null,
+      simplifiedView: getSimplifiedViewEnabled(cookies),
+      translationTargetLanguage: getTranslationTargetLanguage(cookies)
+    }
+  }
+
   const [imapMailboxes, unreadRows] = await Promise.all([
     getImapMailboxes(),
     db

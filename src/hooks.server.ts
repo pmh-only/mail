@@ -9,6 +9,7 @@ import { repairThreadKeys, startMailboxSync } from '$lib/server/mail'
 import { logServerError } from '$lib/server/perf'
 import { runMigrations } from '$lib/server/db'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
+import { getDemoAuthSession, isDemoModeEnabled } from '$lib/server/demo'
 
 // Warm up eagerly so the first request doesn't pay initialization costs
 if (!building) {
@@ -20,17 +21,19 @@ if (!building) {
     console.error('[crash] unhandledRejection:', reason)
   })
 
-  void runMigrations()
-    .then(async () => {
-      await repairThreadKeys()
-      void getAuth()
-      startImapJobWorker()
-      void startMailboxSync()
-    })
-    .catch((err) => {
-      console.error('[startup] migration failed, aborting startup:', err)
-      process.exit(1)
-    })
+  if (!isDemoModeEnabled()) {
+    void runMigrations()
+      .then(async () => {
+        await repairThreadKeys()
+        void getAuth()
+        startImapJobWorker()
+        void startMailboxSync()
+      })
+      .catch((err) => {
+        console.error('[startup] migration failed, aborting startup:', err)
+        process.exit(1)
+      })
+  }
 }
 
 const SETUP_PATHS = ['/setup']
@@ -38,6 +41,13 @@ const AUTH_PATHS = ['/login', '/api/auth', '/share']
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
   const path = event.url.pathname
+
+  if (isDemoModeEnabled()) {
+    const demo = getDemoAuthSession()
+    event.locals.session = demo.session
+    event.locals.user = demo.user
+    return resolve(event)
+  }
 
   // Before anything else: if OIDC isn't configured, funnel to setup
   if (!building) {

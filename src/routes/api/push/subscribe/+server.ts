@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types'
 import { db } from '$lib/server/db'
 import { mailPushSubscription } from '$lib/server/db/schema'
 import { eq } from 'drizzle-orm'
+import { isDemoModeEnabled } from '$lib/server/demo'
 
 export const POST: RequestHandler = async ({ request }) => {
   const body = await request.json()
@@ -13,6 +14,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
   if (!endpoint || !keys?.p256dh || !keys?.auth) {
     return error(400, 'Invalid subscription')
+  }
+
+  if (isDemoModeEnabled()) {
+    return json({ ok: true, demo: true })
   }
 
   await db
@@ -29,6 +34,10 @@ export const POST: RequestHandler = async ({ request }) => {
 export const DELETE: RequestHandler = async ({ request }) => {
   const body = await request.json()
   const { endpoint } = body as { endpoint: string }
+
+  if (isDemoModeEnabled()) {
+    return json({ ok: true, demo: true })
+  }
 
   if (endpoint) {
     await db.delete(mailPushSubscription).where(eq(mailPushSubscription.endpoint, endpoint))

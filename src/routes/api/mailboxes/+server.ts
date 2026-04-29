@@ -5,9 +5,25 @@ import { mailMessageMailbox } from '$lib/server/db/schema'
 import { getImapMailboxes } from '$lib/server/mail'
 import { payloadBytes, perfLog, perfMs, perfNow } from '$lib/server/perf'
 import { notLike, sql } from 'drizzle-orm'
+import { getDemoUnreadCounts, isDemoModeEnabled } from '$lib/server/demo'
 
 export const GET: RequestHandler = async () => {
   const startedAt = perfNow()
+  if (isDemoModeEnabled()) {
+    const mailboxes = await getImapMailboxes()
+    const unreadCounts = getDemoUnreadCounts()
+    const body = { mailboxes, unreadCounts }
+
+    perfLog('api.mailboxes.GET', {
+      rows: mailboxes.length,
+      unreadRows: Object.keys(unreadCounts).length,
+      payloadBytes: payloadBytes(body),
+      ms: perfMs(startedAt)
+    })
+
+    return json(body)
+  }
+
   const [mailboxes, unreadRows] = await Promise.all([
     getImapMailboxes(),
     db

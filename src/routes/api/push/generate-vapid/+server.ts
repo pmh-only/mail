@@ -4,8 +4,13 @@ import webpush from 'web-push'
 import { db } from '$lib/server/db'
 import { mailConfig } from '$lib/server/db/schema'
 import { resetPushInit } from '$lib/server/push'
+import { generateDemoVapidKeys, isDemoModeEnabled } from '$lib/server/demo'
 
 export const POST: RequestHandler = async ({ url }) => {
+  if (isDemoModeEnabled()) {
+    return json(generateDemoVapidKeys())
+  }
+
   const vapidKeys = webpush.generateVAPIDKeys()
   const subject = url.origin
 
