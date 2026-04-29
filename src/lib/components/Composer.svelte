@@ -469,6 +469,7 @@
         aria-label={composer.fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
         onclick={toggleFullscreen}
         class="hidden rounded p-1 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 sm:block"
+        style:display={composer.minimized ? 'none' : null}
       >
         {#if composer.fullscreen}
           <Minimize2 size={14} />
