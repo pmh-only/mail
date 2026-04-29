@@ -3,6 +3,39 @@
   import { onMount } from 'svelte'
   import { Trash2, Plus, GripVertical } from 'lucide-svelte'
 
+  const TRANSLATION_LANGUAGE_SUGGESTIONS = [
+    'Korean',
+    'English',
+    'Japanese',
+    'Chinese (Simplified)',
+    'Chinese (Traditional)',
+    'Spanish',
+    'French',
+    'German',
+    'Portuguese',
+    'Italian',
+    'Russian',
+    'Arabic',
+    'Hindi',
+    'Dutch',
+    'Turkish',
+    'Vietnamese',
+    'Thai',
+    'Indonesian',
+    'Polish',
+    'Ukrainian',
+    'Hebrew',
+    'Greek',
+    'Swedish',
+    'Norwegian',
+    'Danish',
+    'Finnish',
+    'Czech',
+    'Romanian',
+    'Hungarian',
+    'Malay'
+  ]
+
   type ConfigSection = {
     host: string
     port: number
@@ -31,6 +64,7 @@
       origin: string
       simplifiedView: boolean
       compactMode: boolean
+      translationTargetLanguage: string
     }
   }
 
@@ -45,14 +79,21 @@
     signature = $state('')
     simplifiedView = $state(false)
     compactMode = $state(false)
+    translationTargetLanguage = $state('Korean')
 
-    constructor(config: Props['data']['config'], simplifiedView: boolean, compactMode: boolean) {
+    constructor(
+      config: Props['data']['config'],
+      simplifiedView: boolean,
+      compactMode: boolean,
+      translationTargetLanguage: string
+    ) {
       this.imap = { ...config.imap, password: '' }
       this.smtp = { ...config.smtp, password: '' }
       this.oidc = { ...config.oidc, clientSecret: '' }
       this.signature = config.signature
       this.simplifiedView = simplifiedView
       this.compactMode = compactMode
+      this.translationTargetLanguage = translationTargetLanguage
     }
   }
 
@@ -60,13 +101,20 @@
 
   // Editable form state
   let form = $derived.by(
-    () => new SettingsFormState(data.config, data.simplifiedView, data.compactMode)
+    () =>
+      new SettingsFormState(
+        data.config,
+        data.simplifiedView,
+        data.compactMode,
+        data.translationTargetLanguage
+      )
   )
   let imap = $derived(form.imap)
   let smtp = $derived(form.smtp)
   let oidc = $derived(form.oidc)
   let simplifiedView = $derived(form.simplifiedView)
   let compactMode = $derived(form.compactMode)
+  let translationTargetLanguage = $derived(form.translationTargetLanguage)
 
   type Filter = {
     id: number
@@ -168,6 +216,124 @@
   let saveSuccess = $state(false)
   let imapTestResult = $state<{ ok: boolean; message: string } | null>(null)
   let smtpTestResult = $state<{ ok: boolean; message: string } | null>(null)
+  let showTranslationLanguageSuggestions = $state(false)
+  let translationLanguageHighlightIndex = $state(-1)
+  let translationLanguageBlurTimer: ReturnType<typeof setTimeout> | null = null
+  const translationLanguageListboxId = 'translation-target-language-listbox'
+
+  const filteredTranslationLanguages = $derived.by(() => {
+    const query = form.translationTargetLanguage.trim().toLowerCase()
+    if (!query) return TRANSLATION_LANGUAGE_SUGGESTIONS.slice(0, 12)
+
+    const exact = TRANSLATION_LANGUAGE_SUGGESTIONS.filter(
+      (language) => language.toLowerCase() === query
+    )
+    const startsWith = TRANSLATION_LANGUAGE_SUGGESTIONS.filter(
+      (language) => language.toLowerCase() !== query && language.toLowerCase().startsWith(query)
+    )
+    const includes = TRANSLATION_LANGUAGE_SUGGESTIONS.filter(
+      (language) =>
+        language.toLowerCase() !== query &&
+        !language.toLowerCase().startsWith(query) &&
+        language.toLowerCase().includes(query)
+    )
+    const rest = TRANSLATION_LANGUAGE_SUGGESTIONS.filter(
+      (language) => ![...exact, ...startsWith, ...includes].includes(language)
+    )
+
+    return [...exact, ...startsWith, ...includes, ...rest].slice(0, 12)
+  })
+
+  const canUseCustomTranslationLanguage = $derived.by(() => {
+    const query = form.translationTargetLanguage.trim()
+    if (!query) return false
+    return !TRANSLATION_LANGUAGE_SUGGESTIONS.some(
+      (language) => language.toLowerCase() === query.toLowerCase()
+    )
+  })
+
+  function openTranslationLanguageSuggestions() {
+    if (translationLanguageBlurTimer) {
+      clearTimeout(translationLanguageBlurTimer)
+      translationLanguageBlurTimer = null
+    }
+
+    showTranslationLanguageSuggestions = true
+    translationLanguageHighlightIndex = -1
+  }
+
+  function closeTranslationLanguageSuggestions() {
+    showTranslationLanguageSuggestions = false
+    translationLanguageHighlightIndex = -1
+  }
+
+  function selectTranslationLanguage(value: string) {
+    form.translationTargetLanguage = value
+    closeTranslationLanguageSuggestions()
+  }
+
+  function onTranslationLanguageInput() {
+    openTranslationLanguageSuggestions()
+  }
+
+  function onTranslationLanguageKeydown(event: KeyboardEvent) {
+    const suggestionCount =
+      filteredTranslationLanguages.length + (canUseCustomTranslationLanguage ? 1 : 0)
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (!showTranslationLanguageSuggestions) {
+        openTranslationLanguageSuggestions()
+        return
+      }
+      translationLanguageHighlightIndex = Math.min(
+        translationLanguageHighlightIndex + 1,
+        suggestionCount - 1
+      )
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      translationLanguageHighlightIndex = Math.max(translationLanguageHighlightIndex - 1, -1)
+      return
+    }
+
+    if (event.key === 'Enter') {
+      if (!showTranslationLanguageSuggestions) return
+      event.preventDefault()
+
+      if (
+        translationLanguageHighlightIndex >= 0 &&
+        translationLanguageHighlightIndex < filteredTranslationLanguages.length
+      ) {
+        selectTranslationLanguage(filteredTranslationLanguages[translationLanguageHighlightIndex])
+        return
+      }
+
+      if (
+        canUseCustomTranslationLanguage &&
+        translationLanguageHighlightIndex === filteredTranslationLanguages.length
+      ) {
+        selectTranslationLanguage(form.translationTargetLanguage.trim())
+        return
+      }
+
+      closeTranslationLanguageSuggestions()
+      return
+    }
+
+    if (event.key === 'Escape') {
+      closeTranslationLanguageSuggestions()
+    }
+  }
+
+  function onTranslationLanguageBlur() {
+    translationLanguageBlurTimer = setTimeout(() => {
+      closeTranslationLanguageSuggestions()
+      translationLanguageBlurTimer = null
+    }, 150)
+  }
 
   async function save() {
     saving = true
@@ -183,7 +349,8 @@
           oidc,
           signature: form.signature,
           simplifiedView,
-          compactMode
+          compactMode,
+          translationTargetLanguage
         })
       })
       if (!res.ok) {
@@ -538,6 +705,88 @@
     <!-- Interface -->
     <section class="space-y-4">
       <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Interface</h2>
+      <div class="rounded-lg border border-white/8 bg-white/3 p-4">
+        <label class="block">
+          <p class="text-sm font-medium text-zinc-200">Mail translation target language</p>
+          <p class="mt-1 text-sm text-zinc-500">
+            Used by the Translate action on email detail pages.
+          </p>
+          <div class="relative mt-3">
+            <input
+              type="text"
+              placeholder="Korean"
+              bind:value={translationTargetLanguage}
+              onfocus={openTranslationLanguageSuggestions}
+              oninput={onTranslationLanguageInput}
+              onkeydown={onTranslationLanguageKeydown}
+              onblur={onTranslationLanguageBlur}
+              autocomplete="off"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={showTranslationLanguageSuggestions}
+              aria-controls={translationLanguageListboxId}
+              aria-haspopup="listbox"
+              class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+            />
+
+            {#if showTranslationLanguageSuggestions && (filteredTranslationLanguages.length > 0 || canUseCustomTranslationLanguage)}
+              <div
+                id={translationLanguageListboxId}
+                role="listbox"
+                class="absolute top-full left-0 z-20 mt-2 w-full overflow-hidden rounded-xl border border-white/10 bg-[#1a1b20] shadow-2xl"
+              >
+                {#each filteredTranslationLanguages as language, index (`${language}-${index}`)}
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={index === translationLanguageHighlightIndex}
+                    class={[
+                      'flex w-full items-center justify-between px-3 py-2 text-left text-sm transition',
+                      index === translationLanguageHighlightIndex
+                        ? 'bg-blue-600/20 text-white'
+                        : 'text-zinc-300 hover:bg-white/5'
+                    ].join(' ')}
+                    onmousedown={() => selectTranslationLanguage(language)}
+                  >
+                    <span>{language}</span>
+                    <span
+                      class="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] tracking-wide text-zinc-500 uppercase"
+                    >
+                      Suggested
+                    </span>
+                  </button>
+                {/each}
+
+                {#if canUseCustomTranslationLanguage}
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={translationLanguageHighlightIndex ===
+                      filteredTranslationLanguages.length}
+                    class={[
+                      'flex w-full items-center justify-between border-t border-white/8 px-3 py-2 text-left text-sm transition',
+                      translationLanguageHighlightIndex === filteredTranslationLanguages.length
+                        ? 'bg-blue-600/20 text-white'
+                        : 'text-zinc-300 hover:bg-white/5'
+                    ].join(' ')}
+                    onmousedown={() =>
+                      selectTranslationLanguage(form.translationTargetLanguage.trim())}
+                  >
+                    <span class="truncate"
+                      >Use custom value: {form.translationTargetLanguage.trim()}</span
+                    >
+                    <span
+                      class="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] tracking-wide text-emerald-300 uppercase"
+                    >
+                      Custom
+                    </span>
+                  </button>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        </label>
+      </div>
       <div class="rounded-lg border border-white/8 bg-white/3 p-4">
         <label class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>

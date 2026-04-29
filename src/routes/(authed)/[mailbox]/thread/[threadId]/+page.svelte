@@ -570,7 +570,7 @@
           <p class="text-sm text-rose-300">{threadSummaryError}</p>
         {:else}
           <p class="text-sm leading-6 whitespace-pre-wrap text-zinc-200">
-            {threadSummary || '요약을 생성하는 중입니다.'}
+            {threadSummary || 'Generating summary...'}
           </p>
         {/if}
       </div>

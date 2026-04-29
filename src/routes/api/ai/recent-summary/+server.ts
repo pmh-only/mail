@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types'
 import { listStoredMessages, resolveMailboxPath } from '$lib/server/mail'
 import { createOpenAITextStream } from '$lib/server/openai'
 import { logServerError } from '$lib/server/perf'
+import { getTranslationTargetLanguage } from '$lib/server/preferences'
 
 const DEFAULT_LIMIT = 12
 const MAX_LIMIT = 25
@@ -64,17 +65,18 @@ function textStream(text: string) {
   })
 }
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, cookies }) => {
   const mailboxSlug = url.searchParams.get('mailbox') ?? 'inbox'
   const limit = parseLimit(url.searchParams.get('limit'))
+  const targetLanguage = getTranslationTargetLanguage(cookies)
   const mailboxPath = await resolveMailboxPath(mailboxSlug)
   const messages = await listStoredMessages(mailboxPath, limit, 0)
-  const cacheKey = `${mailboxPath}:${limit}`
+  const cacheKey = `${mailboxPath}:${limit}:${targetLanguage}`
   const fingerprint = recentMailFingerprint(messages)
 
   if (messages.length === 0) {
     recentSummaryCache.delete(cacheKey)
-    return new Response(textStream('요약할 최근 메일이 없습니다.'), { headers: STREAM_HEADERS })
+    return new Response(textStream('No recent mail to summarize.'), { headers: STREAM_HEADERS })
   }
 
   const cached = recentSummaryCache.get(cacheKey)
@@ -92,8 +94,8 @@ export const GET: RequestHandler = async ({ url }) => {
   try {
     const stream = await createOpenAITextStream({
       instructions: [
-        'You summarize a recent mailbox snapshot for a Korean-speaking user.',
-        'Write in Korean.',
+        'You summarize a recent mailbox snapshot for the user.',
+        `Write in ${targetLanguage}.`,
         'Use concise bullets grouped by priority when possible.',
         'Mention urgent requests, deadlines, decisions, and follow-up actions.',
         'Do not invent facts beyond the provided email metadata and previews.'

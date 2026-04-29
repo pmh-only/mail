@@ -7,8 +7,10 @@ import { invalidateAuth } from '$lib/server/auth'
 import {
   getCompactModeEnabled,
   getSimplifiedViewEnabled,
+  getTranslationTargetLanguage,
   setCompactModeEnabled,
-  setSimplifiedViewEnabled
+  setSimplifiedViewEnabled,
+  setTranslationTargetLanguage
 } from '$lib/server/preferences'
 import { logServerError } from '$lib/server/perf'
 // Note: signature cache invalidation is client-side only (composer.svelte.ts)
@@ -18,7 +20,8 @@ export const GET: RequestHandler = async ({ cookies }) => {
   return json({
     ...config,
     simplifiedView: getSimplifiedViewEnabled(cookies),
-    compactMode: getCompactModeEnabled(cookies)
+    compactMode: getCompactModeEnabled(cookies),
+    translationTargetLanguage: getTranslationTargetLanguage(cookies)
   })
 }
 
@@ -100,6 +103,10 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
       setCompactModeEnabled(cookies, body.compactMode)
     }
 
+    if (typeof body.translationTargetLanguage === 'string') {
+      setTranslationTargetLanguage(cookies, body.translationTargetLanguage)
+    }
+
     if (shouldPersistConfig) {
       invalidateConfigCache()
       invalidateAuth()
@@ -111,7 +118,11 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
       hasSmtp: Boolean(body.smtp),
       hasOidc: Boolean(body.oidc),
       compactMode: typeof body.compactMode === 'boolean' ? body.compactMode : 'unchanged',
-      simplifiedView: typeof body.simplifiedView === 'boolean' ? body.simplifiedView : 'unchanged'
+      simplifiedView: typeof body.simplifiedView === 'boolean' ? body.simplifiedView : 'unchanged',
+      translationTargetLanguage:
+        typeof body.translationTargetLanguage === 'string'
+          ? body.translationTargetLanguage
+          : 'unchanged'
     })
     const message = err instanceof Error ? err.message : String(err)
     return error(500, `Failed to save settings: ${message}`)

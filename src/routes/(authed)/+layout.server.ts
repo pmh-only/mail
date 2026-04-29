@@ -2,7 +2,7 @@ import type { LayoutServerLoad } from './$types'
 import { db } from '$lib/server/db'
 import { mailMessageMailbox } from '$lib/server/db/schema'
 import { getImapMailboxes } from '$lib/server/mail'
-import { getSimplifiedViewEnabled } from '$lib/server/preferences'
+import { getSimplifiedViewEnabled, getTranslationTargetLanguage } from '$lib/server/preferences'
 import { notLike, sql } from 'drizzle-orm'
 
 export const load: LayoutServerLoad = async ({ locals, cookies }) => {
@@ -24,6 +24,7 @@ export const load: LayoutServerLoad = async ({ locals, cookies }) => {
       unreadRows.map((row) => [row.mailbox, Number(row.count ?? 0)])
     ) as Record<string, number>,
     user: locals.user ?? null,
-    simplifiedView: getSimplifiedViewEnabled(cookies)
+    simplifiedView: getSimplifiedViewEnabled(cookies),
+    translationTargetLanguage: getTranslationTargetLanguage(cookies)
   }
 }

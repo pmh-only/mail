@@ -60,12 +60,14 @@
       message: Message
       mailboxRole: 'inbox' | 'archive' | 'trash' | 'spam' | null
       attachments: Attachment[]
+      translationTargetLanguage: string
     }
   }
 
   let { data }: Props = $props()
 
   const role = $derived(data.mailboxRole)
+  const translationTargetLanguage = $derived(data.translationTargetLanguage || 'Korean')
 
   let acting = $state(false)
   let sharing = $state(false)
@@ -336,7 +338,7 @@
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             id: messageId,
-            targetLanguage: 'Korean',
+            targetLanguage: translationTargetLanguage,
             format: htmlPlan ? 'html' : 'text',
             segments: textSegments,
             stream: true
@@ -905,7 +907,9 @@
           <div class="flex min-w-0 items-center gap-2">
             <Languages size={15} class="shrink-0 text-sky-300" />
             <p class="truncate text-sm font-semibold text-white">
-              {translatedHtmlSegments ? 'Translated email body' : 'Korean translation'}
+              {translatedHtmlSegments
+                ? `Translated email body (${translationTargetLanguage})`
+                : `${translationTargetLanguage} translation`}
             </p>
           </div>
           {#if translationText || translatedHtmlSegments}

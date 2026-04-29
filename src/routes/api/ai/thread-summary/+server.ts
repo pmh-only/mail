@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types'
 import { getMessagesInThread, resolveMailboxPath } from '$lib/server/mail'
 import { createOpenAITextStream } from '$lib/server/openai'
 import { logServerError } from '$lib/server/perf'
+import { getTranslationTargetLanguage } from '$lib/server/preferences'
 
 const encoder = new TextEncoder()
 const STREAM_HEADERS = {
@@ -72,14 +73,15 @@ function textStream(text: string) {
   })
 }
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, cookies }) => {
   const mailboxSlug = url.searchParams.get('mailbox') ?? 'inbox'
   const threadId = url.searchParams.get('threadId')
+  const targetLanguage = getTranslationTargetLanguage(cookies)
   if (!threadId) error(400, 'Missing threadId')
 
   const mailboxPath = await resolveMailboxPath(mailboxSlug)
   const messages = await getMessagesInThread(threadId, mailboxPath)
-  const cacheKey = `${mailboxPath}:${threadId}`
+  const cacheKey = `${mailboxPath}:${threadId}:${targetLanguage}`
   const fingerprint = threadFingerprint(messages)
 
   if (messages.length === 0) {
@@ -102,8 +104,8 @@ export const GET: RequestHandler = async ({ url }) => {
   try {
     const stream = await createOpenAITextStream({
       instructions: [
-        'You summarize an email conversation thread for a Korean-speaking user.',
-        'Write in Korean.',
+        'You summarize an email conversation thread for the user.',
+        `Write in ${targetLanguage}.`,
         'Start with a concise overall summary.',
         'Then include the timeline, current status, action items, unanswered questions, deadlines, and key participants when present.',
         'Use only facts from the provided messages. If something is unclear, say it is unclear.'
