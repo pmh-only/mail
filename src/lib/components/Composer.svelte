@@ -456,8 +456,8 @@
         : 'inset-x-0 top-0 bottom-0 rounded-none sm:top-auto sm:right-4 sm:left-auto sm:rounded-t-xl'
   ]}
   style:width={useFullscreenLayout || isMobile ? null : '580px'}
-  style:height={useFullscreenLayout || isMobile ? null : '520px'}
-  style:max-height={useFullscreenLayout || isMobile ? null : '90vh'}
+  style:height={useFullscreenLayout || isMobile || composer.minimized ? null : '520px'}
+  style:max-height={useFullscreenLayout || isMobile || composer.minimized ? null : '90vh'}
   style:display={composer.open ? 'flex' : 'none'}
 >
   <!-- Title bar -->
