@@ -26,7 +26,9 @@
   import { resolve } from '$app/paths'
   import { pathToSlug } from '$lib/mailbox'
   import Composer from '$lib/components/Composer.svelte'
+  import ErrorDialog from '$lib/components/ErrorDialog.svelte'
   import { openCompose, openDraft, type DraftRow } from '$lib/composer.svelte'
+  import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
   import { afterNavigate, goto, invalidateAll } from '$app/navigation'
   import { keyboard } from '$lib/keyboard.svelte'
   import { MAILBOX_STATE_CHANGED_EVENT } from '$lib/mailbox-state'
@@ -390,7 +392,7 @@
     try {
       const res = await fetch(`/api/drafts/${id}`)
       if (!res.ok) {
-        draftsError = await res.text()
+        draftsError = await readErrorMessage(res, 'Failed to open draft.')
         await fetchDrafts('draft-open-failed')
         return
       }
@@ -668,13 +670,14 @@
       })
 
       if (!response.ok) {
-        throw new Error(await response.text())
+        throw new Error(await readErrorMessage(response, 'Failed to update simplified view.'))
       }
 
       await sidebarSimplifiedModeAction?.(nextValue)
       await invalidateAll()
-    } catch {
+    } catch (error) {
       simplifiedViewEnabled = previousValue
+      draftsError = errorMessageFromUnknown(error, 'Failed to update simplified view.')
     } finally {
       savingSimplifiedView = false
     }
@@ -767,9 +770,6 @@
           </div>
         {/if}
 
-        {#if draftsError}
-          <p class="mt-2 px-1 text-xs text-rose-400">{draftsError}</p>
-        {/if}
       </div>
 
       <p
@@ -1021,8 +1021,14 @@
                       <div class="border-t border-white/8 pt-2">
                         <p class="text-zinc-500">Error</p>
                         <p class="mt-1 break-words text-red-300">{sync.errorMessage}</p>
-                      </div>
-                    {/if}
+  </div>
+{/if}
+
+<ErrorDialog
+  message={draftsError}
+  title="Mail error"
+  onclose={() => (draftsError = null)}
+/>
                   </div>
                 </div>
               </div>

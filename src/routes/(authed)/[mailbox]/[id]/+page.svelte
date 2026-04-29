@@ -23,6 +23,8 @@
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { page } from '$app/state'
+  import ErrorDialog from '$lib/components/ErrorDialog.svelte'
+  import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
   import { trackAppLoading } from '$lib/loading.svelte'
   import { onMount } from 'svelte'
   import { openReply, openReplyAll, openForward } from '$lib/composer.svelte'
@@ -76,7 +78,7 @@
   let translating = $state(false)
   let translationText = $state<string | null>(null)
   let translatedHtmlSegments = $state<string[] | null>(null)
-  let translationError = $state<string | null>(null)
+  let errorDialogMessage = $state<string | null>(null)
   let translationResolvedCount = $state(0)
   let translationSegmentCount = $state(0)
   let activeMessageId = $state<number | null>(null)
@@ -156,7 +158,6 @@
     translating = false
     translationText = null
     translatedHtmlSegments = null
-    translationError = null
     translationResolvedCount = 0
     translationSegmentCount = 0
     applyTranslationsToMessageFrame(null)
@@ -273,14 +274,18 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: data.message.id })
       })
-      if (res.ok) {
-        const { url } = await res.json()
-        await navigator.clipboard.writeText(url)
-        shareCopied = true
-        setTimeout(() => {
-          shareCopied = false
-        }, 2000)
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to create share link.'))
       }
+
+      const { url } = await res.json()
+      await navigator.clipboard.writeText(url)
+      shareCopied = true
+      setTimeout(() => {
+        shareCopied = false
+      }, 2000)
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to create share link.')
     } finally {
       sharing = false
     }
@@ -297,10 +302,14 @@
           body: JSON.stringify({ ids: [data.message.id], action: 'mark_unread' })
         })
       )
-      if (res.ok) {
-        notifyMailboxStateChanged('message-action:mark-unread')
-        await gotoMailbox()
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to mark message unread.'))
       }
+
+      notifyMailboxStateChanged('message-action:mark-unread')
+      await gotoMailbox()
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark message unread.')
     } finally {
       acting = false
     }
@@ -319,13 +328,12 @@
     ]
 
     if (textSegments.length === 0) {
-      translationError = 'No text found to translate.'
+      errorDialogMessage = 'No text found to translate.'
       return
     }
 
     translationAbortController = controller
     translating = true
-    translationError = null
     translationResolvedCount = 0
     translationSegmentCount = textSegments.length
     translatedHtmlSegments = null
@@ -350,8 +358,7 @@
       if (requestId !== translationRequestId || data.message.id !== messageId) return
 
       if (!res.ok) {
-        const text = await res.text()
-        throw new Error(text || 'Translation failed')
+        throw new Error(await readErrorMessage(res, 'Translation failed.'))
       }
 
       await readJsonLines(res, (payload) => {
@@ -372,7 +379,7 @@
     } catch (error) {
       if (controller.signal.aborted) return
       if (requestId !== translationRequestId || data.message.id !== messageId) return
-      translationError = error instanceof Error ? error.message : 'Translation failed'
+      errorDialogMessage = errorMessageFromUnknown(error, 'Translation failed.')
       if (!translationText) translationText = null
       if (!translatedHtmlSegments) translatedHtmlSegments = null
     } finally {
@@ -394,10 +401,14 @@
           body: JSON.stringify({ action })
         })
       )
-      if (res.ok) {
-        notifyMailboxStateChanged(`message-action:${action}`)
-        await gotoMailbox()
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, `Failed to ${action} message.`))
       }
+
+      notifyMailboxStateChanged(`message-action:${action}`)
+      await gotoMailbox()
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, `Failed to ${action} message.`)
     } finally {
       acting = false
     }
@@ -901,7 +912,7 @@
   </div>
 
   <div bind:this={scrollContainer} class="flex min-h-0 flex-1 flex-col overflow-y-auto">
-    {#if translationText || translatedHtmlSegments || translationError || translating}
+    {#if translationText || translatedHtmlSegments || translating}
       <section class="border-b border-white/8 bg-[#101116] p-4 sm:p-5">
         <div class="flex items-center justify-between gap-3">
           <div class="flex min-w-0 items-center gap-2">
@@ -923,9 +934,7 @@
           {/if}
         </div>
 
-        {#if translationError}
-          <p class="mt-3 text-sm text-rose-300">{translationError}</p>
-        {:else if translating}
+        {#if translating}
           <p class="mt-3 text-sm text-zinc-500">
             {#if translationResolvedCount > 0}
               Translating… {translationResolvedCount}/{translationSegmentCount} segments applied.
@@ -1188,3 +1197,9 @@
     </div>
   </div>
 {/if}
+
+<ErrorDialog
+  message={errorDialogMessage}
+  title="Message error"
+  onclose={() => (errorDialogMessage = null)}
+/>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ErrorDialog from '$lib/components/ErrorDialog.svelte'
+  import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
   import { onMount } from 'svelte'
   import {
     Download,
@@ -56,11 +58,11 @@
         ? `/api/contacts?limit=100&q=${encodeURIComponent(q)}`
         : '/api/contacts?limit=100'
       const res = await fetch(url)
-      if (!res.ok) throw new Error(await res.text())
+      if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to load contacts.'))
       const data = await res.json()
       contacts = data.contacts as Contact[]
     } catch (err) {
-      errorMessage = err instanceof Error ? err.message : 'Failed to load contacts.'
+      errorMessage = errorMessageFromUnknown(err, 'Failed to load contacts.')
     } finally {
       loading = false
     }
@@ -104,11 +106,11 @@
         headers: { 'content-type': 'application/json' },
         body: payload
       })
-      if (!res.ok) throw new Error(await res.text())
+      if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to save contact.'))
       resetForm()
       await loadContacts()
     } catch (err) {
-      errorMessage = err instanceof Error ? err.message : 'Failed to save contact.'
+      errorMessage = errorMessageFromUnknown(err, 'Failed to save contact.')
     } finally {
       saving = false
     }
@@ -118,14 +120,19 @@
     if (!deleting) return
     errorMessage = null
     const contact = deleting
-    const res = await fetch(`/api/contacts?id=${contact.id}`, { method: 'DELETE' })
-    if (!res.ok) {
-      errorMessage = await res.text()
-      return
+    try {
+      const res = await fetch(`/api/contacts?id=${contact.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        errorMessage = await readErrorMessage(res, 'Failed to delete contact.')
+        return
+      }
+
+      contacts = contacts.filter((item) => item.id !== contact.id)
+      if (editing?.id === contact.id) resetForm()
+      deleting = null
+    } catch (err) {
+      errorMessage = errorMessageFromUnknown(err, 'Failed to delete contact.')
     }
-    contacts = contacts.filter((item) => item.id !== contact.id)
-    if (editing?.id === contact.id) resetForm()
-    deleting = null
   }
 
   async function importFromMail() {
@@ -137,10 +144,10 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action: 'import' })
       })
-      if (!res.ok) throw new Error(await res.text())
+      if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to import contacts.'))
       await loadContacts()
     } catch (err) {
-      errorMessage = err instanceof Error ? err.message : 'Failed to import contacts.'
+      errorMessage = errorMessageFromUnknown(err, 'Failed to import contacts.')
     } finally {
       importing = false
     }
@@ -217,13 +224,6 @@
           </button>
         </div>
       </div>
-
-      {#if errorMessage}
-        <p class="border-b border-rose-500/20 bg-rose-500/10 px-4 py-2 text-sm text-rose-300">
-          {errorMessage}
-        </p>
-      {/if}
-
       <div class="min-h-0 flex-1 overflow-y-auto">
         {#if loading}
           <div class="flex h-48 items-center justify-center text-sm text-zinc-500">
@@ -402,3 +402,5 @@
     </div>
   </div>
 {/if}
+
+<ErrorDialog message={errorMessage} title="Contacts error" onclose={() => (errorMessage = null)} />

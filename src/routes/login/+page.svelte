@@ -1,18 +1,24 @@
 <script lang="ts">
   import favicon from '$lib/assets/favicon.svg'
+  import ErrorDialog from '$lib/components/ErrorDialog.svelte'
+  import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
 
   let loading = $state(false)
-  let error = $state('')
+  let error = $state<string | null>(null)
 
   async function signIn() {
     loading = true
-    error = ''
+    error = null
     try {
       const res = await fetch('/api/auth/sign-in/oauth2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ providerId: 'oidc', callbackURL: '/' })
       })
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to start sign-in.'))
+      }
+
       const data = await res.json()
       if (data.url) {
         window.location.href = data.url
@@ -21,7 +27,7 @@
         loading = false
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Something went wrong.'
+      error = errorMessageFromUnknown(e, 'Something went wrong.')
       loading = false
     }
   }
@@ -80,10 +86,8 @@
           Continue with SSO
         {/if}
       </button>
-
-      {#if error}
-        <p class="mt-3 text-center text-xs text-red-400">{error}</p>
-      {/if}
     </div>
   </div>
 </div>
+
+<ErrorDialog message={error} title="Sign-in failed" onclose={() => (error = null)} />

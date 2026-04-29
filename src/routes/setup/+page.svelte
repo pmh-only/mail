@@ -1,10 +1,12 @@
 <script lang="ts">
   import { enhance } from '$app/forms'
+  import ErrorDialog from '$lib/components/ErrorDialog.svelte'
   import type { ActionData, PageData } from './$types'
 
   let { data, form }: { data: PageData; form: ActionData } = $props()
 
   let saving = $state(false)
+  let formError = $state<string | null>(null)
 
   // IMAP defaults
   let imapPort = $state(993)
@@ -15,6 +17,10 @@
   // SMTP defaults
   let smtpPort = $state(587)
   let smtpSecure = $state(false)
+
+  $effect(() => {
+    formError = form?.error ?? null
+  })
 </script>
 
 <svelte:head><title>Setup</title></svelte:head>
@@ -287,11 +293,6 @@
           </div>
         </div>
       </section>
-
-      {#if form?.error}
-        <p class="text-sm text-red-400">{form.error}</p>
-      {/if}
-
       <button
         type="submit"
         disabled={saving}
@@ -302,3 +303,5 @@
     </form>
   </div>
 </div>
+
+<ErrorDialog message={formError} title="Setup failed" onclose={() => (formError = null)} />

@@ -38,6 +38,8 @@
   } from 'lucide-svelte'
   import { composer, closeComposer } from '$lib/composer.svelte'
   import AddressInput from '$lib/components/AddressInput.svelte'
+  import ErrorDialog from '$lib/components/ErrorDialog.svelte'
+  import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
   import { notifyMailboxStateChanged } from '$lib/mailbox-state'
   import {
     attachmentSignature,
@@ -50,8 +52,6 @@
   let editorEl = $state<HTMLElement | undefined>(undefined)
   let editor: Editor | null = null
   let sending = $state(false)
-  let sendError = $state<string | null>(null)
-  let attachmentError = $state<string | null>(null)
   let showCc = $state(false)
   let showBcc = $state(false)
   let showLinkInput = $state(false)
@@ -62,7 +62,7 @@
   let attachmentInput = $state<HTMLInputElement | undefined>(undefined)
   let viewportWidth = $state(1024)
   let composingAi = $state(false)
-  let aiComposeError = $state<string | null>(null)
+  let errorDialogMessage = $state<string | null>(null)
 
   const isMobile = $derived(viewportWidth < 640)
   const useFullscreenLayout = $derived(composer.fullscreen || (isMobile && !composer.minimized))
@@ -101,8 +101,7 @@
       showCc = !!composer.cc
       showBcc = !!composer.bcc
       lastSavedContent = draftSnapshot(composer.initialHtml || '<p></p>')
-      attachmentError = null
-      aiComposeError = null
+      errorDialogMessage = null
     }
     if (!composer.open && prevOpen) lastSavedContent = ''
     prevOpen = composer.open
@@ -250,7 +249,6 @@
   async function composeWithAi() {
     if (!editor || composingAi) return
 
-    aiComposeError = null
     composingAi = true
 
     try {
@@ -270,8 +268,7 @@
       })
 
       if (!res.ok) {
-        const text = await res.text()
-        throw new Error(text || 'AI compose failed.')
+        throw new Error(await readErrorMessage(res, 'AI compose failed.'))
       }
 
       const data = (await res.json()) as { html?: string }
@@ -281,7 +278,7 @@
       editor.commands.focus('end')
       await saveDraft()
     } catch (error) {
-      aiComposeError = error instanceof Error ? error.message : 'AI compose failed.'
+      errorDialogMessage = errorMessageFromUnknown(error, 'AI compose failed.')
     } finally {
       composingAi = false
     }
@@ -289,7 +286,6 @@
 
   async function send() {
     if (!editor || sending) return
-    sendError = null
     const html = editor.getHTML()
     const payload = {
       to: composer.to,
@@ -311,11 +307,10 @@
         await deleteDraft()
         closeComposer()
       } else {
-        const text = await res.text()
-        sendError = text || 'Failed to send message.'
+        errorDialogMessage = await readErrorMessage(res, 'Failed to send message.')
       }
     } catch (e) {
-      sendError = e instanceof Error ? e.message : 'Failed to send message.'
+      errorDialogMessage = errorMessageFromUnknown(e, 'Failed to send message.')
     } finally {
       sending = false
     }
@@ -411,10 +406,8 @@
 
     if (files.length === 0) return
 
-    attachmentError = null
-
     if (composer.attachments.length + files.length > MAX_ATTACHMENT_COUNT) {
-      attachmentError = `You can attach up to ${MAX_ATTACHMENT_COUNT} files.`
+      errorDialogMessage = `You can attach up to ${MAX_ATTACHMENT_COUNT} files.`
       return
     }
 
@@ -425,12 +418,12 @@
     const newTotal = files.reduce((sum, file) => sum + file.size, 0)
 
     if (files.some((file) => file.size > MAX_ATTACHMENT_SIZE_BYTES)) {
-      attachmentError = `Each file must be ${formatBytes(MAX_ATTACHMENT_SIZE_BYTES)} or smaller.`
+      errorDialogMessage = `Each file must be ${formatBytes(MAX_ATTACHMENT_SIZE_BYTES)} or smaller.`
       return
     }
 
     if (currentTotal + newTotal > MAX_TOTAL_ATTACHMENT_SIZE_BYTES) {
-      attachmentError = `Attachments can total up to ${formatBytes(MAX_TOTAL_ATTACHMENT_SIZE_BYTES)}.`
+      errorDialogMessage = `Attachments can total up to ${formatBytes(MAX_TOTAL_ATTACHMENT_SIZE_BYTES)}.`
       return
     }
 
@@ -439,7 +432,7 @@
       composer.attachments = [...composer.attachments, ...attachments]
       await saveDraft()
     } catch (error) {
-      attachmentError = error instanceof Error ? error.message : 'Failed to attach file.'
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to attach file.')
     }
   }
 
@@ -447,7 +440,6 @@
     composer.attachments = composer.attachments.filter(
       (_attachment: ComposerAttachment, attachmentIndex: number) => attachmentIndex !== index
     )
-    attachmentError = null
     await saveDraft()
   }
 </script>
@@ -794,7 +786,7 @@
       <div bind:this={editorEl}></div>
     </div>
 
-    {#if composer.attachments.length > 0 || attachmentError}
+    {#if composer.attachments.length > 0}
       <div class="border-t border-white/8 bg-[#16161a] px-4 py-3">
         {#if composer.attachments.length > 0}
           <div class="flex flex-wrap gap-2">
@@ -818,10 +810,6 @@
               </div>
             {/each}
           </div>
-        {/if}
-
-        {#if attachmentError}
-          <p class="mt-2 text-xs text-rose-400">{attachmentError}</p>
         {/if}
       </div>
     {/if}
@@ -865,12 +853,6 @@
           <Sparkles size={14} class={composingAi ? 'animate-pulse' : ''} />
           {composingAi ? 'Writing...' : 'AI'}
         </button>
-        {#if sendError}
-          <p class="text-xs text-rose-400">{sendError}</p>
-        {/if}
-        {#if aiComposeError}
-          <p class="text-xs text-rose-400">{aiComposeError}</p>
-        {/if}
       </div>
       <button type="button" onclick={discard} class="text-xs text-zinc-500 hover:text-zinc-300">
         Discard
@@ -910,6 +892,12 @@
     </div>
   {/if}
 </div>
+
+<ErrorDialog
+  message={errorDialogMessage}
+  title="Composer error"
+  onclose={() => (errorDialogMessage = null)}
+/>
 
 <style>
   :global(.composer-editor-wrap .ProseMirror) {

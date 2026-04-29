@@ -19,6 +19,8 @@
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { page } from '$app/state'
+  import ErrorDialog from '$lib/components/ErrorDialog.svelte'
+  import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
   import { trackAppLoading } from '$lib/loading.svelte'
   import { onMount, tick } from 'svelte'
   import { SvelteSet } from 'svelte/reactivity'
@@ -76,11 +78,10 @@
   let initializedThreadId = $state<string | null>(null)
   let acting = $state(false)
   let splittingId = $state<number | null>(null)
-  let splitError = $state<string | null>(null)
+  let errorDialogMessage = $state<string | null>(null)
   let metadataMessage = $state<Message | null>(null)
   let scrollToLatestPending = $state(false)
   let threadSummary = $state<string | null>(null)
-  let threadSummaryError = $state<string | null>(null)
   let summarizingThread = $state(false)
   let threadSummaryAbort = $state<AbortController | null>(null)
 
@@ -108,14 +109,20 @@
     try {
       const ids = messages.filter((m) => m.mailbox === data.mailbox).map((m) => m.id)
       await trackAppLoading(async () => {
-        await fetch('/api/messages/bulk', {
+        const response = await fetch('/api/messages/bulk', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ ids, action })
         })
+
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, `Failed to ${action} thread.`))
+        }
       })
       notifyMailboxStateChanged(`thread-action:${action}`)
       await gotoMailbox()
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, `Failed to ${action} thread.`)
     } finally {
       acting = false
     }
@@ -127,14 +134,20 @@
     try {
       const ids = messages.map((m) => m.id)
       await trackAppLoading(async () => {
-        await fetch('/api/messages/bulk', {
+        const response = await fetch('/api/messages/bulk', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ ids, action: 'mark_unread' })
         })
+
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, 'Failed to mark thread unread.'))
+        }
       })
       notifyMailboxStateChanged('thread-action:mark-unread')
       await gotoMailbox()
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark thread unread.')
     } finally {
       acting = false
     }
@@ -142,7 +155,6 @@
 
   async function splitThreadFrom(msg: Message) {
     if (splittingId !== null) return
-    splitError = null
     splittingId = msg.id
     try {
       const response = await trackAppLoading(() =>
@@ -154,8 +166,7 @@
       )
 
       if (!response.ok) {
-        const text = await response.text()
-        throw new Error(text || 'Failed to split thread.')
+        throw new Error(await readErrorMessage(response, 'Failed to split thread.'))
       }
 
       const result = (await response.json()) as { threadKey: string }
@@ -167,7 +178,7 @@
         }
       )
     } catch (error) {
-      splitError = error instanceof Error ? error.message : 'Failed to split thread.'
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to split thread.')
     } finally {
       splittingId = null
     }
@@ -199,7 +210,6 @@
     threadSummaryAbort = new AbortController()
     summarizingThread = true
     threadSummary = ''
-    threadSummaryError = null
 
     try {
       const params = new URLSearchParams({
@@ -211,8 +221,7 @@
       })
 
       if (!response.ok) {
-        const text = await response.text()
-        throw new Error(text || 'Failed to summarize thread.')
+        throw new Error(await readErrorMessage(response, 'Failed to summarize thread.'))
       }
 
       await readTextStream(response, (chunk) => {
@@ -220,7 +229,7 @@
       })
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
-      threadSummaryError = error instanceof Error ? error.message : 'Failed to summarize thread.'
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to summarize thread.')
       threadSummary = null
     } finally {
       summarizingThread = false
@@ -410,7 +419,6 @@
     threadSummaryAbort?.abort()
     threadSummaryAbort = null
     threadSummary = null
-    threadSummaryError = null
     summarizingThread = false
     initializedThreadId = data.threadId
     void settleThreadScrollAtBottom()
@@ -555,10 +563,7 @@
     <p class="mt-0.5 text-sm text-zinc-500">
       {messages.length} message{messages.length === 1 ? '' : 's'}
     </p>
-    {#if splitError}
-      <p class="mt-2 text-sm text-rose-300">{splitError}</p>
-    {/if}
-    {#if threadSummary !== null || threadSummaryError}
+    {#if threadSummary !== null}
       <div class="mt-3 rounded-lg border border-white/8 bg-white/[0.03] p-3">
         <div class="mb-2 flex items-center justify-between gap-3">
           <p class="text-xs font-medium tracking-wide text-zinc-400 uppercase">Thread Summary</p>
@@ -566,13 +571,9 @@
             <p class="text-xs text-sky-300">Summarizing...</p>
           {/if}
         </div>
-        {#if threadSummaryError}
-          <p class="text-sm text-rose-300">{threadSummaryError}</p>
-        {:else}
-          <p class="text-sm leading-6 whitespace-pre-wrap text-zinc-200">
-            {threadSummary || 'Generating summary...'}
-          </p>
-        {/if}
+        <p class="text-sm leading-6 whitespace-pre-wrap text-zinc-200">
+          {threadSummary || 'Generating summary...'}
+        </p>
       </div>
     {/if}
   </div>
@@ -620,8 +621,14 @@
                   {/if}
                   {#if isUnread(msg.flags)}
                     <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400"></span>
-                  {/if}
-                </div>
+  {/if}
+</div>
+
+<ErrorDialog
+  message={errorDialogMessage}
+  title="Thread error"
+  onclose={() => (errorDialogMessage = null)}
+/>
 
                 {#if !isExpanded}
                   <p class="mt-0.5 truncate text-xs text-zinc-500">

@@ -2,6 +2,8 @@
   import { dev } from '$app/environment'
   import { afterNavigate, beforeNavigate, goto } from '$app/navigation'
   import { resolve } from '$app/paths'
+  import ErrorDialog from '$lib/components/ErrorDialog.svelte'
+  import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
   import { trackAppLoading } from '$lib/loading.svelte'
   import { pathToSlug } from '$lib/mailbox'
   import { notifyMailboxStateChanged } from '$lib/mailbox-state'
@@ -150,6 +152,7 @@
   let isLoadingMore = $state(false)
   let isRefreshingList = $state(initialRouteListSeed === null)
   let loadMoreError = $state<string | null>(null)
+  let errorDialogMessage = $state<string | null>(null)
   let searchQuery = $state('')
   let mobileSearchOpen = $state(false)
   let activeFilter = $state<'all' | 'unread'>('all')
@@ -859,16 +862,22 @@
     bulkActionPending = true
     try {
       await trackAppLoading(async () => {
-        await fetch('/api/messages/bulk', {
+        const response = await fetch('/api/messages/bulk', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ ids: [...selectedIds], action })
         })
 
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, `Failed to run ${action} action.`))
+        }
+
         clearSelection()
         await refreshVisibleListWindow(`bulk-action:${action}`)
         notifyMailboxStateChanged(`bulk-action:${action}`)
       })
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, `Failed to run ${action} action.`)
     } finally {
       bulkActionPending = false
     }
@@ -997,76 +1006,116 @@
 
   async function archiveMessage(id: number) {
     closeContextMenu()
-    await trackAppLoading(async () => {
-      await fetch(`/api/messages/${id}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'archive' })
-      })
+    try {
+      await trackAppLoading(async () => {
+        const response = await fetch(`/api/messages/${id}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'archive' })
+        })
 
-      await refreshVisibleListWindow('archive-message')
-      notifyMailboxStateChanged('archive-message')
-    })
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, 'Failed to archive message.'))
+        }
+
+        await refreshVisibleListWindow('archive-message')
+        notifyMailboxStateChanged('archive-message')
+      })
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to archive message.')
+    }
   }
 
   async function trashMessage(id: number) {
     closeContextMenu()
-    await trackAppLoading(async () => {
-      await fetch(`/api/messages/${id}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'trash' })
-      })
+    try {
+      await trackAppLoading(async () => {
+        const response = await fetch(`/api/messages/${id}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'trash' })
+        })
 
-      await refreshVisibleListWindow('trash-message')
-      notifyMailboxStateChanged('trash-message')
-    })
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, 'Failed to move message to trash.'))
+        }
+
+        await refreshVisibleListWindow('trash-message')
+        notifyMailboxStateChanged('trash-message')
+      })
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to move message to trash.')
+    }
   }
 
   async function moveMessageAction(id: number, action: 'archive' | 'trash' | 'spam' | 'inbox') {
     closeContextMenu()
-    await trackAppLoading(async () => {
-      await fetch(`/api/messages/${id}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action })
-      })
+    try {
+      await trackAppLoading(async () => {
+        const response = await fetch(`/api/messages/${id}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action })
+        })
 
-      await refreshVisibleListWindow(`message-action:${action}`)
-      notifyMailboxStateChanged(`message-action:${action}`)
-    })
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, `Failed to ${action} message.`))
+        }
+
+        await refreshVisibleListWindow(`message-action:${action}`)
+        notifyMailboxStateChanged(`message-action:${action}`)
+      })
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, `Failed to ${action} message.`)
+    }
   }
 
   async function markMessageRead(id: number) {
     closeContextMenu()
     updateMessageFlags(id, (flags) => (flags.includes('\\Seen') ? flags : [...flags, '\\Seen']))
 
-    await trackAppLoading(async () => {
-      await fetch('/api/messages/bulk', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ids: [id], action: 'mark_read' })
-      })
+    try {
+      await trackAppLoading(async () => {
+        const response = await fetch('/api/messages/bulk', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ids: [id], action: 'mark_read' })
+        })
 
-      await refreshVisibleListWindow('message-action:mark-read')
-      notifyMailboxStateChanged('message-action:mark-read')
-    })
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, 'Failed to mark message read.'))
+        }
+
+        await refreshVisibleListWindow('message-action:mark-read')
+        notifyMailboxStateChanged('message-action:mark-read')
+      })
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark message read.')
+    }
   }
 
   async function markMessageUnread(id: number) {
     closeContextMenu()
     updateMessageFlags(id, (flags) => flags.filter((flag) => flag !== '\\Seen'))
 
-    await trackAppLoading(async () => {
-      await fetch('/api/messages/bulk', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ids: [id], action: 'mark_unread' })
-      })
+    try {
+      await trackAppLoading(async () => {
+        const response = await fetch('/api/messages/bulk', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ids: [id], action: 'mark_unread' })
+        })
 
-      await refreshVisibleListWindow('message-action:mark-unread')
-      notifyMailboxStateChanged('message-action:mark-unread')
-    })
+        if (!response.ok) {
+          throw new Error(await readErrorMessage(response, 'Failed to mark message unread.'))
+        }
+
+        await refreshVisibleListWindow('message-action:mark-unread')
+        notifyMailboxStateChanged('message-action:mark-unread')
+      })
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark message unread.')
+    }
   }
 
   async function runContextMenuAction(action: ContextMenuAction, message: Message) {
@@ -1121,7 +1170,6 @@
   let refreshing = $state(false)
   let summarizing = $state(false)
   let recentSummary = $state<string | null>(null)
-  let recentSummaryError = $state<string | null>(null)
 
   const isDesktop = $derived(viewportWidth >= 768)
 
@@ -1162,7 +1210,6 @@
   async function summarizeRecentMail() {
     if (summarizing) return
     summarizing = true
-    recentSummaryError = null
     recentSummary = ''
     try {
       const response = await trackAppLoading(() =>
@@ -1170,17 +1217,15 @@
       )
 
       if (!response.ok) {
-        const text = await response.text()
-        throw new Error(text || 'Failed to summarize recent mail.')
+        throw new Error(await readErrorMessage(response, 'Failed to summarize recent mail.'))
       }
 
       await readTextStream(response, (chunk) => {
         recentSummary = `${recentSummary ?? ''}${chunk}`
       })
     } catch (error) {
-      recentSummaryError =
-        error instanceof Error ? error.message : 'Failed to summarize recent mail.'
-      if (!recentSummary) recentSummary = null
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to summarize recent mail.')
+      recentSummary = null
     } finally {
       summarizing = false
     }
@@ -1385,7 +1430,7 @@
         </label>
       {/if}
 
-      {#if recentSummary || recentSummaryError || summarizing}
+      {#if recentSummary !== null || summarizing}
         <div class="mt-3 rounded-xl border border-white/8 bg-black/20 p-3">
           <div class="flex items-center justify-between gap-3">
             <div class="flex min-w-0 items-center gap-2">
@@ -1397,7 +1442,6 @@
                 type="button"
                 onclick={() => {
                   recentSummary = null
-                  recentSummaryError = null
                 }}
                 class="shrink-0 text-xs text-zinc-500 hover:text-zinc-300"
               >
@@ -1412,8 +1456,6 @@
             {#if summarizing}
               <p class="mt-2 text-xs text-zinc-500">Summarizing…</p>
             {/if}
-          {:else if recentSummaryError}
-            <p class="mt-2 text-xs text-rose-300">{recentSummaryError}</p>
           {:else if summarizing}
             <p class="mt-2 text-xs text-zinc-500">Summarizing…</p>
           {/if}
@@ -1672,7 +1714,7 @@
           </label>
         {/if}
 
-        {#if recentSummary || recentSummaryError || summarizing}
+        {#if recentSummary !== null || summarizing}
           <div class="mt-3 rounded-xl border border-white/8 bg-black/20 p-3">
             <div class="flex items-center justify-between gap-3">
               <div class="flex min-w-0 items-center gap-2">
@@ -1684,7 +1726,6 @@
                   type="button"
                   onclick={() => {
                     recentSummary = null
-                    recentSummaryError = null
                   }}
                   class="shrink-0 text-xs text-zinc-500 hover:text-zinc-300"
                 >
@@ -1699,8 +1740,6 @@
               {#if summarizing}
                 <p class="mt-2 text-xs text-zinc-500">Summarizing…</p>
               {/if}
-            {:else if recentSummaryError}
-              <p class="mt-2 text-xs text-rose-300">{recentSummaryError}</p>
             {:else if summarizing}
               <p class="mt-2 text-xs text-zinc-500">Summarizing…</p>
             {/if}
@@ -2031,3 +2070,9 @@
     </div>
   </div>
 {/if}
+
+<ErrorDialog
+  message={errorDialogMessage}
+  title="Mailbox error"
+  onclose={() => (errorDialogMessage = null)}
+/>

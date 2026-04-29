@@ -1,5 +1,7 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation'
+  import ErrorDialog from '$lib/components/ErrorDialog.svelte'
+  import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
   import { onMount } from 'svelte'
   import { Trash2, Plus, GripVertical } from 'lucide-svelte'
 
@@ -129,6 +131,7 @@
 
   let filters = $state<Filter[]>([])
   let showAddFilter = $state(false)
+  let errorDialogMessage = $state<string | null>(null)
   let newFilter = $state({
     field: 'from',
     operator: 'contains',
@@ -138,28 +141,38 @@
   })
 
   async function loadFilters() {
-    const res = await fetch('/api/filters')
-    if (res.ok) {
+    try {
+      const res = await fetch('/api/filters')
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to load filters.'))
+      }
+
       const data = await res.json()
       filters = data.filters as Filter[]
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to load filters.')
     }
   }
 
   async function addFilter() {
     if (!newFilter.value.trim()) return
-    const res = await fetch('/api/filters', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        field: newFilter.field,
-        operator: newFilter.operator,
-        value: newFilter.value,
-        action: newFilter.action,
-        target: newFilter.action === 'move' ? newFilter.target : null,
-        sort_order: filters.length
+    try {
+      const res = await fetch('/api/filters', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          field: newFilter.field,
+          operator: newFilter.operator,
+          value: newFilter.value,
+          action: newFilter.action,
+          target: newFilter.action === 'move' ? newFilter.target : null,
+          sort_order: filters.length
+        })
       })
-    })
-    if (res.ok) {
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to add filter.'))
+      }
+
       await loadFilters()
       showAddFilter = false
       newFilter = {
@@ -169,21 +182,39 @@
         action: 'mark_read',
         target: ''
       }
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to add filter.')
     }
   }
 
   async function deleteFilter(id: number) {
-    await fetch(`/api/filters/${id}`, { method: 'DELETE' })
-    await loadFilters()
+    try {
+      const res = await fetch(`/api/filters/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to delete filter.'))
+      }
+
+      await loadFilters()
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to delete filter.')
+    }
   }
 
   async function toggleFilter(filter: Filter) {
-    await fetch(`/api/filters/${filter.id}`, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ enabled: !filter.enabled })
-    })
-    await loadFilters()
+    try {
+      const res = await fetch(`/api/filters/${filter.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: !filter.enabled })
+      })
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to update filter.'))
+      }
+
+      await loadFilters()
+    } catch (error) {
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to update filter.')
+    }
   }
 
   onMount(() => {
@@ -202,20 +233,21 @@
         notifPublicKey = data.publicKey
         notifStatus = 'done'
       } else {
-        notifStatus = 'error'
+        notifStatus = 'idle'
+        errorDialogMessage = await readErrorMessage(res, 'Failed to generate VAPID keys.')
       }
-    } catch {
-      notifStatus = 'error'
+    } catch (error) {
+      notifStatus = 'idle'
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to generate VAPID keys.')
     }
   }
 
   let saving = $state(false)
   let testingImap = $state(false)
   let testingSmtp = $state(false)
-  let saveError = $state('')
   let saveSuccess = $state(false)
-  let imapTestResult = $state<{ ok: boolean; message: string } | null>(null)
-  let smtpTestResult = $state<{ ok: boolean; message: string } | null>(null)
+  let imapTestResult = $state<string | null>(null)
+  let smtpTestResult = $state<string | null>(null)
   let showTranslationLanguageSuggestions = $state(false)
   let translationLanguageHighlightIndex = $state(-1)
   let translationLanguageBlurTimer: ReturnType<typeof setTimeout> | null = null
@@ -337,7 +369,6 @@
 
   async function save() {
     saving = true
-    saveError = ''
     saveSuccess = false
     try {
       const res = await fetch('/api/settings', {
@@ -354,18 +385,18 @@
         })
       })
       if (!res.ok) {
-        const text = await res.text()
-        saveError = text || `HTTP ${res.status}`
-      } else {
-        saveSuccess = true
-        // Clear passwords after save so they show as bullets again
-        imap.password = ''
-        smtp.password = ''
-        oidc.clientSecret = ''
-        await invalidateAll()
+        errorDialogMessage = await readErrorMessage(res, 'Failed to save settings.')
+        return
       }
+
+      saveSuccess = true
+      // Clear passwords after save so they show as bullets again
+      imap.password = ''
+      smtp.password = ''
+      oidc.clientSecret = ''
+      await invalidateAll()
     } catch (err) {
-      saveError = err instanceof Error ? err.message : String(err)
+      errorDialogMessage = errorMessageFromUnknown(err, 'Failed to save settings.')
     } finally {
       saving = false
     }
@@ -380,13 +411,15 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ imap })
       })
-      const data = await res.json()
-      imapTestResult = {
-        ok: res.ok,
-        message: data.message ?? (res.ok ? 'Connected successfully' : 'Connection failed')
+
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'IMAP connection failed.'))
       }
+
+      const data = await res.json()
+      imapTestResult = data.message ?? 'Connected successfully'
     } catch (err) {
-      imapTestResult = { ok: false, message: err instanceof Error ? err.message : String(err) }
+      errorDialogMessage = errorMessageFromUnknown(err, 'IMAP connection failed.')
     } finally {
       testingImap = false
     }
@@ -401,13 +434,15 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ smtp })
       })
-      const data = await res.json()
-      smtpTestResult = {
-        ok: res.ok,
-        message: data.message ?? (res.ok ? 'Connected successfully' : 'Connection failed')
+
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'SMTP connection failed.'))
       }
+
+      const data = await res.json()
+      smtpTestResult = data.message ?? 'Connected successfully'
     } catch (err) {
-      smtpTestResult = { ok: false, message: err instanceof Error ? err.message : String(err) }
+      errorDialogMessage = errorMessageFromUnknown(err, 'SMTP connection failed.')
     } finally {
       testingSmtp = false
     }
@@ -529,8 +564,8 @@
           {testingImap ? 'Testing…' : 'Test connection'}
         </button>
         {#if imapTestResult}
-          <span class={imapTestResult.ok ? 'text-sm text-emerald-400' : 'text-sm text-red-400'}>
-            {imapTestResult.message}
+          <span class="text-sm text-emerald-400">
+            {imapTestResult}
           </span>
         {/if}
       </div>
@@ -632,8 +667,8 @@
           {testingSmtp ? 'Testing…' : 'Test connection'}
         </button>
         {#if smtpTestResult}
-          <span class={smtpTestResult.ok ? 'text-sm text-emerald-400' : 'text-sm text-red-400'}>
-            {smtpTestResult.message}
+          <span class="text-sm text-emerald-400">
+            {smtpTestResult}
           </span>
         {/if}
       </div>
@@ -867,8 +902,6 @@
         </button>
         {#if notifStatus === 'done'}
           <span class="text-sm text-emerald-400">Keys generated. Reload to activate push.</span>
-        {:else if notifStatus === 'error'}
-          <span class="text-sm text-red-400">Failed to generate keys.</span>
         {/if}
       </div>
       {#if notifPublicKey}
@@ -1043,9 +1076,12 @@
       {#if saveSuccess}
         <span class="text-sm text-emerald-400">Settings saved.</span>
       {/if}
-      {#if saveError}
-        <span class="text-sm text-red-400">{saveError}</span>
-      {/if}
     </div>
   </div>
 </div>
+
+<ErrorDialog
+  message={errorDialogMessage}
+  title="Settings error"
+  onclose={() => (errorDialogMessage = null)}
+/>
