@@ -362,7 +362,7 @@
       const { url } = await res.json()
       await navigator.clipboard.writeText(url)
       shareCopied = true
-      toast.success('Share link copied')
+      toast('Share link copied')
       setTimeout(() => {
         shareCopied = false
       }, 2000)
@@ -389,7 +389,7 @@
       }
 
       notifyMailboxStateChanged('message-action:mark-unread')
-      toast.success('Message marked as unread')
+      toast('Message marked as unread')
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark message unread.')
@@ -454,7 +454,7 @@
       }
 
       notifyMailboxStateChanged('message-action:snooze')
-      toast.success('Message snoozed')
+      toast('Message snoozed')
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to snooze message.')
@@ -588,7 +588,7 @@
       }
 
       notifyMailboxStateChanged(`message-action:${action}`)
-      toast.success(`Message moved to ${action}`)
+      toast(`Message moved to ${action}`)
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, `Failed to ${action} message.`)
@@ -733,7 +733,7 @@
 
       allowedRemoteSenders = nextAllowedSenders
       showRemoteContent = true
-      toast.success('Sender trusted')
+      toast('Sender trusted')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to trust sender.')
     } finally {

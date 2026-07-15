@@ -4,10 +4,4 @@
   let { ...props }: ToasterProps = $props()
 </script>
 
-<Sonner
-  richColors
-  closeButton
-  class="toaster group"
-  style="--normal-bg: var(--app-popover-bg); --normal-text: var(--app-field-text); --normal-border: color-mix(in srgb, var(--app-field-text), transparent 85%);"
-  {...props}
-/>
+<Sonner class="toaster group" {...props} />

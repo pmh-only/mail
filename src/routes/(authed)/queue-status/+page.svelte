@@ -170,7 +170,7 @@
       })
       if (!response.ok) throw new Error(await readErrorMessage(response, 'Failed to retry job.'))
       await loadHealth('manual')
-      toast.success('Job queued for retry')
+      toast('Job queued for retry')
     } catch (error) {
       errorMessage = errorMessageFromUnknown(error, 'Failed to retry job.')
     } finally {
@@ -185,7 +185,7 @@
       if (!response.ok)
         throw new Error(await readErrorMessage(response, 'Failed to request resync.'))
       await loadHealth('manual')
-      toast.success('Mailbox resync requested')
+      toast('Mailbox resync requested')
     } catch (error) {
       errorMessage = errorMessageFromUnknown(error, 'Failed to request resync.')
     } finally {

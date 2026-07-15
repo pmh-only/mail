@@ -1113,38 +1113,40 @@ export function getDemoStoredMessageById(id: string | number) {
 }
 
 export function markDemoMessageAsRead(message: Pick<DemoMailRow, 'id'>) {
-  demoMessages = demoMessages.map((row) => {
-    if (row.id !== message.id) return row
-    const flags = JSON.parse(row.flags) as string[]
-    const normalizedFlags = ensureSeenFlag(flags)
-    return normalizedFlags === flags ? row : { ...row, flags: JSON.stringify(normalizedFlags) }
-  })
+  markDemoMessagesSeen([message.id], true)
 }
 
 export function markDemoMessageAsUnread(message: Pick<DemoMailRow, 'id'>) {
-  demoMessages = demoMessages.map((row) => {
-    if (row.id !== message.id) return row
-    if (isAlwaysReadMailbox(row.mailbox)) return row
-
-    const flags = JSON.parse(row.flags) as string[]
-    return { ...row, flags: JSON.stringify(flags.filter((flag) => flag !== '\\Seen')) }
-  })
+  markDemoMessagesSeen([message.id], false)
 }
 
 export function markDemoMessagesSeen(ids: number[], seen: boolean) {
   let count = 0
-  for (const id of ids) {
-    const message = getDemoStoredMessageById(id)
-    if (!message) continue
-    if (!seen && isAlwaysReadMailbox(message.mailbox)) continue
+  const selectedIds = new Set(ids)
+  const messageIds = new Set(
+    demoMessages
+      .filter((message) => selectedIds.has(message.id))
+      .map((message) => message.messageId)
+  )
+
+  demoMessages = demoMessages.map((message) => {
+    if (!messageIds.has(message.messageId) || (!seen && isAlwaysReadMailbox(message.mailbox))) {
+      return message
+    }
 
     const flags = JSON.parse(message.flags) as string[]
     const hasSeen = flags.includes('\\Seen')
-    if (hasSeen === seen) continue
+    if (hasSeen === seen) return message
+
     count++
-    if (seen) markDemoMessageAsRead(message)
-    else markDemoMessageAsUnread(message)
-  }
+    return {
+      ...message,
+      flags: JSON.stringify(
+        seen ? ensureSeenFlag(flags) : flags.filter((flag) => flag !== '\\Seen')
+      )
+    }
+  })
+
   return count
 }
 

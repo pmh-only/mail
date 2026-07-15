@@ -696,7 +696,7 @@
     discardDialogWasMinimized = false
     showDiscardDialog = false
     closeComposer()
-    toast.success('Draft discarded')
+    toast('Draft discarded')
   }
 
   async function saveDraftAndClose() {
@@ -704,7 +704,7 @@
     discardDialogWasMinimized = false
     showDiscardDialog = false
     closeComposer()
-    if (saved) toast.success('Draft saved')
+    if (saved) toast('Draft saved')
   }
 
   function cancelDiscard() {

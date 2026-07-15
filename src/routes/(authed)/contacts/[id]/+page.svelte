@@ -85,7 +85,7 @@
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to save contact.'))
       formOpen = false
       await invalidateAll()
-      toast.success('Contact updated')
+      toast('Contact updated')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to save contact.')
     } finally {

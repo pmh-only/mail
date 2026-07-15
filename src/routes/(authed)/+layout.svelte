@@ -492,7 +492,7 @@
       const res = await fetch(`/api/saved-searches/${savedSearch.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to delete smart folder.'))
       window.dispatchEvent(new CustomEvent('mail:saved-searches-changed'))
-      toast.success('Smart folder deleted')
+      toast('Smart folder deleted')
     } catch (error) {
       savedSearches = previousSearches
       smartFolderError = errorMessageFromUnknown(error, 'Failed to delete smart folder.')
@@ -533,7 +533,7 @@
       })
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to rename smart folder.'))
       window.dispatchEvent(new CustomEvent('mail:saved-searches-changed'))
-      toast.success('Smart folder renamed')
+      toast('Smart folder renamed')
     } catch (error) {
       savedSearches = previousSearches
       smartFolderError = errorMessageFromUnknown(error, 'Failed to rename smart folder.')
@@ -869,7 +869,7 @@
 
       await sidebarSimplifiedModeAction?.(nextValue)
       await invalidateAll()
-      toast.success(nextValue ? 'Simplified view enabled' : 'Simplified view disabled')
+      toast(nextValue ? 'Simplified view enabled' : 'Simplified view disabled')
     } catch (error) {
       simplifiedViewEnabled = previousValue
       draftsError = errorMessageFromUnknown(error, 'Failed to update simplified view.')

@@ -233,6 +233,10 @@ a {
   animation: app-element-enter 260ms ease both;
 }
 
+section[aria-label^='Notifications'] {
+  animation: none;
+}
+
 :where(
   div[class*='rounded'][class*='border'],
   div[class*='rounded'][class*='bg-'],

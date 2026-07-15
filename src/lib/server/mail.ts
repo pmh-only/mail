@@ -22,6 +22,7 @@ import {
   pathToSlug,
   slugToPath
 } from '../mailbox'
+import { changedReadStateCopies } from '../read-state'
 import { client, db } from './db'
 import {
   mailboxCatalog,
@@ -2019,33 +2020,64 @@ export async function snoozeMessages(ids: number[], snoozedUntil: Date | null) {
   return rows.length
 }
 
+export async function markMessagesSeen(ids: number[], seen: boolean) {
+  const selected = await db
+    .select({ messageId: mailMessageMailbox.messageId })
+    .from(mailMessageMailbox)
+    .where(inArray(mailMessageMailbox.id, ids))
+  const messageIds = [...new Set(selected.map((row) => row.messageId))]
+  if (messageIds.length === 0) return 0
+
+  const rows = await db
+    .select({
+      id: mailMessageMailbox.id,
+      messageId: mailMessageMailbox.messageId,
+      mailbox: mailMessageMailbox.mailbox,
+      uid: mailMessageMailbox.uid,
+      flags: mailMessageMailbox.flags,
+      threadKey: mailMessage.threadKey
+    })
+    .from(mailMessageMailbox)
+    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .where(inArray(mailMessageMailbox.messageId, messageIds))
+
+  const changedRows = changedReadStateCopies(rows, new Set(messageIds), seen)
+  const touchedThreadKeysByMailbox = new Map<string, Set<string>>()
+
+  for (const row of changedRows) {
+    await db
+      .update(mailMessageMailbox)
+      .set({ flags: row.flags })
+      .where(eq(mailMessageMailbox.id, row.id))
+
+    const touchedThreadKeys = touchedThreadKeysByMailbox.get(row.mailbox) ?? new Set<string>()
+    touchedThreadKeys.add(row.threadKey)
+    touchedThreadKeysByMailbox.set(row.mailbox, touchedThreadKeys)
+  }
+
+  for (const [mailbox, threadKeys] of touchedThreadKeysByMailbox) {
+    await refreshThreadSummaries(mailbox, threadKeys)
+  }
+
+  await Promise.all(
+    changedRows.map((row) =>
+      seen ? enqueueMarkRead(row.uid, row.mailbox) : enqueueMarkUnread(row.uid, row.mailbox)
+    )
+  )
+
+  return changedRows.length
+}
+
 export async function markMessageAsRead(message: MailRow) {
   if (isDemoModeEnabled()) {
     markDemoMessageAsRead(message)
     return
   }
-  const flags: string[] = JSON.parse(message.flags)
-  if (flags.includes('\\Seen')) return
 
   try {
-    await db
-      .update(mailMessageMailbox)
-      .set({ flags: JSON.stringify([...flags, '\\Seen']) })
-      .where(eq(mailMessageMailbox.id, message.id))
+    await markMessagesSeen([message.id], true)
   } catch (error) {
-    logServerError('mail.markMessageAsRead.update', error, {
-      messageId: message.id,
-      mailbox: message.mailbox,
-      uid: message.uid
-    })
-  }
-
-  await refreshThreadSummaries(message.mailbox, [message.threadId ?? message.messageId])
-
-  try {
-    await enqueueMarkRead(message.uid, message.mailbox)
-  } catch (error) {
-    logServerError('mail.markMessageAsRead.enqueue', error, {
+    logServerError('mail.markMessageAsRead', error, {
       messageId: message.id,
       mailbox: message.mailbox,
       uid: message.uid
@@ -2054,34 +2086,15 @@ export async function markMessageAsRead(message: MailRow) {
 }
 
 export async function markMessageAsUnread(message: MailRow) {
-  if (isAlwaysReadMailbox(message.mailbox)) return
-
   if (isDemoModeEnabled()) {
     markDemoMessageAsUnread(message)
     return
   }
-  const flags: string[] = JSON.parse(message.flags)
-  if (!flags.includes('\\Seen')) return
 
   try {
-    await db
-      .update(mailMessageMailbox)
-      .set({ flags: JSON.stringify(flags.filter((flag) => flag !== '\\Seen')) })
-      .where(eq(mailMessageMailbox.id, message.id))
+    await markMessagesSeen([message.id], false)
   } catch (error) {
-    logServerError('mail.markMessageAsUnread.update', error, {
-      messageId: message.id,
-      mailbox: message.mailbox,
-      uid: message.uid
-    })
-  }
-
-  await refreshThreadSummaries(message.mailbox, [message.threadId ?? message.messageId])
-
-  try {
-    await enqueueMarkUnread(message.uid, message.mailbox)
-  } catch (error) {
-    logServerError('mail.markMessageAsUnread.enqueue', error, {
+    logServerError('mail.markMessageAsUnread', error, {
       messageId: message.id,
       mailbox: message.mailbox,
       uid: message.uid

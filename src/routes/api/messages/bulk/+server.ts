@@ -5,15 +5,13 @@ import { mailMessage, mailMessageMailbox } from '$lib/server/db/schema'
 import { and, inArray, eq } from 'drizzle-orm'
 import {
   getStoredMessageById,
+  markMessagesSeen,
   moveMessage,
-  refreshThreadSummaries,
   resolveMailboxPath,
   snoozeMessages,
   type MessageAction
 } from '$lib/server/mail'
-import { enqueueMarkRead, enqueueMarkUnread } from '$lib/server/imap-queue'
 import { isDemoModeEnabled, markDemoMessagesSeen } from '$lib/server/demo'
-import { isAlwaysReadMailbox } from '$lib/mailbox'
 
 const VALID_MOVE_ACTIONS = new Set<MessageAction>(['archive', 'trash', 'spam', 'inbox'])
 
@@ -43,54 +41,6 @@ async function expandThreadIds(ids: number[], mailbox: string) {
     .then((rows) => rows.map((row) => row.id))
 }
 
-async function markSeen(ids: number[], seen: boolean) {
-  const rows = await db
-    .select({
-      id: mailMessageMailbox.id,
-      mailbox: mailMessageMailbox.mailbox,
-      uid: mailMessageMailbox.uid,
-      flags: mailMessageMailbox.flags,
-      threadKey: mailMessage.threadKey
-    })
-    .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
-    .where(inArray(mailMessageMailbox.id, ids))
-
-  let count = 0
-  const touchedThreadKeysByMailbox = new Map<string, Set<string>>()
-
-  for (const row of rows) {
-    if (!seen && isAlwaysReadMailbox(row.mailbox)) continue
-
-    const flags: string[] = JSON.parse(row.flags)
-    const isSeen = flags.includes('\\Seen')
-    if (isSeen === seen) continue
-
-    const newFlags = seen ? [...flags, '\\Seen'] : flags.filter((flag) => flag !== '\\Seen')
-    await db
-      .update(mailMessageMailbox)
-      .set({ flags: JSON.stringify(newFlags) })
-      .where(eq(mailMessageMailbox.id, row.id))
-
-    if (seen) {
-      await enqueueMarkRead(row.uid, row.mailbox)
-    } else {
-      await enqueueMarkUnread(row.uid, row.mailbox)
-    }
-
-    const touchedThreadKeys = touchedThreadKeysByMailbox.get(row.mailbox) ?? new Set<string>()
-    touchedThreadKeys.add(row.threadKey)
-    touchedThreadKeysByMailbox.set(row.mailbox, touchedThreadKeys)
-    count++
-  }
-
-  for (const [mailbox, threadKeys] of touchedThreadKeysByMailbox) {
-    await refreshThreadSummaries(mailbox, threadKeys)
-  }
-
-  return count
-}
-
 export const POST: RequestHandler = async ({ request }) => {
   const body = await request.json()
   let ids = body.ids as number[]
@@ -112,7 +62,7 @@ export const POST: RequestHandler = async ({ request }) => {
       const count = markDemoMessagesSeen(ids, action === 'mark_read')
       return json({ ok: true, count })
     }
-    const count = await markSeen(ids, action === 'mark_read')
+    const count = await markMessagesSeen(ids, action === 'mark_read')
     return json({ ok: true, count })
   }
 

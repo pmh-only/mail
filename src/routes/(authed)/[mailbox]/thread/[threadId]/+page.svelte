@@ -200,7 +200,7 @@
         }
       })
       notifyMailboxStateChanged(`thread-action:${action}`)
-      toast.success(`Thread moved to ${action}`)
+      toast(`Thread moved to ${action}`)
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, `Failed to ${action} thread.`)
@@ -226,7 +226,7 @@
         }
       })
       notifyMailboxStateChanged('thread-action:mark-unread')
-      toast.success('Thread marked as unread')
+      toast('Thread marked as unread')
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark thread unread.')
@@ -292,7 +292,7 @@
         }
       })
       notifyMailboxStateChanged('thread-action:snooze')
-      toast.success('Thread snoozed')
+      toast('Thread snoozed')
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to snooze thread.')
@@ -327,7 +327,7 @@
       }
 
       notifyMailboxStateChanged('thread-action:block-sender')
-      toast.success('Sender blocked and thread moved to trash')
+      toast('Sender blocked and thread moved to trash')
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to block sender.')
@@ -360,7 +360,7 @@
       }
       threadMetadata = payload.metadata
       notifyMailboxStateChanged('thread-metadata')
-      toast.success(
+      toast(
         field === 'starred'
           ? nextValue
             ? 'Thread starred'
@@ -521,7 +521,7 @@
       savedNoteUpdatedAt = payload.note?.updatedAt ?? null
       noteDraft = savedNoteBody
       notifyMailboxStateChanged('thread-note-saved')
-      toast.success(savedNoteBody ? 'Thread note saved' : 'Thread note cleared')
+      toast(savedNoteBody ? 'Thread note saved' : 'Thread note cleared')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to save thread note.')
     } finally {
@@ -676,7 +676,7 @@
 
       allowedRemoteSenders = nextAllowedSenders
       showRemoteContentIds.add(msg.id)
-      toast.success('Sender trusted')
+      toast('Sender trusted')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to trust sender.')
     } finally {

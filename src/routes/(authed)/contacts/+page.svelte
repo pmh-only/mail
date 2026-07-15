@@ -194,7 +194,7 @@
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to save contact.'))
       resetForm()
       await loadContacts()
-      toast.success(updated ? 'Contact updated' : 'Contact created')
+      toast(updated ? 'Contact updated' : 'Contact created')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to save contact.')
     } finally {
@@ -222,7 +222,7 @@
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to save group.'))
       resetGroupForm()
       await loadGroups()
-      toast.success(updated ? 'Group updated' : 'Group created')
+      toast(updated ? 'Group updated' : 'Group created')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to save group.')
     } finally {
@@ -244,7 +244,7 @@
       contacts = contacts.filter((item) => item.id !== contact.id)
       if (editing?.id === contact.id) resetForm()
       deleting = null
-      toast.success('Contact deleted')
+      toast('Contact deleted')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to delete contact.')
     }
@@ -264,7 +264,7 @@
       groups = groups.filter((item) => item.id !== group.id)
       if (editingGroup?.id === group.id) resetGroupForm()
       deletingGroup = null
-      toast.success('Group deleted')
+      toast('Group deleted')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to delete group.')
     }
@@ -282,7 +282,7 @@
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to import contacts.'))
       const { imported } = (await res.json()) as { imported: number }
       await loadContacts()
-      toast.success(`${imported} contact${imported === 1 ? '' : 's'} imported`)
+      toast(`${imported} contact${imported === 1 ? '' : 's'} imported`)
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to import contacts.')
     } finally {
@@ -339,7 +339,7 @@
       const { imported } = (await res.json()) as { imported: number }
       closeCsvPreview()
       await loadContacts()
-      toast.success(`${imported} contact${imported === 1 ? '' : 's'} imported`)
+      toast(`${imported} contact${imported === 1 ? '' : 's'} imported`)
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to import CSV.')
     } finally {
@@ -360,7 +360,7 @@
       link.download = 'contacts.csv'
       link.click()
       URL.revokeObjectURL(url)
-      toast.success('Contacts exported')
+      toast('Contacts exported')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to export contacts.')
     } finally {
