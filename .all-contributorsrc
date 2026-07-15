@@ -1,5 +1,7 @@
 {
-  "files": ["README.md"],
+  "files": [
+    "README.md"
+  ],
   "imageSize": 100,
   "commit": false,
   "commitType": "docs",
@@ -10,7 +12,18 @@
       "name": "Taehyun Lim",
       "avatar_url": "https://avatars.githubusercontent.com/u/44047052?v=4",
       "profile": "https://lth.so",
-      "contributions": ["code"]
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "csnewcs",
+      "name": "Jae-Hyeon Bae",
+      "avatar_url": "https://avatars.githubusercontent.com/u/43161373?v=4",
+      "profile": "https://csnewcs.dev",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
