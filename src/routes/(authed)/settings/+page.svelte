@@ -297,6 +297,10 @@
     return settingsSections.some((item) => item.id === section) ? section : 'imap'
   })
 
+  function settingsSectionClass(id: string) {
+    return selectedSettingsSection === id ? 'space-y-4' : 'hidden'
+  }
+
   // Editable form state must not be derived from `data`: autosave can invalidate route data,
   // and rebuilding this object while typing remounts inputs and drops focus.
   let form = untrack(
