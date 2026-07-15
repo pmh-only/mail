@@ -155,6 +155,20 @@
       "when": 1784080918000,
       "tag": "0008_repair_all_mail_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1784098800000,
+      "tag": "0009_imap_sync_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1784099400000,
+      "tag": "0010_draft_append",
+      "breakpoints": true
     }
   ]
 }

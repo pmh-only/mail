@@ -9,6 +9,7 @@ import {
   inArray,
   isNull,
   lte,
+  ne,
   notLike,
   or,
   sql
@@ -23,6 +24,15 @@ import {
   slugToPath
 } from '../mailbox'
 import { changedReadStateCopies } from '../read-state'
+import {
+  condstoreChangedSince,
+  isCondstoreRejection,
+  newUidRange,
+  reconcileMailboxRows,
+  shouldUseStatusFastPath,
+  syncBatchComplete,
+  uidValidityChanged
+} from '../imap-sync'
 import { client, db } from './db'
 import {
   mailboxCatalog,
@@ -34,12 +44,14 @@ import {
   mailThreadNote,
   mailShare,
   mailAttachment,
+  imapJob,
   syncRuntime
 } from './db/schema'
 import { enqueueMarkRead, enqueueMarkUnread, enqueueMoveMessage } from './imap-queue'
 import { getImapConfig, getImapConfigs, type ImapConfig } from './config'
 import { logServerError, perfError, perfLog, perfMs, perfNow } from './perf'
 import { withRetry } from './retry'
+import { getWorkerConnection, invalidateWorkerConnection } from './imap-connections'
 import { parseAddressFields, upsertContacts } from './contacts'
 import {
   countDemoSearchMessages,
@@ -63,35 +75,13 @@ import {
 } from './demo'
 import { assignThreadKeys, orderThread, referenceCandidates } from './threading'
 
-const IMAP_CONNECT_TIMEOUT_MS = 20_000
 const INITIAL_SYNC_FAILURE_RETRY_MS = 10 * 60 * 1000
+const FULL_RECONCILE_INTERVAL_MS = 5 * 60 * 1000
 const EMPTY_MAILBOX_ERROR_RE = /\bno such message\b/i
+const condstoreRejected = new WeakSet<ImapFlow>()
 
 async function connectImap(config: ImapConfig, label: string): Promise<ImapFlow> {
-  return withRetry(
-    async () => {
-      const client = new ImapFlow({
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        auth: { user: config.user, pass: config.password },
-        logger: false,
-        connectionTimeout: IMAP_CONNECT_TIMEOUT_MS
-      })
-      try {
-        await client.connect()
-        return client
-      } catch (err) {
-        try {
-          client.close()
-        } catch {
-          /* ignore */
-        }
-        throw err
-      }
-    },
-    { label, maxAttempts: 3, baseDelayMs: 2000 }
-  )
+  return withRetry(() => getWorkerConnection(config), { label, maxAttempts: 3, baseDelayMs: 2000 })
 }
 
 export type MailListRow = {
@@ -148,6 +138,7 @@ export type SyncResult = {
 type MailboxSyncRow = typeof mailboxSync.$inferSelect
 type SyncOptions = {
   beforeMailbox?: () => Promise<void>
+  mailboxes?: ReadonlyMap<string, ReadonlySet<string>>
 }
 
 // Yield control back to the Node.js event loop so HTTP requests can be served
@@ -401,17 +392,19 @@ async function readMailboxCatalogRows(): Promise<ImapMailbox[]> {
     .select({
       path: mailboxCatalog.path,
       name: mailboxCatalog.name,
-      delimiter: mailboxCatalog.delimiter
+      delimiter: mailboxCatalog.delimiter,
+      specialUse: mailboxCatalog.specialUse
     })
     .from(mailboxCatalog)
     .orderBy(asc(mailboxCatalog.path))
 
   if (rows.length > 0) {
     return sortImapMailboxes(
-      rows.map((row: { path: string; name: string; delimiter: string }) => ({
+      rows.map((row) => ({
         path: row.path,
         name: row.name,
-        delimiter: row.delimiter
+        delimiter: row.delimiter,
+        specialUse: row.specialUse
       }))
     )
   }
@@ -428,7 +421,8 @@ async function readMailboxCatalogRows(): Promise<ImapMailbox[]> {
     fallbackRows.map((row: { path: string }) => ({
       path: row.path,
       name: fallbackMailboxName(row.path),
-      delimiter: '/'
+      delimiter: '/',
+      specialUse: null
     }))
   )
 }
@@ -440,7 +434,10 @@ async function replaceMailboxCatalog(mailboxes: ImapMailbox[]) {
     current.every((row, index) => {
       const next = mailboxes[index]
       return (
-        row?.path === next?.path && row?.name === next?.name && row?.delimiter === next?.delimiter
+        row?.path === next?.path &&
+        row?.name === next?.name &&
+        row?.delimiter === next?.delimiter &&
+        row?.specialUse === next?.specialUse
       )
     })
   ) {
@@ -456,6 +453,7 @@ async function replaceMailboxCatalog(mailboxes: ImapMailbox[]) {
           path: mailbox.path,
           name: mailbox.name,
           delimiter: mailbox.delimiter,
+          specialUse: mailbox.specialUse,
           updatedAt: now
         })
         .onConflictDoUpdate({
@@ -463,6 +461,7 @@ async function replaceMailboxCatalog(mailboxes: ImapMailbox[]) {
           set: {
             name: mailbox.name,
             delimiter: mailbox.delimiter,
+            specialUse: mailbox.specialUse,
             updatedAt: now
           }
         })
@@ -634,15 +633,109 @@ async function storeMailboxEntry(
   }
 }
 
+async function resetMailboxForUidValidity(mailbox: string) {
+  await db.transaction(async (tx) => {
+    await tx.delete(mailThreadSummary).where(eq(mailThreadSummary.mailbox, mailbox))
+    await tx.delete(mailMessageMailbox).where(eq(mailMessageMailbox.mailbox, mailbox))
+    await tx
+      .delete(imapJob)
+      .where(and(eq(imapJob.mailbox, mailbox), ne(imapJob.type, 'append_draft')))
+  })
+}
+
+async function reconcileMailbox(client: ImapFlow, mailbox: string, changedSince?: bigint) {
+  const searchResult = await client.search({ all: true }, { uid: true })
+  if (searchResult === false) throw new Error(`UID SEARCH failed for ${mailbox}`)
+  const remoteUids = searchResult
+  const remoteUidSet = new Set(remoteUids)
+  const remoteFlags = new Map<number, string>()
+
+  if (remoteUids.length > 0) {
+    for await (const item of client.fetch(
+      remoteUids.join(','),
+      { uid: true, flags: true },
+      { uid: true, changedSince }
+    )) {
+      if (!item.uid) continue
+      remoteFlags.set(item.uid, mailboxFlagsJson(mailbox, Array.from(item.flags ?? []).map(String)))
+    }
+  }
+
+  const [localRows, pendingJobs] = await Promise.all([
+    db
+      .select({
+        id: mailMessageMailbox.id,
+        uid: mailMessageMailbox.uid,
+        flags: mailMessageMailbox.flags,
+        threadKey: mailMessage.threadKey
+      })
+      .from(mailMessageMailbox)
+      .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+      .where(eq(mailMessageMailbox.mailbox, mailbox)),
+    db
+      .select({ uid: imapJob.uid })
+      .from(imapJob)
+      .where(
+        and(
+          eq(imapJob.mailbox, mailbox),
+          or(eq(imapJob.status, 'pending'), eq(imapJob.status, 'running'))
+        )
+      )
+  ])
+  const protectedUids = new Set(
+    pendingJobs.map((job) => job.uid).filter((uid): uid is number => uid !== null)
+  )
+  const removedThreadKeys = new Set<string>()
+
+  for (const change of reconcileMailboxRows(localRows, remoteUidSet, remoteFlags, protectedUids)) {
+    if (change.action === 'delete') {
+      await db.delete(mailMessageMailbox).where(eq(mailMessageMailbox.id, change.row.id))
+      removedThreadKeys.add(change.row.threadKey)
+    } else {
+      await db
+        .update(mailMessageMailbox)
+        .set({ flags: change.flags, syncedAt: new Date() })
+        .where(eq(mailMessageMailbox.id, change.row.id))
+    }
+  }
+
+  await refreshThreadSummaries(mailbox, removedThreadKeys)
+  return remoteUids.length > 0 ? 2 : 1
+}
+
+async function reconcileMailboxWithFallback(
+  client: ImapFlow,
+  mailbox: string,
+  changedSince?: bigint
+) {
+  if (changedSince === undefined || condstoreRejected.has(client)) {
+    return reconcileMailbox(client, mailbox)
+  }
+
+  try {
+    return await reconcileMailbox(client, mailbox, changedSince)
+  } catch (error) {
+    if (!isCondstoreRejection(error)) throw error
+    condstoreRejected.add(client)
+    console.warn(`[sync] ${mailbox}: CONDSTORE rejected; falling back to full metadata fetch`)
+    return reconcileMailbox(client, mailbox)
+  }
+}
+
 async function syncOneMailbox(
   config: ImapConfig,
   mailboxPath: string,
   pollMs: number,
-  remoteMailboxPath = mailboxPath
+  remoteMailboxPath = mailboxPath,
+  force = false,
+  beforeChunk?: () => Promise<void>
 ): Promise<boolean> {
   const state = await readSyncState(mailboxPath)
   const historyComplete = state?.historyComplete ?? false
-  let nextLastUid = state?.lastUid ?? 0
+  const previousLastUid = state?.lastUid ?? 0
+  let failureLastUid = previousLastUid
+  let failureHistoryComplete = historyComplete
+  let nextLastUid = previousLastUid
   const lastSyncedAt = state?.lastSyncedAt?.getTime() ?? 0
   const initialSyncFailedBefore =
     !historyComplete && nextLastUid === 0 && Boolean(state?.lastError?.trim())
@@ -650,11 +743,12 @@ async function syncOneMailbox(
     ? Math.max(pollMs, INITIAL_SYNC_FAILURE_RETRY_MS)
     : pollMs
 
-  if (lastSyncedAt && Date.now() - lastSyncedAt < retryDelayMs) return false
+  if (!force && lastSyncedAt && Date.now() - lastSyncedAt < retryDelayMs) return false
 
   let fetchedCount = 0
   let storedCount = 0
   let storedNewMessage = false
+  let requestCount = 0
 
   const t0 = Date.now()
   const elapsed = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`
@@ -667,13 +761,58 @@ async function syncOneMailbox(
   try {
     client = await connectImap(config, `${mailboxPath} sync`)
     console.log(`[sync] ${mailboxPath}: connected (${elapsed()})`)
+    const status = await client.status(remoteMailboxPath, {
+      messages: true,
+      unseen: true,
+      uidNext: true,
+      uidValidity: true,
+      highestModseq: true
+    })
+    requestCount += 1
+    const reconciliationFresh =
+      Date.now() - (state?.lastReconciledAt?.getTime() ?? 0) < FULL_RECONCILE_INTERVAL_MS
+    if (
+      state &&
+      shouldUseStatusFastPath(
+        force,
+        reconciliationFresh,
+        {
+          lastUid: state.lastUid,
+          uidValidity: state.uidValidity,
+          highestModseq: state.highestModseq
+        },
+        status
+      )
+    ) {
+      await saveSyncState(mailboxPath, {
+        lastFetchedCount: 0,
+        lastStoredCount: 0,
+        lastSyncedAt: new Date(),
+        lastError: null
+      })
+      console.log(`[sync] ${mailboxPath}: STATUS unchanged requests=${requestCount} (${elapsed()})`)
+      return false
+    }
     const lock = await client.getMailboxLock(remoteMailboxPath)
     try {
-      const needsInitialBackfill = !historyComplete && nextLastUid === 0
-      const range = needsInitialBackfill ? '1:*' : `${nextLastUid + 1}:*`
-      const fetchOptions = needsInitialBackfill ? undefined : { uid: true }
+      if (!client.mailbox) throw new Error(`Mailbox ${remoteMailboxPath} was not selected`)
+      const uidValidity = Number(client.mailbox.uidValidity)
+      const uidNext = client.mailbox.uidNext
 
-      console.log(`[sync] ${mailboxPath}: fetching envelopes range=${range} (${elapsed()})`)
+      if (uidValidityChanged(state?.uidValidity ?? null, uidValidity)) {
+        console.warn(`[sync] ${mailboxPath}: UIDVALIDITY changed; resetting mailbox cache`)
+        await resetMailboxForUidValidity(mailboxPath)
+        nextLastUid = 0
+        failureLastUid = 0
+        failureHistoryComplete = false
+      }
+
+      const range = newUidRange(nextLastUid, uidNext)
+      const fetchOptions = { uid: true }
+
+      console.log(
+        `[sync] ${mailboxPath}: fetching envelopes range=${range ?? 'none'} (${elapsed()})`
+      )
 
       // Phase 1: fetch lightweight envelopes to discover message-ids
       type EnvelopeItem = {
@@ -684,31 +823,37 @@ async function syncOneMailbox(
       }
       const envelopeItems: EnvelopeItem[] = []
 
-      for await (const item of client.fetch(
-        range,
-        { uid: true, envelope: true, flags: true, internalDate: true },
-        fetchOptions
-      )) {
-        if (!item.uid) continue
-        const msgId = sanitizePgText(
-          (item.envelope as { messageId?: string } | undefined)?.messageId?.trim() ?? ''
-        )
-        const effectiveMessageId = msgId || `synthetic:${sanitizePgText(mailboxPath)}:${item.uid}`
-        const flags = normalizeMailboxFlags(mailboxPath, Array.from(item.flags ?? []).map(String))
-        const internalDate =
-          item.internalDate instanceof Date
-            ? item.internalDate
-            : typeof item.internalDate === 'string'
-              ? new Date(item.internalDate)
-              : undefined
+      if (range) {
+        requestCount += 1
+        for await (const item of client.fetch(
+          range,
+          { uid: true, envelope: true, flags: true, internalDate: true },
+          fetchOptions
+        )) {
+          if (!item.uid) continue
+          const msgId = sanitizePgText(
+            (item.envelope as { messageId?: string } | undefined)?.messageId?.trim() ?? ''
+          )
+          const effectiveMessageId = msgId || `synthetic:${sanitizePgText(mailboxPath)}:${item.uid}`
+          const flags = normalizeMailboxFlags(mailboxPath, Array.from(item.flags ?? []).map(String))
+          const internalDate =
+            item.internalDate instanceof Date
+              ? item.internalDate
+              : typeof item.internalDate === 'string'
+                ? new Date(item.internalDate)
+                : undefined
 
-        envelopeItems.push({ uid: item.uid, effectiveMessageId, flags, internalDate })
-        nextLastUid = Math.max(nextLastUid, item.uid)
-        fetchedCount += 1
-        if (fetchedCount % 1000 === 0) {
-          console.log(`[sync] ${mailboxPath}: envelopes fetched ${fetchedCount}... (${elapsed()})`)
+          envelopeItems.push({ uid: item.uid, effectiveMessageId, flags, internalDate })
+          fetchedCount += 1
+          if (fetchedCount % 1000 === 0) {
+            console.log(
+              `[sync] ${mailboxPath}: envelopes fetched ${fetchedCount}... (${elapsed()})`
+            )
+          }
         }
       }
+
+      nextLastUid = uidNext - 1
 
       console.log(
         `[sync] ${mailboxPath}: envelope fetch complete — ${fetchedCount} messages (${elapsed()})`
@@ -757,6 +902,7 @@ async function syncOneMailbox(
             `[sync] ${mailboxPath}: updating ${cachedItems.length} cached mailbox entries...`
           )
           for (let ci = 0; ci < cachedItems.length; ci += CHUNK_SIZE) {
+            await beforeChunk?.()
             const chunk = cachedItems.slice(ci, ci + CHUNK_SIZE)
             for (const item of chunk) {
               await db
@@ -800,9 +946,11 @@ async function syncOneMailbox(
           const byNewest = [...needsSourceItems].sort((a, b) => b.uid - a.uid)
 
           for (let batchStart = 0; batchStart < byNewest.length; batchStart += BATCH_SIZE) {
+            await beforeChunk?.()
             const batch = byNewest.slice(batchStart, batchStart + BATCH_SIZE)
             const itemByUid = new Map(batch.map((i) => [i.uid, i]))
 
+            requestCount += 1
             for await (const fetchItem of client.fetch(
               batch.map((i) => i.uid).join(','),
               { uid: true, source: true },
@@ -861,6 +1009,12 @@ async function syncOneMailbox(
           await refreshThreadSummaries(mailboxPath, touchedThreadKeys)
         }
 
+        if (!syncBatchComplete(fetchedCount, storedCount)) {
+          throw new Error(
+            `Incomplete mailbox batch: stored ${storedCount} of ${fetchedCount} fetched messages`
+          )
+        }
+
         // Send push notifications for new messages
         if (newlyStoredMessageIds.length > 0 && !isAlwaysReadMailbox(mailboxPath)) {
           try {
@@ -912,13 +1066,30 @@ async function syncOneMailbox(
           }
         }
       }
+
+      const lastReconciledAt = state?.lastReconciledAt?.getTime() ?? 0
+      const shouldReconcile = force || Date.now() - lastReconciledAt >= FULL_RECONCILE_INTERVAL_MS
+      if (shouldReconcile) {
+        const changedSince = condstoreChangedSince(
+          client.capabilities.has('CONDSTORE'),
+          condstoreRejected.has(client),
+          state?.highestModseq ?? null
+        )
+        requestCount += await reconcileMailboxWithFallback(client, mailboxPath, changedSince)
+      }
+
+      await saveSyncState(mailboxPath, {
+        uidValidity,
+        highestModseq: client.mailbox.highestModseq ?? null,
+        lastReconciledAt: shouldReconcile ? new Date() : state?.lastReconciledAt
+      })
     } finally {
       lock.release()
     }
 
     await saveSyncRuntime({ workerHeartbeatAt: new Date() })
     console.log(
-      `[sync] ${mailboxPath}: done — ${fetchedCount} fetched, ${storedCount} stored (${elapsed()})`
+      `[sync] ${mailboxPath}: done — ${fetchedCount} fetched, ${storedCount} stored, requests=${requestCount} (${elapsed()})`
     )
     await saveSyncState(mailboxPath, {
       lastUid: nextLastUid,
@@ -930,6 +1101,7 @@ async function syncOneMailbox(
     })
     return storedNewMessage
   } catch (error) {
+    if (client) invalidateWorkerConnection(config.id, client)
     const errorMessage = getErrorMessage(error)
     const emptyMailboxDuringInitialSync =
       fetchedCount === 0 &&
@@ -954,8 +1126,8 @@ async function syncOneMailbox(
 
     console.error(`[sync] ${mailboxPath}: error after ${elapsed()} — ${errorMessage}`)
     await saveSyncState(mailboxPath, {
-      lastUid: nextLastUid,
-      historyComplete,
+      lastUid: failureLastUid,
+      historyComplete: failureHistoryComplete,
       lastFetchedCount: fetchedCount || (state?.lastFetchedCount ?? 0),
       lastStoredCount: storedCount || (state?.lastStoredCount ?? 0),
       lastSyncedAt: new Date(),
@@ -963,19 +1135,19 @@ async function syncOneMailbox(
     })
     throw error
   } finally {
-    if (client) {
-      try {
-        await client.logout()
-      } catch {
-        /* ignore */
-      }
-    }
+    // The account worker connection is intentionally kept alive between syncs.
   }
 }
 
 async function runSyncAll(config: ImapConfig, options: SyncOptions = {}): Promise<void> {
   const pollMs = config.pollSeconds * 1000
-  let listed: { path: string; name: string; delimiter?: string; flags?: Set<string> }[]
+  let listed: {
+    path: string
+    name: string
+    delimiter?: string
+    flags?: Set<string>
+    specialUse?: string
+  }[]
 
   await saveSyncRuntime({
     isSyncing: true,
@@ -996,30 +1168,34 @@ async function runSyncAll(config: ImapConfig, options: SyncOptions = {}): Promis
       cachedMailboxes = listed.map((mb) => ({
         path: localMailboxPath(config, mb.path),
         name: mb.name,
-        delimiter: mb.delimiter ?? '/'
+        delimiter: mb.delimiter ?? '/',
+        specialUse: mb.specialUse ?? null
       }))
       await replaceMailboxCatalog(cachedMailboxes)
       const selectable = listed.filter((mb) => !mb.flags?.has('\\Noselect'))
       console.log(
         `[sync] found ${listed.length} mailboxes (${selectable.length} selectable): ${selectable.map((mb) => mb.path).join(', ')}`
       )
-    } finally {
-      if (listClient) {
-        try {
-          await listClient.logout()
-        } catch {
-          /* ignore */
-        }
-      }
+    } catch (error) {
+      if (listClient) invalidateWorkerConnection(config.id, listClient)
+      throw error
     }
 
     let storedNewMessages = false
+    const requestedMailboxes = options.mailboxes?.get(config.id)
     for (const mb of sortImapMailboxes(listed)) {
       if (mb.flags?.has('\\Noselect')) continue
+      if (requestedMailboxes && !requestedMailboxes.has(mb.path)) continue
       await options.beforeMailbox?.()
       storedNewMessages =
-        (await syncOneMailbox(config, localMailboxPath(config, mb.path), pollMs, mb.path)) ||
-        storedNewMessages
+        (await syncOneMailbox(
+          config,
+          localMailboxPath(config, mb.path),
+          pollMs,
+          mb.path,
+          requestedMailboxes?.has(mb.path) ?? false,
+          options.beforeMailbox
+        )) || storedNewMessages
     }
 
     if (storedNewMessages) await repairThreadKeys()
@@ -1062,6 +1238,7 @@ export async function runMailboxSyncOnce(options: SyncOptions = {}) {
   if (!activeSync) {
     activeSync = (async () => {
       for (const config of configs) {
+        if (options.mailboxes && !options.mailboxes.has(config.id)) continue
         await runSyncAll(config, options)
       }
     })().finally(() => {
@@ -1211,6 +1388,7 @@ export type ImapMailbox = {
   path: string
   name: string
   delimiter: string
+  specialUse?: string | null
 }
 
 let cachedMailboxes: ImapMailbox[] | null = null
@@ -1308,6 +1486,17 @@ function activeSnoozeCondition() {
     isNull(mailMessageMailbox.snoozedUntil),
     lte(mailMessageMailbox.snoozedUntil, new Date())
   )
+}
+
+function noPendingMoveCondition() {
+  return sql`not exists (
+    select 1
+    from imap_job as pending_move
+    where pending_move.type = 'move'
+    and pending_move.mailbox = ${mailMessageMailbox.mailbox}
+    and pending_move.uid = ${mailMessageMailbox.uid}
+    and pending_move.status in ('pending', 'running')
+  )`
 }
 
 const detailSelect = {
@@ -1528,10 +1717,15 @@ export async function listStoredMessages(
     const whereClause = unreadOnly
       ? and(
           activeSnoozeCondition(),
+          noPendingMoveCondition(),
           threadMetadataWhere(mailboxPath, metadataFilter),
           notLike(mailMessageMailbox.flags, '%\\\\Seen%')
         )
-      : and(activeSnoozeCondition(), threadMetadataWhere(mailboxPath, metadataFilter))
+      : and(
+          activeSnoozeCondition(),
+          noPendingMoveCondition(),
+          threadMetadataWhere(mailboxPath, metadataFilter)
+        )
 
     const rows = await db
       .select(listSelect)
@@ -1591,10 +1785,15 @@ export async function countStoredMessages(
   const whereClause = unreadOnly
     ? and(
         activeSnoozeCondition(),
+        noPendingMoveCondition(),
         threadMetadataWhere(mailboxPath, metadataFilter),
         notLike(mailMessageMailbox.flags, '%\\\\Seen%')
       )
-    : and(activeSnoozeCondition(), threadMetadataWhere(mailboxPath, metadataFilter))
+    : and(
+        activeSnoozeCondition(),
+        noPendingMoveCondition(),
+        threadMetadataWhere(mailboxPath, metadataFilter)
+      )
   const [row] = await db
     .select({ value: count() })
     .from(mailMessageMailbox)
@@ -1607,6 +1806,7 @@ export async function countStoredMessages(
 function senderWhereClause(mailboxPath: string, normalizedSender: string) {
   return and(
     eq(mailMessageMailbox.mailbox, mailboxPath),
+    noPendingMoveCondition(),
     eq(
       sql<string>`lower(trim(coalesce(nullif(substring(${mailMessage.from} from '<([^<>]+)>'), ''), ${mailMessage.from})))`,
       normalizedSender
@@ -1725,6 +1925,7 @@ export async function listStoredThreads(
         unreadOnly
           ? and(
               activeSnoozeCondition(),
+              noPendingMoveCondition(),
               threadSummaryMetadataWhere(mailboxPath, metadataFilter),
               sql`exists (
                 select 1
@@ -1735,7 +1936,11 @@ export async function listStoredThreads(
                 and unread_mmm.flags not like ${'%\\\\Seen%'}
               )`
             )
-          : and(activeSnoozeCondition(), threadSummaryMetadataWhere(mailboxPath, metadataFilter))
+          : and(
+              activeSnoozeCondition(),
+              noPendingMoveCondition(),
+              threadSummaryMetadataWhere(mailboxPath, metadataFilter)
+            )
       )
       .orderBy(
         desc(sql`exists (
@@ -1804,6 +2009,7 @@ export async function countStoredThreads(
       unreadOnly
         ? and(
             activeSnoozeCondition(),
+            noPendingMoveCondition(),
             threadSummaryMetadataWhere(mailboxPath, metadataFilter),
             sql`exists (
               select 1
@@ -1814,7 +2020,11 @@ export async function countStoredThreads(
               and unread_mmm.flags not like ${'%\\\\Seen%'}
             )`
           )
-        : and(activeSnoozeCondition(), threadSummaryMetadataWhere(mailboxPath, metadataFilter))
+        : and(
+            activeSnoozeCondition(),
+            noPendingMoveCondition(),
+            threadSummaryMetadataWhere(mailboxPath, metadataFilter)
+          )
     )
 
   return Number(row?.value ?? 0)
@@ -1833,7 +2043,13 @@ export async function getMessagesInThread(
       .select(detailSelect)
       .from(mailMessage)
       .innerJoin(mailMessageMailbox, eq(mailMessageMailbox.messageId, mailMessage.messageId))
-      .where(and(eq(mailMessageMailbox.mailbox, mailboxPath), eq(mailMessage.threadKey, threadKey)))
+      .where(
+        and(
+          eq(mailMessageMailbox.mailbox, mailboxPath),
+          eq(mailMessage.threadKey, threadKey),
+          noPendingMoveCondition()
+        )
+      )
       .orderBy(asc(mailMessage.receivedAt), asc(mailMessageMailbox.uid))
     const orderedRows = orderThread(rows.map(normalizeMailRowFlags))
 
@@ -1876,7 +2092,7 @@ export async function searchMessages(query: string, limit: number, offset: numbe
     .select(listSelect)
     .from(mailMessage)
     .innerJoin(mailMessageMailbox, eq(mailMessageMailbox.messageId, mailMessage.messageId))
-    .where(and(where, activeSnoozeCondition()))
+    .where(and(where, activeSnoozeCondition(), noPendingMoveCondition()))
     .orderBy(desc(mailMessage.receivedAt))
     .limit(limit + offset)
 
@@ -1910,7 +2126,7 @@ export async function countSearchMessages(query: string) {
     .select({ value: sql<number>`count(distinct ${mailMessage.messageId})` })
     .from(mailMessage)
     .innerJoin(mailMessageMailbox, eq(mailMessageMailbox.messageId, mailMessage.messageId))
-    .where(and(where, activeSnoozeCondition()))
+    .where(and(where, activeSnoozeCondition(), noPendingMoveCondition()))
 
   return Number(row?.value ?? 0)
 }
@@ -2111,6 +2327,13 @@ const ROLE_PATTERNS: Record<MessageAction, RegExp> = {
   spam: /\b(spam|junk([\s._-]?email)?)\b/i
 }
 
+const ROLE_SPECIAL_USE: Record<MessageAction, string[]> = {
+  inbox: ['\\Inbox'],
+  archive: ['\\Archive', '\\All'],
+  trash: ['\\Trash'],
+  spam: ['\\Junk']
+}
+
 export function getMailboxRole(mailboxPath: string): MessageAction | null {
   for (const [role, pattern] of Object.entries(ROLE_PATTERNS) as [MessageAction, RegExp][]) {
     if (pattern.test(mailboxPath)) return role
@@ -2121,7 +2344,12 @@ export function getMailboxRole(mailboxPath: string): MessageAction | null {
 async function findMailboxForAction(action: MessageAction): Promise<string | null> {
   const mailboxes = await getImapMailboxes()
   const pattern = ROLE_PATTERNS[action]
-  return mailboxes.find((mb) => pattern.test(mb.path) || pattern.test(mb.name))?.path ?? null
+  return (
+    mailboxes.find((mailbox) => ROLE_SPECIAL_USE[action].includes(mailbox.specialUse ?? ''))
+      ?.path ??
+    mailboxes.find((mailbox) => pattern.test(mailbox.path) || pattern.test(mailbox.name))?.path ??
+    null
+  )
 }
 
 export async function createShareToken(mailboxEntryId: number): Promise<string | null> {
@@ -2160,10 +2388,6 @@ export async function moveMessage(message: MailRow, action: MessageAction): Prom
   if (isDemoModeEnabled()) return moveDemoMessage(message, action)
   const targetMailbox = await findMailboxForAction(action)
   if (!targetMailbox || targetMailbox === message.mailbox) return null
-
-  // Optimistically remove from source mailbox — next sync will add it to target
-  await db.delete(mailMessageMailbox).where(eq(mailMessageMailbox.id, message.id))
-  await refreshThreadSummaries(message.mailbox, [message.threadId ?? message.messageId])
 
   await enqueueMoveMessage(message.uid, message.mailbox, targetMailbox)
   return targetMailbox

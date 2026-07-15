@@ -1,11 +1,12 @@
 import { json, error } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import { db } from '$lib/server/db'
-import { mailDraft } from '$lib/server/db/schema'
+import { imapJob, mailDraft } from '$lib/server/db/schema'
 import { parseComposerAttachments } from '$lib/mail-attachments'
 import { logServerError, logServerEvent } from '$lib/server/perf'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { deleteDemoDraft, getDemoDraft, isDemoModeEnabled } from '$lib/server/demo'
+import { draftDeleteJob } from '$lib/imap-sync'
 
 export const GET: RequestHandler = async ({ params }) => {
   const id = Number(params.id)
@@ -74,6 +75,19 @@ export const DELETE: RequestHandler = async ({ params }) => {
     return json({ ok: true })
   }
 
-  await db.delete(mailDraft).where(eq(mailDraft.id, id))
+  const [draft] = await db.select().from(mailDraft).where(eq(mailDraft.id, id)).limit(1)
+  if (!draft) return json({ ok: true })
+
+  await db.transaction(async (tx) => {
+    await tx.delete(imapJob).where(and(eq(imapJob.draftId, id), eq(imapJob.type, 'append_draft')))
+    if (draft.imapMailbox && draft.imapUid) {
+      const now = new Date()
+      await tx
+        .insert(imapJob)
+        .values(draftDeleteJob(id, draft.imapMailbox, draft.imapUid, draft.imapUidValidity, now))
+        .onConflictDoNothing()
+    }
+    await tx.delete(mailDraft).where(eq(mailDraft.id, id))
+  })
   return json({ ok: true })
 }

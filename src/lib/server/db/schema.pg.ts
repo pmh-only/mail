@@ -2,6 +2,7 @@ import {
   pgTable,
   text,
   integer,
+  bigint,
   boolean,
   timestamp,
   jsonb,
@@ -65,7 +66,10 @@ export const mailSignature = pgTable('mail_signature', {
 
 export const mailboxSync = pgTable('mailbox_sync', {
   mailbox: text('mailbox').primaryKey(),
-  lastUid: integer('last_uid').notNull().default(0),
+  lastUid: bigint('last_uid', { mode: 'number' }).notNull().default(0),
+  uidValidity: bigint('uid_validity', { mode: 'number' }),
+  highestModseq: bigint('highest_modseq', { mode: 'bigint' }),
+  lastReconciledAt: timestamp('last_reconciled_at', { withTimezone: true, mode: 'date' }),
   historyComplete: boolean('history_complete').notNull().default(false),
   lastFetchedCount: integer('last_fetched_count').notNull().default(0),
   lastStoredCount: integer('last_stored_count').notNull().default(0),
@@ -77,6 +81,7 @@ export const mailboxCatalog = pgTable('mailbox_catalog', {
   path: text('path').primaryKey(),
   name: text('name').notNull(),
   delimiter: text('delimiter').notNull().default('/'),
+  specialUse: text('special_use'),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull()
 })
 
@@ -98,7 +103,9 @@ export const imapJob = pgTable(
     id: serial('id').primaryKey(),
     type: text('type').notNull(),
     mailbox: text('mailbox').notNull(),
-    uid: integer('uid').notNull(),
+    uid: bigint('uid', { mode: 'number' }),
+    uidValidity: bigint('uid_validity', { mode: 'number' }),
+    draftId: integer('draft_id'),
     targetMailbox: text('target_mailbox'),
     status: text('status').notNull().default('pending'),
     dedupeKey: text('dedupe_key').notNull(),
@@ -166,7 +173,7 @@ export const mailMessageMailbox = pgTable(
     id: serial('id').primaryKey(),
     messageId: text('message_id').notNull(),
     mailbox: text('mailbox').notNull(),
-    uid: integer('uid').notNull(),
+    uid: bigint('uid', { mode: 'number' }).notNull(),
     flags: text('flags').notNull().default('[]'),
     receivedAt: timestamp('received_at', { withTimezone: true, mode: 'date' }),
     snoozedUntil: timestamp('snoozed_until', { withTimezone: true, mode: 'date' }),
@@ -191,7 +198,7 @@ export const mailThreadSummary = pgTable(
     threadKey: text('thread_key').notNull(),
     representativeMailboxEntryId: integer('representative_mailbox_entry_id').notNull(),
     threadCount: integer('thread_count').notNull(),
-    latestUid: integer('latest_uid').notNull(),
+    latestUid: bigint('latest_uid', { mode: 'number' }).notNull(),
     latestReceivedAt: timestamp('latest_received_at', { withTimezone: true, mode: 'date' })
   },
   (table) => [
@@ -282,7 +289,12 @@ export const mailDraft = pgTable('mail_draft', {
   subject: text('subject').notNull().default(''),
   html: text('html').notNull().default(''),
   attachments: text('attachments').notNull().default('[]'),
-  inReplyTo: text('in_reply_to')
+  inReplyTo: text('in_reply_to'),
+  imapMailbox: text('imap_mailbox'),
+  imapUid: bigint('imap_uid', { mode: 'number' }),
+  imapUidValidity: bigint('imap_uid_validity', { mode: 'number' }),
+  imapSyncedAt: timestamp('imap_synced_at', { withTimezone: true, mode: 'date' }),
+  imapSyncError: text('imap_sync_error')
 })
 
 export const mailContact = pgTable(

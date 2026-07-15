@@ -1,17 +1,19 @@
 import { db } from './db'
 import { imapJob } from './db/schema'
+import { seenJob } from '../imap-sync'
 
-export async function enqueueMarkRead(uid: number, mailbox: string) {
+async function enqueueSeenState(uid: number, mailbox: string, seen: boolean) {
   const now = new Date()
+  const job = seenJob(uid, mailbox, seen)
   await db
     .insert(imapJob)
     .values({
-      type: 'mark_read',
+      type: job.type,
       mailbox,
       uid,
       targetMailbox: null,
       status: 'pending',
-      dedupeKey: `mark_read:${mailbox}:${uid}`,
+      dedupeKey: job.dedupeKey,
       attemptCount: 0,
       availableAt: now,
       lastError: null,
@@ -21,6 +23,7 @@ export async function enqueueMarkRead(uid: number, mailbox: string) {
     .onConflictDoUpdate({
       target: imapJob.dedupeKey,
       set: {
+        type: job.type,
         status: 'pending',
         attemptCount: 0,
         availableAt: now,
@@ -30,33 +33,12 @@ export async function enqueueMarkRead(uid: number, mailbox: string) {
     })
 }
 
-export async function enqueueMarkUnread(uid: number, mailbox: string) {
-  const now = new Date()
-  await db
-    .insert(imapJob)
-    .values({
-      type: 'mark_unread',
-      mailbox,
-      uid,
-      targetMailbox: null,
-      status: 'pending',
-      dedupeKey: `mark_unread:${mailbox}:${uid}`,
-      attemptCount: 0,
-      availableAt: now,
-      lastError: null,
-      createdAt: now,
-      updatedAt: now
-    })
-    .onConflictDoUpdate({
-      target: imapJob.dedupeKey,
-      set: {
-        status: 'pending',
-        attemptCount: 0,
-        availableAt: now,
-        lastError: null,
-        updatedAt: now
-      }
-    })
+export function enqueueMarkRead(uid: number, mailbox: string) {
+  return enqueueSeenState(uid, mailbox, true)
+}
+
+export function enqueueMarkUnread(uid: number, mailbox: string) {
+  return enqueueSeenState(uid, mailbox, false)
 }
 
 export async function enqueueMoveMessage(

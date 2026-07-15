@@ -4,6 +4,8 @@ import { isDemoModeEnabled } from './lib/server/demo'
 import { maybeRunCleanupRulesFromWorker } from './lib/server/cleanup-rules'
 import { runMigrations } from './lib/server/db'
 import { drainImapQueue, recoverInterruptedImapJobs } from './lib/server/imap-worker'
+import { addDirtyMailbox, closeImapConnections, syncWatchers } from './lib/server/imap-connections'
+import { getImapConfigs } from './lib/server/config'
 import {
   getMailboxSyncPollMs,
   repairThreadKeys,
@@ -23,23 +25,37 @@ let tickInFlight = false
 let stopping = false
 let lastHeartbeatAt = 0
 let lastSyncAttemptAt = 0
+let syncRequested = false
+const dirtyMailboxes = new Map<string, Set<string>>()
+
+function requestMailboxSync(configId: string, mailbox: string) {
+  addDirtyMailbox(dirtyMailboxes, configId, mailbox)
+  syncRequested = true
+}
 
 async function heartbeat() {
   if (Date.now() - lastHeartbeatAt < HEARTBEAT_MS) return
   await touchSyncWorkerHeartbeat()
+  await syncWatchers(await getImapConfigs(), requestMailboxSync)
   lastHeartbeatAt = Date.now()
 }
 
 async function maybeRunSync() {
   const pollMs = await getMailboxSyncPollMs()
   if (pollMs === null) return
-  if (Date.now() - lastSyncAttemptAt < pollMs) return
+  if (!syncRequested && Date.now() - lastSyncAttemptAt < pollMs) return
 
   await drainImapQueue()
   if (await hasUnfinishedSmtpJobs()) return
 
   lastSyncAttemptAt = Date.now()
+  const requestedMailboxes = syncRequested
+    ? new Map([...dirtyMailboxes].map(([id, mailboxes]) => [id, new Set(mailboxes)]))
+    : undefined
+  syncRequested = false
+  dirtyMailboxes.clear()
   await runMailboxSyncOnce({
+    mailboxes: requestedMailboxes,
     beforeMailbox: async () => {
       await drainImapQueue()
     }
@@ -77,12 +93,14 @@ async function main() {
   await repairThreadKeys()
   await recoverInterruptedImapJobs()
   await recoverInterruptedSmtpJobs()
+  await syncWatchers(await getImapConfigs(), requestMailboxSync)
 
   console.log('[worker] started')
   while (!stopping) {
     await tick()
     await delay(WORKER_TICK_MS)
   }
+  await closeImapConnections()
 }
 
 function stop() {
