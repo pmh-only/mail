@@ -297,10 +297,6 @@
     return settingsSections.some((item) => item.id === section) ? section : 'imap'
   })
 
-  function settingsSectionClass(id: string) {
-    return selectedSettingsSection === id ? 'space-y-4' : 'hidden'
-  }
-
   // Editable form state must not be derived from `data`: autosave can invalidate route data,
   // and rebuilding this object while typing remounts inputs and drops focus.
   let form = untrack(
@@ -1733,6 +1729,76 @@
       testingSmtp = false
     }
   }
+
+  let secondarySmtpTestResults = $state<Record<number, { testing: boolean; message: string | null }>>({})
+
+  async function testSecondarySmtp(index: number) {
+    const server = smtpServers[index]
+    if (!server) return
+
+    secondarySmtpTestResults[index] = { testing: true, message: null }
+    try {
+      const res = await fetch('/api/settings/test-smtp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          smtp: {
+            host: server.host,
+            port: server.port,
+            secure: server.secure,
+            user: server.user,
+            password: server.password
+          }
+        })
+      })
+
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'SMTP connection failed.'))
+      }
+
+      const data = await res.json()
+      secondarySmtpTestResults[index].message = data.message ?? 'Connected successfully'
+    } catch (err) {
+      secondarySmtpTestResults[index].message = `Error: ${err instanceof Error ? err.message : String(err)}`
+    } finally {
+      secondarySmtpTestResults[index].testing = false
+    }
+  }
+
+  let secondaryImapTestResults = $state<Record<number, { testing: boolean; message: string | null }>>({})
+
+  async function testSecondaryImap(index: number) {
+    const server = imapServers[index]
+    if (!server) return
+
+    secondaryImapTestResults[index] = { testing: true, message: null }
+    try {
+      const res = await fetch('/api/settings/test-imap', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          imap: {
+            host: server.host,
+            port: server.port,
+            secure: server.secure,
+            user: server.user,
+            password: server.password
+          }
+        })
+      })
+
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'IMAP connection failed.'))
+      }
+
+      const data = await res.json()
+      secondaryImapTestResults[index].message = data.message ?? 'Connected successfully'
+    } catch (err) {
+      secondaryImapTestResults[index].message = `Error: ${err instanceof Error ? err.message : String(err)}`
+    } finally {
+      secondaryImapTestResults[index].testing = false
+    }
+  }
 </script>
 
 <div class="h-full min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-10">
@@ -1934,14 +2000,24 @@
                           <p class="text-xs text-zinc-500">Loaded from env until saved here.</p>
                         {/if}
                       </div>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${server.name || 'IMAP server'}`}
-                        onclick={() => removeImapServer(index)}
-                        class="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-400 transition hover:bg-white/10 hover:text-rose-400"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div class="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onclick={() => testSecondaryImap(index)}
+                          disabled={secondaryImapTestResults[index]?.testing}
+                          class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 transition hover:bg-white/10"
+                        >
+                          {secondaryImapTestResults[index]?.testing ? 'Testing…' : 'Test connection'}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${server.name || 'IMAP server'}`}
+                          onclick={() => removeImapServer(index)}
+                          class="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-400 transition hover:bg-white/10 hover:text-rose-400"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
 
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -2069,6 +2145,11 @@
                         </label>
                       </div>
                     </div>
+                    {#if secondaryImapTestResults[index]?.message}
+                      <p class="mt-3 rounded-lg border px-3 py-2 text-xs {secondaryImapTestResults[index].message.startsWith('Error') ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}">
+                        {secondaryImapTestResults[index].message}
+                      </p>
+                    {/if}
                   </div>
                 {/each}
               </div>
@@ -2242,14 +2323,24 @@
                           <p class="text-xs text-zinc-500">Loaded from env until saved here.</p>
                         {/if}
                       </div>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${server.name || 'SMTP server'}`}
-                        onclick={() => removeSmtpServer(index)}
-                        class="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-400 transition hover:bg-white/10 hover:text-rose-400"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div class="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onclick={() => testSecondarySmtp(index)}
+                          disabled={secondarySmtpTestResults[index]?.testing}
+                          class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 transition hover:bg-white/10"
+                        >
+                          {secondarySmtpTestResults[index]?.testing ? 'Testing…' : 'Test connection'}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${server.name || 'SMTP server'}`}
+                          onclick={() => removeSmtpServer(index)}
+                          class="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-400 transition hover:bg-white/10 hover:text-rose-400"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
 
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -2364,6 +2455,11 @@
                         </label>
                       </div>
                     </div>
+                    {#if secondarySmtpTestResults[index]?.message}
+                      <p class="mt-3 rounded-lg border px-3 py-2 text-xs {secondarySmtpTestResults[index].message.startsWith('Error') ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}">
+                        {secondarySmtpTestResults[index].message}
+                      </p>
+                    {/if}
                   </div>
                 {/each}
               </div>

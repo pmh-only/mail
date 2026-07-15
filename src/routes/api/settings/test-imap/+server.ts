@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import { getImapConfig } from '$lib/server/config'
 import { isDemoModeEnabled } from '$lib/server/demo'
+import { ImapFlow } from 'imapflow'
 
 export const POST: RequestHandler = async ({ request }) => {
   if (isDemoModeEnabled()) {
@@ -35,8 +36,30 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ ok: false, message: 'Host, user, and password are required.' }, { status: 400 })
   }
 
-  return json({
-    ok: true,
-    message: `IMAP settings look complete. The worker will use ${host}:${Number(port)} (TLS ${secure ? 'on' : 'off'}) for the next sync.`
-  })
+  try {
+    const client = new ImapFlow({
+      host,
+      port,
+      secure,
+      auth: {
+        user,
+        pass: password
+      },
+      logger: false,
+      connectionTimeout: 8000
+    })
+    await client.connect()
+    await client.logout()
+
+    return json({
+      ok: true,
+      message: `Connected successfully to IMAP server ${host}:${Number(port)}.`
+    })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    return json({
+      ok: false,
+      message: `IMAP connection failed: ${msg}`
+    }, { status: 500 })
+  }
 }
