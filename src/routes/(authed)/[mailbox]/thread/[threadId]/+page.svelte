@@ -841,20 +841,33 @@
           <ChevronLeft size={16} />
           Back to list
         </button>
-        {#if role === 'archive' || role === 'trash' || role === 'spam'}
+        {#if role === 'archive' || role === 'trash'}
           <button
             type="button"
             aria-label="Move to inbox"
+            title="Move to inbox"
             disabled={acting}
             onclick={() => performThreadAction('inbox')}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
           >
             <Archive size={16} />
           </button>
+        {:else if role === 'spam'}
+          <button
+            type="button"
+            aria-label="Not spam"
+            title="Not spam"
+            disabled={acting}
+            onclick={() => performThreadAction('inbox')}
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
+          >
+            <ShieldAlert size={16} />
+          </button>
         {:else}
           <button
             type="button"
             aria-label="Archive thread"
+            title="Archive thread"
             disabled={acting}
             onclick={() => performThreadAction('archive')}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -864,6 +877,7 @@
           <button
             type="button"
             aria-label="Trash thread"
+            title="Trash thread"
             disabled={acting}
             onclick={() => performThreadAction('trash')}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -873,6 +887,7 @@
           <button
             type="button"
             aria-label="Mark as spam"
+            title="Mark as spam"
             disabled={acting}
             onclick={() => performThreadAction('spam')}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -883,6 +898,7 @@
         <button
           type="button"
           aria-label="Mark thread unread"
+          title="Mark thread unread"
           disabled={acting}
           onclick={() => markThreadUnread()}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -893,6 +909,7 @@
           <button
             type="button"
             aria-label="Block sender"
+            title="Block sender"
             disabled={acting || !lastMessage.from}
             onclick={() => blockSender(lastMessage)}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -929,6 +946,7 @@
         <button
           type="button"
           aria-label="Summarize thread"
+          title="Summarize thread"
           disabled={summarizingThread}
           onclick={() => summarizeThread()}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
@@ -938,6 +956,7 @@
         <button
           type="button"
           aria-label="Snooze thread"
+          title="Snooze thread"
           disabled={acting}
           onclick={() => snoozeThread()}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -947,6 +966,7 @@
         <button
           type="button"
           aria-label="Extract thread actions"
+          title="Extract thread actions"
           disabled={extractingThreadActions}
           onclick={() => extractThreadActions()}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-emerald-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"

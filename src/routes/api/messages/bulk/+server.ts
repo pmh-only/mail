@@ -89,5 +89,9 @@ export const POST: RequestHandler = async ({ request }) => {
     if (result) count++
   }
 
+  if (action === 'spam' && count === 0) {
+    return error(422, 'Spam mailbox not found')
+  }
+
   return json({ ok: true, count })
 }

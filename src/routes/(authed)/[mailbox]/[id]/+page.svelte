@@ -1029,6 +1029,7 @@
         <button
           type="button"
           aria-label="Reply"
+          title="Reply"
           onclick={() => openReply(message)}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
         >
@@ -1037,6 +1038,7 @@
         <button
           type="button"
           aria-label="Reply all"
+          title="Reply all"
           onclick={() => openReplyAll(message)}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
         >
@@ -1045,6 +1047,7 @@
         <button
           type="button"
           aria-label="Draft reply with AI"
+          title="Draft reply with AI"
           disabled={draftingReply}
           onclick={() => void generateReplyDraft()}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:hidden"
@@ -1054,6 +1057,7 @@
         <button
           type="button"
           aria-label="Forward"
+          title="Forward"
           onclick={() => openForward(message)}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
         >
@@ -1062,6 +1066,7 @@
         <button
           type="button"
           aria-label="View metadata"
+          title="View metadata"
           onclick={() => (metadataOpen = true)}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
         >
@@ -1070,6 +1075,7 @@
         <button
           type="button"
           aria-label="Translate"
+          title="Translate"
           disabled={translating}
           onclick={() => void translateMessage()}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:hidden"
@@ -1080,6 +1086,7 @@
           <button
             type="button"
             aria-label="Spam"
+            title="Move to spam"
             disabled={acting}
             onclick={() => performAction('spam')}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -1090,6 +1097,7 @@
         <button
           type="button"
           aria-label="Mark unread"
+          title="Mark unread"
           disabled={acting}
           onclick={() => void markUnread()}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -1099,6 +1107,7 @@
         <button
           type="button"
           aria-label="Snooze"
+          title="Snooze"
           disabled={acting}
           onclick={() => void snoozeMessage()}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -1108,6 +1117,7 @@
         <button
           type="button"
           aria-label={shareCopied ? 'Copied' : 'Share'}
+          title={shareCopied ? 'Copied' : 'Share'}
           disabled={sharing}
           onclick={() => void shareMessage()}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"

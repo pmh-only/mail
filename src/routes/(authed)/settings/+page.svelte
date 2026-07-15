@@ -1730,7 +1730,9 @@
     }
   }
 
-  let secondarySmtpTestResults = $state<Record<number, { testing: boolean; message: string | null }>>({})
+  let secondarySmtpTestResults = $state<
+    Record<number, { testing: boolean; message: string | null }>
+  >({})
 
   async function testSecondarySmtp(index: number) {
     const server = smtpServers[index]
@@ -1759,13 +1761,16 @@
       const data = await res.json()
       secondarySmtpTestResults[index].message = data.message ?? 'Connected successfully'
     } catch (err) {
-      secondarySmtpTestResults[index].message = `Error: ${err instanceof Error ? err.message : String(err)}`
+      secondarySmtpTestResults[index].message =
+        `Error: ${err instanceof Error ? err.message : String(err)}`
     } finally {
       secondarySmtpTestResults[index].testing = false
     }
   }
 
-  let secondaryImapTestResults = $state<Record<number, { testing: boolean; message: string | null }>>({})
+  let secondaryImapTestResults = $state<
+    Record<number, { testing: boolean; message: string | null }>
+  >({})
 
   async function testSecondaryImap(index: number) {
     const server = imapServers[index]
@@ -1794,7 +1799,8 @@
       const data = await res.json()
       secondaryImapTestResults[index].message = data.message ?? 'Connected successfully'
     } catch (err) {
-      secondaryImapTestResults[index].message = `Error: ${err instanceof Error ? err.message : String(err)}`
+      secondaryImapTestResults[index].message =
+        `Error: ${err instanceof Error ? err.message : String(err)}`
     } finally {
       secondaryImapTestResults[index].testing = false
     }
@@ -1841,7 +1847,7 @@
 
       <div class="max-w-3xl min-w-0 space-y-10 [&>div.border-t]:hidden">
         <!-- IMAP -->
-        <section class={settingsSectionClass('imap')}>
+        <section class={selectedSettingsSection === 'imap' ? 'space-y-4' : 'hidden'}>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
               IMAP — Incoming Mail
@@ -2007,7 +2013,9 @@
                           disabled={secondaryImapTestResults[index]?.testing}
                           class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 transition hover:bg-white/10"
                         >
-                          {secondaryImapTestResults[index]?.testing ? 'Testing…' : 'Test connection'}
+                          {secondaryImapTestResults[index]?.testing
+                            ? 'Testing…'
+                            : 'Test connection'}
                         </button>
                         <button
                           type="button"
@@ -2146,7 +2154,13 @@
                       </div>
                     </div>
                     {#if secondaryImapTestResults[index]?.message}
-                      <p class="mt-3 rounded-lg border px-3 py-2 text-xs {secondaryImapTestResults[index].message.startsWith('Error') ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}">
+                      <p
+                        class="mt-3 rounded-lg border px-3 py-2 text-xs {secondaryImapTestResults[
+                          index
+                        ].message.startsWith('Error')
+                          ? 'border-rose-500/20 bg-rose-500/10 text-rose-300'
+                          : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}"
+                      >
                         {secondaryImapTestResults[index].message}
                       </p>
                     {/if}
@@ -2160,7 +2174,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- SMTP -->
-        <section class={settingsSectionClass('smtp')}>
+        <section class={selectedSettingsSection === 'smtp' ? 'space-y-4' : 'hidden'}>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
               SMTP — Outgoing Mail
@@ -2330,7 +2344,9 @@
                           disabled={secondarySmtpTestResults[index]?.testing}
                           class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 transition hover:bg-white/10"
                         >
-                          {secondarySmtpTestResults[index]?.testing ? 'Testing…' : 'Test connection'}
+                          {secondarySmtpTestResults[index]?.testing
+                            ? 'Testing…'
+                            : 'Test connection'}
                         </button>
                         <button
                           type="button"
@@ -2456,7 +2472,13 @@
                       </div>
                     </div>
                     {#if secondarySmtpTestResults[index]?.message}
-                      <p class="mt-3 rounded-lg border px-3 py-2 text-xs {secondarySmtpTestResults[index].message.startsWith('Error') ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}">
+                      <p
+                        class="mt-3 rounded-lg border px-3 py-2 text-xs {secondarySmtpTestResults[
+                          index
+                        ].message.startsWith('Error')
+                          ? 'border-rose-500/20 bg-rose-500/10 text-rose-300'
+                          : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}"
+                      >
                         {secondarySmtpTestResults[index].message}
                       </p>
                     {/if}
@@ -2470,7 +2492,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- Mailboxes -->
-        <section class={settingsSectionClass('mailboxes')}>
+        <section class={selectedSettingsSection === 'mailboxes' ? 'space-y-4' : 'hidden'}>
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
@@ -2546,7 +2568,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- OIDC -->
-        <section class={settingsSectionClass('oidc')}>
+        <section class={selectedSettingsSection === 'oidc' ? 'space-y-4' : 'hidden'}>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
               OIDC — Authentication
@@ -2611,7 +2633,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- Security -->
-        <section class={settingsSectionClass('sessions')}>
+        <section class={selectedSettingsSection === 'sessions' ? 'space-y-4' : 'hidden'}>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
@@ -2707,7 +2729,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- Interface -->
-        <section class={settingsSectionClass('interface')}>
+        <section class={selectedSettingsSection === 'interface' ? 'space-y-4' : 'hidden'}>
           <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Interface</h2>
           <div class="rounded-lg border border-white/8 bg-white/3 p-4">
             <label class="block" for="theme-preference">
@@ -2901,7 +2923,7 @@
 
         <!-- Security -->
         <!-- Privacy -->
-        <section class={settingsSectionClass('privacy')}>
+        <section class={selectedSettingsSection === 'privacy' ? 'space-y-4' : 'hidden'}>
           <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Privacy</h2>
           <div class="rounded-lg border border-white/8 bg-white/3 p-4">
             <label class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -2948,7 +2970,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- Signature -->
-        <section class={settingsSectionClass('signatures')}>
+        <section class={selectedSettingsSection === 'signatures' ? 'space-y-4' : 'hidden'}>
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
@@ -3031,7 +3053,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- Message templates -->
-        <section class={settingsSectionClass('templates')}>
+        <section class={selectedSettingsSection === 'templates' ? 'space-y-4' : 'hidden'}>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
@@ -3213,7 +3235,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- Notifications -->
-        <section class={settingsSectionClass('notifications')}>
+        <section class={selectedSettingsSection === 'notifications' ? 'space-y-4' : 'hidden'}>
           <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
             Push Notifications
           </h2>
@@ -3388,7 +3410,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- Cleanup Rules -->
-        <section class={settingsSectionClass('cleanup')}>
+        <section class={selectedSettingsSection === 'cleanup' ? 'space-y-4' : 'hidden'}>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
@@ -3539,7 +3561,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- Sender Rules -->
-        <section class={settingsSectionClass('senders')}>
+        <section class={selectedSettingsSection === 'senders' ? 'space-y-4' : 'hidden'}>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
@@ -3638,7 +3660,7 @@
         </section>
 
         <!-- Filters -->
-        <section class={settingsSectionClass('filters')}>
+        <section class={selectedSettingsSection === 'filters' ? 'space-y-4' : 'hidden'}>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Filters</h2>
             <div class="flex flex-wrap gap-2">
@@ -3980,7 +4002,7 @@
         <div class="border-t border-white/8"></div>
 
         <!-- Settings Backup -->
-        <section class={settingsSectionClass('backup')}>
+        <section class={selectedSettingsSection === 'backup' ? 'space-y-4' : 'hidden'}>
           <div>
             <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">
               Settings Backup

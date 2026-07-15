@@ -152,6 +152,7 @@
 
   const sync = $derived(data.sync)
   const mailbox = $derived(page.params.mailbox ?? 'inbox')
+  const currentMailboxRole = $derived(inferMailboxRole(mailbox))
   const offlineUserKey = $derived(data.user?.email ?? null)
   const simplifiedViewEnabled = $derived(data.simplifiedView)
   const density = $derived(data.density ?? (data.compactMode ? 'compact' : 'comfortable'))
@@ -2344,6 +2345,8 @@
             >
               <button
                 type="button"
+                title="Show starred"
+                aria-label="Show starred"
                 class={[
                   'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 transition sm:px-3',
                   activeFilter === 'all' ? 'bg-white/8 text-white' : 'text-zinc-400'
@@ -2355,6 +2358,8 @@
               </button>
               <button
                 type="button"
+                title="Show pinned"
+                aria-label="Show pinned"
                 class={[
                   'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 transition sm:px-3',
                   activeFilter === 'unread' ? 'bg-white/8 text-white' : 'text-zinc-400'
@@ -3020,15 +3025,17 @@
             >
               <Trash2 size={13} /> Trash
             </button>
-            <button
-              type="button"
-              title="Spam"
-              onclick={() => void bulkAction('spam')}
-              disabled={bulkActionPending}
-              class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
-            >
-              <ShieldAlert size={13} /> Spam
-            </button>
+            {#if currentMailboxRole !== 'spam'}
+              <button
+                type="button"
+                title="Move to spam"
+                onclick={() => void bulkAction('spam')}
+                disabled={bulkActionPending}
+                class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
+              >
+                <ShieldAlert size={13} /> Spam
+              </button>
+            {/if}
             <button
               type="button"
               title="Snooze"

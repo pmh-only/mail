@@ -33,8 +33,8 @@ function exportMailServer(server: Record<string, unknown>) {
 
 export const GET: RequestHandler = async ({ cookies }) => {
   const config = await getDisplayConfig()
-  const imapServers = 'imapServers' in config ? config.imapServers : [config.imap]
-  const smtpServers = 'smtpServers' in config ? config.smtpServers : [config.smtp]
+  const imapServers = config.imapServers
+  const smtpServers = config.smtpServers
   const filters = isDemoModeEnabled()
     ? listDemoFilters()
     : await db.select().from(mailFilter).orderBy(asc(mailFilter.sortOrder))

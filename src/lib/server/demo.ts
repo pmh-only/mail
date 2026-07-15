@@ -782,12 +782,17 @@ export function getDemoAuthSession() {
 }
 
 export function getDemoDisplayConfig() {
+  const imap = { ...demoConfig.imap, password: '••••••••' }
+  const smtp = { ...demoConfig.smtp, password: '••••••••' }
   return {
     signature: demoConfig.signature,
     signatureProfiles: demoConfig.signatureProfiles.map((signature) => ({ ...signature })),
-    imap: { ...demoConfig.imap, password: '••••••••' },
-    smtp: { ...demoConfig.smtp, password: '••••••••' },
+    imap,
+    imapServers: [imap],
+    smtp,
+    smtpServers: [smtp],
     oidc: { ...demoConfig.oidc, clientSecret: '••••••••' },
+    secretStorage: { configured: false, text: 'Demo mode' },
     quietHours: { ...demoConfig.quietHours }
   }
 }
