@@ -148,6 +148,13 @@
       "when": 1784073600000,
       "tag": "0007_oidc_subject",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1784080918000,
+      "tag": "0008_repair_all_mail_sync",
+      "breakpoints": true
     }
   ]
 }

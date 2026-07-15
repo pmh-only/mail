@@ -6,7 +6,6 @@
     Mail,
     Reply,
     ReplyAll,
-    Scissors,
     ChevronDown,
     ChevronLeft,
     Paperclip,
@@ -60,6 +59,7 @@
     flags: string[]
     receivedAt: string | null
     snoozedUntil: string | null
+    threadDepth: number
   }
 
   type Attachment = {
@@ -108,14 +108,19 @@
   const attachments = $derived(data.attachments)
   const role = $derived(data.mailboxRole)
   const subject = $derived(messages[0]?.subject ?? '(no subject)')
-  const defaultExpandedId = $derived(messages[messages.length - 1]?.id ?? null)
+  const defaultExpandedId = $derived(
+    messages.reduce<Message | null>(
+      (latest, message) =>
+        !latest || (message.receivedAt ?? '') > (latest.receivedAt ?? '') ? message : latest,
+      null
+    )?.id ?? null
+  )
 
   // Latest message expanded by default
   let expandedIds = $state(new SvelteSet<number>())
   let collapsedDefaultIds = $state(new SvelteSet<number>())
   let initializedThreadId = $state<string | null>(null)
   let acting = $state(false)
-  let splittingId = $state<number | null>(null)
   let errorDialogMessage = $state<string | null>(null)
   let actionModal = $state<{
     title: string
@@ -155,13 +160,21 @@
     return goto(resolve(`/${page.params.mailbox}`), { noScroll: true, keepFocus: true })
   }
 
-  function toggleExpanded(id: number) {
-    if (isMessageExpanded(id)) {
-      expandedIds.delete(id)
-      collapsedDefaultIds.add(id)
+  function toggleExpanded(message: Message) {
+    if (isMessageExpanded(message.id)) {
+      expandedIds.delete(message.id)
+      collapsedDefaultIds.add(message.id)
     } else {
-      collapsedDefaultIds.delete(id)
-      expandedIds.add(id)
+      collapsedDefaultIds.delete(message.id)
+      expandedIds.add(message.id)
+      if (!message.flags.includes('\\Seen')) {
+        message.flags.push('\\Seen')
+        void fetch('/api/messages/bulk', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ids: [message.id], action: 'mark_read' })
+        }).then(() => notifyMailboxStateChanged('thread-message-opened'))
+      }
     }
   }
 
@@ -345,34 +358,6 @@
     } catch (error) {
       threadMetadata = { ...threadMetadata, [field]: !nextValue }
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to update thread metadata.')
-    }
-  }
-
-  async function splitThreadFrom(msg: Message) {
-    if (splittingId !== null) return
-    splittingId = msg.id
-    try {
-      const response = await trackAppLoading(() =>
-        fetch(resolve(`/api/threads/${encodeThreadId(data.threadId)}/split`), {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ mailbox: page.params.mailbox, messageId: msg.id })
-        })
-      )
-
-      if (!response.ok) {
-        throw new Error(await readErrorMessage(response, 'Failed to split thread.'))
-      }
-
-      const result = (await response.json()) as { threadKey: string }
-      await goto(resolve(`/${page.params.mailbox}/thread/${encodeThreadId(result.threadKey)}`), {
-        noScroll: true,
-        keepFocus: true
-      })
-    } catch (error) {
-      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to split thread.')
-    } finally {
-      splittingId = null
     }
   }
 
@@ -1157,13 +1142,14 @@
   <!-- Thread messages accordion -->
   <div bind:this={scrollContainer} class="flex-1 overflow-y-auto">
     <div class="space-y-2 p-2 md:space-y-0 md:divide-y md:divide-white/8 md:p-0">
-      {#each messages as msg, index (msg.id)}
+      {#each messages as msg (msg.id)}
         {@const isExpanded = isMessageExpanded(msg.id)}
         {@const msgAttachments = getMessageAttachments(msg.messageId)}
         {@const remoteContentBody = remoteContentForMessage(msg)}
         {@const srcdoc = msg.htmlContent ? injectScrollbarStyle(remoteContentBody.html) : null}
 
         <div
+          style:margin-left={`${Math.min(msg.threadDepth, 4) * 1.25}rem`}
           class={[
             'rounded-2xl bg-white/2 transition-colors md:rounded-none md:bg-transparent',
             isExpanded ? 'bg-white/4 md:bg-white/2' : 'hover:bg-white/4 md:hover:bg-white/2'
@@ -1179,7 +1165,7 @@
 
             <button
               type="button"
-              onclick={() => toggleExpanded(msg.id)}
+              onclick={() => toggleExpanded(msg)}
               class="min-w-0 flex-1 text-left"
             >
               <div class="min-w-0">
@@ -1363,17 +1349,6 @@
                   />
                   {draftingReplyMessageId === msg.id ? 'Drafting...' : 'AI draft'}
                 </button>
-                {#if index > 0}
-                  <button
-                    type="button"
-                    disabled={splittingId !== null}
-                    onclick={() => splitThreadFrom(msg)}
-                    class="flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
-                  >
-                    <Scissors size={13} />
-                    {splittingId === msg.id ? 'Splitting...' : 'Split from here'}
-                  </button>
-                {/if}
               </div>
             </div>
           {/if}

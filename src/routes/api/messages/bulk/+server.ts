@@ -2,11 +2,12 @@ import { json, error } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import { db } from '$lib/server/db'
 import { mailMessage, mailMessageMailbox } from '$lib/server/db/schema'
-import { inArray, eq } from 'drizzle-orm'
+import { and, inArray, eq } from 'drizzle-orm'
 import {
   getStoredMessageById,
   moveMessage,
   refreshThreadSummaries,
+  resolveMailboxPath,
   snoozeMessages,
   type MessageAction
 } from '$lib/server/mail'
@@ -23,6 +24,23 @@ function parseSnoozedUntil(value: unknown) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return undefined
   return date
+}
+
+async function expandThreadIds(ids: number[], mailbox: string) {
+  const selected = await db
+    .select({ threadKey: mailMessage.threadKey })
+    .from(mailMessageMailbox)
+    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .where(inArray(mailMessageMailbox.id, ids))
+  const threadKeys = [...new Set(selected.map((row) => row.threadKey))]
+  if (threadKeys.length === 0) return []
+
+  return db
+    .select({ id: mailMessageMailbox.id })
+    .from(mailMessageMailbox)
+    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .where(and(eq(mailMessageMailbox.mailbox, mailbox), inArray(mailMessage.threadKey, threadKeys)))
+    .then((rows) => rows.map((row) => row.id))
 }
 
 async function markSeen(ids: number[], seen: boolean) {
@@ -75,11 +93,18 @@ async function markSeen(ids: number[], seen: boolean) {
 
 export const POST: RequestHandler = async ({ request }) => {
   const body = await request.json()
-  const ids = body.ids as number[]
+  let ids = body.ids as number[]
   const action = body.action as string
 
   if (!Array.isArray(ids) || ids.length === 0) {
     return error(400, 'ids must be a non-empty array')
+  }
+
+  if (body.threaded === true) {
+    if (typeof body.mailbox !== 'string' || !body.mailbox.trim()) {
+      return error(400, 'mailbox is required for threaded actions')
+    }
+    ids = await expandThreadIds(ids, await resolveMailboxPath(body.mailbox))
   }
 
   if (action === 'mark_read' || action === 'mark_unread') {

@@ -1549,6 +1549,8 @@
           body: JSON.stringify({
             ids: [...selectedIds],
             action,
+            threaded: threadedMode && !isSearchMode,
+            mailbox,
             ...(snoozedUntil ? { snoozedUntil: snoozedUntil.toISOString() } : {})
           })
         })
@@ -1719,10 +1721,15 @@
     closeContextMenu()
     try {
       await trackAppLoading(async () => {
-        const response = await fetch(`/api/messages/${id}`, {
+        const response = await fetch('/api/messages/bulk', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ action: 'archive' })
+          body: JSON.stringify({
+            ids: [id],
+            action: 'archive',
+            threaded: threadedMode && !isSearchMode,
+            mailbox
+          })
         })
 
         if (!response.ok) {
@@ -1741,10 +1748,15 @@
     closeContextMenu()
     try {
       await trackAppLoading(async () => {
-        const response = await fetch(`/api/messages/${id}`, {
+        const response = await fetch('/api/messages/bulk', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ action: 'trash' })
+          body: JSON.stringify({
+            ids: [id],
+            action: 'trash',
+            threaded: threadedMode && !isSearchMode,
+            mailbox
+          })
         })
 
         if (!response.ok) {
@@ -1763,10 +1775,15 @@
     closeContextMenu()
     try {
       await trackAppLoading(async () => {
-        const response = await fetch(`/api/messages/${id}`, {
+        const response = await fetch('/api/messages/bulk', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ action })
+          body: JSON.stringify({
+            ids: [id],
+            action,
+            threaded: threadedMode && !isSearchMode,
+            mailbox
+          })
         })
 
         if (!response.ok) {
@@ -1855,7 +1872,12 @@
         const response = await fetch('/api/messages/bulk', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ids: [id], action: 'mark_read' })
+          body: JSON.stringify({
+            ids: [id],
+            action: 'mark_read',
+            threaded: threadedMode && !isSearchMode,
+            mailbox
+          })
         })
 
         if (!response.ok) {
@@ -1879,7 +1901,12 @@
         const response = await fetch('/api/messages/bulk', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ids: [id], action: 'mark_unread' })
+          body: JSON.stringify({
+            ids: [id],
+            action: 'mark_unread',
+            threaded: threadedMode && !isSearchMode,
+            mailbox
+          })
         })
 
         if (!response.ok) {

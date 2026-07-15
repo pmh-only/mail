@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer'
 import { getSmtpConfig, getSmtpConfigs, type SmtpConfig } from './config'
 import { parseAddressFields, upsertContacts } from './contacts'
 import { db } from './db'
-import { smtpJob } from './db/schema'
+import { mailMessage, smtpJob } from './db/schema'
 import { logServerError } from './perf'
 import { isAuthError, withRetry } from './retry'
 import type { SmtpSendJobPayload } from './smtp-queue'
@@ -156,6 +156,17 @@ async function runJob(job: SmtpJobRow) {
     }
   })
 
+  const [parent] = payload.inReplyTo
+    ? await db
+        .select({ references: mailMessage.references })
+        .from(mailMessage)
+        .where(eq(mailMessage.messageId, payload.inReplyTo))
+        .limit(1)
+    : []
+  const references = payload.inReplyTo
+    ? [...(parent?.references?.split(/\s+/).filter(Boolean) ?? []), payload.inReplyTo]
+    : undefined
+
   await withRetry(
     () =>
       transporter.sendMail({
@@ -168,6 +179,7 @@ async function runJob(job: SmtpJobRow) {
         subject: payload.subject,
         html: payload.html ?? undefined,
         inReplyTo: payload.inReplyTo || undefined,
+        references,
         attachments: attachments.length > 0 ? attachments : undefined
       }),
     { label: 'smtp sendMail', maxAttempts: 3, baseDelayMs: 1000 }

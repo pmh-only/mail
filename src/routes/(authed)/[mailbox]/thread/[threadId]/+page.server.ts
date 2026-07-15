@@ -19,16 +19,7 @@ import {
 } from '$lib/server/preferences'
 import { getThreadNote, serializeThreadNote } from '$lib/server/thread-notes'
 
-function markReadAfterLoad(messages: Awaited<ReturnType<typeof getMessagesInThread>>) {
-  void Promise.all(messages.map((msg) => markMessageAsRead(msg))).catch((error) => {
-    console.error('[thread-open] failed to mark read:', error)
-  })
-}
-
-function serializeMessage(
-  message: Awaited<ReturnType<typeof getMessagesInThread>>[number],
-  seen = false
-) {
+function serializeMessage(message: Awaited<ReturnType<typeof getMessagesInThread>>[number]) {
   const flags = JSON.parse(message.flags) as string[]
 
   return {
@@ -45,9 +36,10 @@ function serializeMessage(
     htmlContent: message.htmlContent,
     inReplyTo: message.inReplyTo,
     references: message.references,
-    flags: seen && !flags.includes('\\Seen') ? [...flags, '\\Seen'] : flags,
+    flags,
     receivedAt: message.receivedAt?.toISOString() ?? null,
-    snoozedUntil: message.snoozedUntil?.toISOString() ?? null
+    snoozedUntil: message.snoozedUntil?.toISOString() ?? null,
+    threadDepth: message.threadDepth ?? 0
   }
 }
 
@@ -65,11 +57,14 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
     redirect(302, `/${params.mailbox}/${messages[0].id}`)
   }
 
-  const unreadMessages = messages.filter((msg) => {
-    const flags: string[] = JSON.parse(msg.flags)
-    return !flags.includes('\\Seen')
-  })
-  markReadAfterLoad(unreadMessages)
+  const latestMessage = messages.reduce((latest, message) =>
+    (message.receivedAt?.getTime() ?? 0) > (latest.receivedAt?.getTime() ?? 0) ? message : latest
+  )
+  await markMessageAsRead(latestMessage)
+  const latestFlags = JSON.parse(latestMessage.flags) as string[]
+  if (!latestFlags.includes('\\Seen')) {
+    latestMessage.flags = JSON.stringify([...latestFlags, '\\Seen'])
+  }
 
   const messageIds = messages.map((m) => m.messageId)
 
@@ -99,7 +94,7 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
   const body = {
     threadId,
     mailbox: mailboxPath,
-    messages: messages.map((message) => serializeMessage(message, true)),
+    messages: messages.map(serializeMessage),
     attachments,
     mailboxRole,
     remoteContent: {
