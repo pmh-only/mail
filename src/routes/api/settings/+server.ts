@@ -2,8 +2,17 @@ import { json, error } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
 import { env } from '$env/dynamic/private'
 import { db } from '$lib/server/db'
-import { mailConfig, mailSignature } from '$lib/server/db/schema'
-import { eq } from 'drizzle-orm'
+import {
+  mailConfig,
+  mailSignature,
+  mailboxCatalog,
+  mailboxSync,
+  mailMessageMailbox,
+  mailThreadSummary,
+  mailThreadMetadata,
+  mailboxNotificationSetting
+} from '$lib/server/db/schema'
+import { eq, or, ilike } from 'drizzle-orm'
 import { getDisplayConfig, getOidcConfig, invalidateConfigCache } from '$lib/server/config'
 import { invalidateAuth } from '$lib/server/auth'
 import {
@@ -198,9 +207,27 @@ export const POST: RequestHandler = async (event) => {
     body.imapServers,
     parseServerArray(existingConfig?.imapServers)
   )
+  const obsoleteServerNames: string[] = []
   if (imapServers) {
     shouldPersistConfig = true
     values.imapServers = imapServers
+
+    const oldImapServers = parseServerArray(existingConfig?.imapServers)
+    console.log('[DEBUG-CLEANUP] oldImapServers:', JSON.stringify(oldImapServers))
+    console.log('[DEBUG-CLEANUP] newImapServers:', JSON.stringify(imapServers))
+    for (const oldServer of oldImapServers) {
+      const oldId = oldServer.id as string
+      const oldName = oldServer.name as string
+      if (!oldName) continue
+
+      const newServer = imapServers.find((s) => s.id === oldId)
+      console.log(`[DEBUG-CLEANUP] Checking server: ${oldName} (id: ${oldId}). Found match:`, JSON.stringify(newServer))
+      if (!newServer || newServer.name !== oldName) {
+        console.log(`[DEBUG-CLEANUP] Found obsolete server name: ${oldName}`)
+        obsoleteServerNames.push(oldName)
+      }
+    }
+    console.log('[DEBUG-CLEANUP] obsoleteServerNames to delete:', obsoleteServerNames)
   }
 
   // SMTP fields
@@ -307,6 +334,53 @@ export const POST: RequestHandler = async (event) => {
       await db.insert(mailConfig).values(values).onConflictDoUpdate({
         target: mailConfig.id,
         set: values
+      })
+    }
+
+    if (obsoleteServerNames.length > 0) {
+      console.log('[DEBUG-CLEANUP] Starting DB cleanup transaction for:', obsoleteServerNames)
+      await db.transaction(async (tx) => {
+        for (const name of obsoleteServerNames) {
+          const prefix = `${name}/`
+          console.log(`[DEBUG-CLEANUP] Cleaning up database records for prefix: ${prefix}`)
+
+          await tx.delete(mailboxCatalog).where(
+            or(
+              ilike(mailboxCatalog.path, name),
+              ilike(mailboxCatalog.path, `${prefix}%`)
+            )
+          )
+          await tx.delete(mailboxSync).where(
+            or(
+              ilike(mailboxSync.mailbox, name),
+              ilike(mailboxSync.mailbox, `${prefix}%`)
+            )
+          )
+          await tx.delete(mailMessageMailbox).where(
+            or(
+              ilike(mailMessageMailbox.mailbox, name),
+              ilike(mailMessageMailbox.mailbox, `${prefix}%`)
+            )
+          )
+          await tx.delete(mailThreadSummary).where(
+            or(
+              ilike(mailThreadSummary.mailbox, name),
+              ilike(mailThreadSummary.mailbox, `${prefix}%`)
+            )
+          )
+          await tx.delete(mailThreadMetadata).where(
+            or(
+              ilike(mailThreadMetadata.mailbox, name),
+              ilike(mailThreadMetadata.mailbox, `${prefix}%`)
+            )
+          )
+          await tx.delete(mailboxNotificationSetting).where(
+            or(
+              ilike(mailboxNotificationSetting.mailbox, name),
+              ilike(mailboxNotificationSetting.mailbox, `${prefix}%`)
+            )
+          )
+        }
       })
     }
 

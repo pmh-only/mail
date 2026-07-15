@@ -3,6 +3,10 @@ import type { RequestHandler } from './$types'
 import { getSmtpConfig } from '$lib/server/config'
 import { isDemoModeEnabled } from '$lib/server/demo'
 import nodemailer from 'nodemailer'
+import { db } from '$lib/server/db'
+import { mailConfig } from '$lib/server/db/schema'
+import { eq } from 'drizzle-orm'
+import { decryptSecret } from '$lib/server/secrets'
 
 export const POST: RequestHandler = async ({ request }) => {
   if (isDemoModeEnabled()) {
@@ -23,12 +27,28 @@ export const POST: RequestHandler = async ({ request }) => {
     ('secure' in saved ? saved.secure : false)
   const user = (smtp?.user as string | undefined)?.trim() || ('user' in saved ? saved.user : '')
   const rawPassword = smtp?.password as string | undefined
-  const password =
-    rawPassword && rawPassword !== '••••••••'
-      ? rawPassword
-      : 'password' in saved && !('missing' in saved)
-        ? saved.password
-        : ''
+  let password = ''
+  if (rawPassword && rawPassword !== '••••••••') {
+    password = rawPassword
+  } else {
+    if (saved && 'password' in saved && !('missing' in saved) && user === saved.user && host === saved.host) {
+      password = saved.password
+    } else {
+      const [config] = await db.select({ smtpServers: mailConfig.smtpServers }).from(mailConfig).where(eq(mailConfig.id, 1)).limit(1)
+      if (config?.smtpServers && Array.isArray(config.smtpServers)) {
+        const matched = config.smtpServers.find(
+          (s: any) => s && s.user === user && s.host === host
+        )
+        if (matched && matched.password) {
+          try {
+            password = decryptSecret(matched.password)
+          } catch (e) {
+            console.error('[test-smtp] Decryption failed:', e)
+          }
+        }
+      }
+    }
+  }
 
   if (!host || !user || !password) {
     return json({ ok: false, message: 'Host, user, and password are required.' }, { status: 400 })
