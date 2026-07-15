@@ -3,6 +3,7 @@
   import ErrorDialog from '$lib/components/ErrorDialog.svelte'
   import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
   import { onMount } from 'svelte'
+  import { toast } from 'svelte-sonner'
   import {
     Download,
     Loader2,
@@ -181,6 +182,7 @@
     if (saving) return
     saving = true
     errorMessage = null
+    const updated = Boolean(editing)
     try {
       const payload = JSON.stringify({ name: formName.trim(), email: formEmail.trim() })
       const url = editing ? `/api/contacts?id=${editing.id}` : '/api/contacts'
@@ -192,6 +194,7 @@
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to save contact.'))
       resetForm()
       await loadContacts()
+      toast.success(updated ? 'Contact updated' : 'Contact created')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to save contact.')
     } finally {
@@ -203,6 +206,7 @@
     if (groupSaving) return
     groupSaving = true
     errorMessage = null
+    const updated = Boolean(editingGroup)
     try {
       const payload = JSON.stringify({
         name: groupName.trim(),
@@ -218,6 +222,7 @@
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to save group.'))
       resetGroupForm()
       await loadGroups()
+      toast.success(updated ? 'Group updated' : 'Group created')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to save group.')
     } finally {
@@ -239,6 +244,7 @@
       contacts = contacts.filter((item) => item.id !== contact.id)
       if (editing?.id === contact.id) resetForm()
       deleting = null
+      toast.success('Contact deleted')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to delete contact.')
     }
@@ -258,6 +264,7 @@
       groups = groups.filter((item) => item.id !== group.id)
       if (editingGroup?.id === group.id) resetGroupForm()
       deletingGroup = null
+      toast.success('Group deleted')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to delete group.')
     }
@@ -273,7 +280,9 @@
         body: JSON.stringify({ action: 'import' })
       })
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to import contacts.'))
+      const { imported } = (await res.json()) as { imported: number }
       await loadContacts()
+      toast.success(`${imported} contact${imported === 1 ? '' : 's'} imported`)
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to import contacts.')
     } finally {
@@ -327,8 +336,10 @@
         body: JSON.stringify({ action: 'import-csv', csv: csvText })
       })
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to import CSV.'))
+      const { imported } = (await res.json()) as { imported: number }
       closeCsvPreview()
       await loadContacts()
+      toast.success(`${imported} contact${imported === 1 ? '' : 's'} imported`)
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to import CSV.')
     } finally {
@@ -349,6 +360,7 @@
       link.download = 'contacts.csv'
       link.click()
       URL.revokeObjectURL(url)
+      toast.success('Contacts exported')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to export contacts.')
     } finally {

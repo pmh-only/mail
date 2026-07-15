@@ -6,6 +6,7 @@
   import { pathToSlug } from '$lib/mailbox'
   import { encodeThreadId } from '$lib/thread-url'
   import { ArrowLeft, Calendar, Loader2, Mail, MessageSquare, Pencil, Plus, X } from 'lucide-svelte'
+  import { toast } from 'svelte-sonner'
 
   type Contact = {
     id: number
@@ -84,6 +85,7 @@
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to save contact.'))
       formOpen = false
       await invalidateAll()
+      toast.success('Contact updated')
     } catch (err) {
       errorMessage = errorMessageFromUnknown(err, 'Failed to save contact.')
     } finally {

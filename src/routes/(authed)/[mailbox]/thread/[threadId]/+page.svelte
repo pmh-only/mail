@@ -41,6 +41,7 @@
     prepareRemoteContent
   } from '$lib/remote-content'
   import { scoreAttachmentSafety, type AttachmentSafetyScore } from '$lib/mail-attachments'
+  import { toast } from 'svelte-sonner'
 
   type Message = {
     id: number
@@ -199,6 +200,7 @@
         }
       })
       notifyMailboxStateChanged(`thread-action:${action}`)
+      toast.success(`Thread moved to ${action}`)
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, `Failed to ${action} thread.`)
@@ -224,6 +226,7 @@
         }
       })
       notifyMailboxStateChanged('thread-action:mark-unread')
+      toast.success('Thread marked as unread')
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark thread unread.')
@@ -289,6 +292,7 @@
         }
       })
       notifyMailboxStateChanged('thread-action:snooze')
+      toast.success('Thread snoozed')
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to snooze thread.')
@@ -323,6 +327,7 @@
       }
 
       notifyMailboxStateChanged('thread-action:block-sender')
+      toast.success('Sender blocked and thread moved to trash')
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to block sender.')
@@ -355,6 +360,15 @@
       }
       threadMetadata = payload.metadata
       notifyMailboxStateChanged('thread-metadata')
+      toast.success(
+        field === 'starred'
+          ? nextValue
+            ? 'Thread starred'
+            : 'Thread unstarred'
+          : nextValue
+            ? 'Thread pinned'
+            : 'Thread unpinned'
+      )
     } catch (error) {
       threadMetadata = { ...threadMetadata, [field]: !nextValue }
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to update thread metadata.')
@@ -507,6 +521,7 @@
       savedNoteUpdatedAt = payload.note?.updatedAt ?? null
       noteDraft = savedNoteBody
       notifyMailboxStateChanged('thread-note-saved')
+      toast.success(savedNoteBody ? 'Thread note saved' : 'Thread note cleared')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to save thread note.')
     } finally {
@@ -661,6 +676,7 @@
 
       allowedRemoteSenders = nextAllowedSenders
       showRemoteContentIds.add(msg.id)
+      toast.success('Sender trusted')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to trust sender.')
     } finally {

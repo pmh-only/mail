@@ -12,6 +12,7 @@
   import { page } from '$app/state'
   import { onMount, tick, untrack } from 'svelte'
   import { SvelteDate, SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity'
+  import { toast } from 'svelte-sonner'
   import {
     RefreshCw,
     CheckSquare,
@@ -560,6 +561,7 @@
       await loadSavedSearches()
       window.dispatchEvent(new CustomEvent('mail:saved-searches-changed'))
       showSavedSearchMenu = false
+      toast.success('Search saved')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to save search.')
     } finally {
@@ -588,6 +590,7 @@
         throw new Error(await readErrorMessage(response, 'Failed to rename saved search.'))
       await loadSavedSearches()
       window.dispatchEvent(new CustomEvent('mail:saved-searches-changed'))
+      toast.success('Saved search renamed')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to rename saved search.')
     }
@@ -1529,6 +1532,15 @@
         threadPinned: payload.metadata.pinned
       })
       notifyMailboxStateChanged('thread-metadata')
+      toast.success(
+        field === 'threadStarred'
+          ? nextValue
+            ? 'Thread starred'
+            : 'Thread unstarred'
+          : nextValue
+            ? 'Thread pinned'
+            : 'Thread unpinned'
+      )
     } catch (error) {
       updateThreadMetadataRows(threadId, { [field]: !nextValue })
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to update thread metadata.')
@@ -1562,6 +1574,15 @@
         clearSelection()
         await refreshVisibleListWindow(`bulk-action:${action}`)
         notifyMailboxStateChanged(`bulk-action:${action}`)
+        toast.success(
+          action === 'mark_read'
+            ? 'Messages marked as read'
+            : action === 'mark_unread'
+              ? 'Messages marked as unread'
+              : action === 'snooze'
+                ? 'Messages snoozed'
+                : `Messages moved to ${action}`
+        )
       })
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, `Failed to run ${action} action.`)
@@ -1623,6 +1644,7 @@
     totalCount = 0
     loadMoreError = null
     await refreshVisibleListWindow('toggle-threaded-reload')
+    toast.success(threadedMode ? 'Threaded view enabled' : 'Threaded view disabled')
 
     logPerf('toggleThreadedMode', {
       mailbox,
@@ -1738,6 +1760,7 @@
 
         await refreshVisibleListWindow('archive-message')
         notifyMailboxStateChanged('archive-message')
+        toast.success('Message archived')
       })
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to archive message.')
@@ -1765,6 +1788,7 @@
 
         await refreshVisibleListWindow('trash-message')
         notifyMailboxStateChanged('trash-message')
+        toast.success('Message moved to trash')
       })
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to move message to trash.')
@@ -1792,6 +1816,7 @@
 
         await refreshVisibleListWindow(`message-action:${action}`)
         notifyMailboxStateChanged(`message-action:${action}`)
+        toast.success(`Message moved to ${action}`)
       })
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, `Failed to ${action} message.`)
@@ -1855,6 +1880,9 @@
 
         await refreshVisibleListWindow(`bulk-sender:${action}`)
         notifyMailboxStateChanged(`bulk-sender:${action}`)
+        toast.success(
+          action === 'archive' ? 'Sender messages archived' : 'Sender messages moved to trash'
+        )
       })
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, `Failed to ${action} sender mail.`)
@@ -1886,6 +1914,7 @@
 
         await refreshVisibleListWindow('message-action:mark-read')
         notifyMailboxStateChanged('message-action:mark-read')
+        toast.success('Message marked as read')
       })
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark message read.')
@@ -1915,6 +1944,7 @@
 
         await refreshVisibleListWindow('message-action:mark-unread')
         notifyMailboxStateChanged('message-action:mark-unread')
+        toast.success('Message marked as unread')
       })
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark message unread.')
@@ -1974,6 +2004,7 @@
 
         await refreshVisibleListWindow('message-action:snooze')
         notifyMailboxStateChanged('message-action:snooze')
+        toast.success('Message snoozed')
       })
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to snooze message.')

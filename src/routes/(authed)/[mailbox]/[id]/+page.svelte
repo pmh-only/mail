@@ -43,6 +43,7 @@
   } from '$lib/remote-content'
   import { scoreAttachmentSafety, type AttachmentSafetyScore } from '$lib/mail-attachments'
   import { saveOfflineMessage } from '$lib/offline-cache'
+  import { toast } from 'svelte-sonner'
 
   type DensityPreference = 'comfortable' | 'compact' | 'condensed'
 
@@ -361,6 +362,7 @@
       const { url } = await res.json()
       await navigator.clipboard.writeText(url)
       shareCopied = true
+      toast.success('Share link copied')
       setTimeout(() => {
         shareCopied = false
       }, 2000)
@@ -387,6 +389,7 @@
       }
 
       notifyMailboxStateChanged('message-action:mark-unread')
+      toast.success('Message marked as unread')
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark message unread.')
@@ -451,6 +454,7 @@
       }
 
       notifyMailboxStateChanged('message-action:snooze')
+      toast.success('Message snoozed')
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to snooze message.')
@@ -584,6 +588,7 @@
       }
 
       notifyMailboxStateChanged(`message-action:${action}`)
+      toast.success(`Message moved to ${action}`)
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, `Failed to ${action} message.`)
@@ -728,6 +733,7 @@
 
       allowedRemoteSenders = nextAllowedSenders
       showRemoteContent = true
+      toast.success('Sender trusted')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to trust sender.')
     } finally {

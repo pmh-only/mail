@@ -59,6 +59,7 @@
     type ComposerAttachment
   } from '$lib/mail-attachments'
   import { normalizeRecipientList, validateRecipientFields } from '$lib/recipients'
+  import { toast } from 'svelte-sonner'
 
   let editorEl = $state<HTMLElement | undefined>(undefined)
   let editor: Editor | null = null
@@ -213,10 +214,10 @@
   }
 
   async function saveDraft() {
-    if (!composer.open || !editor) return
+    if (!composer.open || !editor) return false
     const html = currentHtml()
     const key = draftSnapshot(html)
-    if (key === lastSavedContent) return // nothing changed
+    if (key === lastSavedContent) return true // nothing changed
 
     try {
       const res = await fetch('/api/drafts', {
@@ -240,10 +241,12 @@
         composer.lastSavedAt = Date.now()
         lastSavedContent = key
         notifyMailboxStateChanged(wasNewDraft ? 'draft-created' : 'draft-updated')
+        return true
       }
     } catch {
       // silent — draft save failures shouldn't interrupt composition
     }
+    return false
   }
 
   async function deleteDraft() {
@@ -693,13 +696,15 @@
     discardDialogWasMinimized = false
     showDiscardDialog = false
     closeComposer()
+    toast.success('Draft discarded')
   }
 
   async function saveDraftAndClose() {
-    await saveDraft()
+    const saved = await saveDraft()
     discardDialogWasMinimized = false
     showDiscardDialog = false
     closeComposer()
+    if (saved) toast.success('Draft saved')
   }
 
   function cancelDiscard() {

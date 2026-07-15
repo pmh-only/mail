@@ -11,6 +11,7 @@
   import { normalizeAllowedSenders } from '$lib/remote-content'
   import { onMount, untrack } from 'svelte'
   import { Trash2, Plus, GripVertical, Download, Upload } from 'lucide-svelte'
+  import { toast } from 'svelte-sonner'
 
   type DensityPreference = 'comfortable' | 'compact' | 'condensed'
 
@@ -595,6 +596,7 @@
       await loadTemplates()
       resetNewTemplate()
       showAddTemplate = false
+      toast.success('Template created')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to add template.')
     } finally {
@@ -615,6 +617,7 @@
 
       editingTemplateId = null
       await loadTemplates()
+      toast.success('Template updated')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to update template.')
     } finally {
@@ -628,6 +631,7 @@
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to delete template.'))
 
       await loadTemplates()
+      toast.success('Template deleted')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to delete template.')
     }
@@ -765,11 +769,13 @@
 
       const payload = (await res.json()) as { currentSessionRevoked?: boolean }
       if (payload.currentSessionRevoked) {
+        toast.success('Session revoked')
         await goto(resolve('/login'))
         return
       }
 
       await loadSessions()
+      toast.success('Session revoked')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to revoke session.')
     } finally {
@@ -831,6 +837,7 @@
       await loadSenderRules()
       showAddSenderRule = false
       newSenderRule = { type: 'block', sender: '' }
+      toast.success('Sender rule created')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to add sender rule.')
     }
@@ -844,6 +851,7 @@
       }
 
       await loadSenderRules()
+      toast.success('Sender rule deleted')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to delete sender rule.')
     }
@@ -883,6 +891,7 @@
       if (!res.ok) {
         throw new Error(await readErrorMessage(res, 'Failed to update mailbox notifications.'))
       }
+      toast.success(enabled ? 'Mailbox notifications enabled' : 'Mailbox notifications disabled')
     } catch (error) {
       mailboxNotificationRules = previousRules
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to update mailbox notifications.')
@@ -914,6 +923,7 @@
       await loadFilters()
       showAddFilter = false
       resetNewFilter()
+      toast.success('Filter created')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to add filter.')
     }
@@ -934,6 +944,7 @@
       showAddCleanupRule = false
       cleanupPreview = []
       newCleanupRule = { mailbox: '', minAgeDays: 90 }
+      toast.success('Cleanup rule created')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to add cleanup rule.')
     }
@@ -985,6 +996,7 @@
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to run filters.'))
       const payload = (await res.json()) as { scanned: number }
       filterRunMessage = `Scanned ${payload.scanned} messages.`
+      toast.success(`Filters ran on ${payload.scanned} messages`)
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to run filters.')
     } finally {
@@ -1001,6 +1013,7 @@
       const payload = (await res.json()) as { archived: number }
       cleanupRunMessage = `Archived ${payload.archived} old messages.`
       await loadCleanupRules()
+      toast.success(`${payload.archived} old message${payload.archived === 1 ? '' : 's'} archived`)
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to run cleanup rules.')
     } finally {
@@ -1161,6 +1174,7 @@
       }
 
       await loadFilters()
+      toast.success('Filter deleted')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to delete filter.')
     }
@@ -1174,6 +1188,7 @@
       }
 
       await loadCleanupRules()
+      toast.success('Cleanup rule deleted')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to delete cleanup rule.')
     }
@@ -1191,6 +1206,7 @@
       }
 
       await loadFilters()
+      toast.success(filter.enabled ? 'Filter disabled' : 'Filter enabled')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to update filter.')
     }
@@ -1208,6 +1224,7 @@
       }
 
       await loadCleanupRules()
+      toast.success(rule.enabled ? 'Cleanup rule disabled' : 'Cleanup rule enabled')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to update cleanup rule.')
     }
@@ -1269,6 +1286,7 @@
       const existing = await reg.pushManager.getSubscription()
       if (existing) {
         pushStatus = 'subscribed'
+        toast.success('Push notifications already enabled')
         return
       }
 
@@ -1294,6 +1312,7 @@
       }
 
       pushStatus = 'subscribed'
+      toast.success('Push notifications enabled')
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to enable notifications.')
     } finally {
@@ -1307,6 +1326,8 @@
       const res = await fetch('/api/push/test', { method: 'POST' })
       if (!res.ok) {
         errorDialogMessage = await readErrorMessage(res, 'Failed to send test notification.')
+      } else {
+        toast.success('Test notification sent')
       }
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to send test notification.')
@@ -1323,6 +1344,7 @@
         const data = await res.json()
         notifPublicKey = data.publicKey
         notifStatus = 'done'
+        toast.success('VAPID keys generated')
       } else {
         notifStatus = 'idle'
         errorDialogMessage = await readErrorMessage(res, 'Failed to generate VAPID keys.')

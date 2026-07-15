@@ -4,6 +4,7 @@
   import './layout.css'
   import type { Snippet } from 'svelte'
   import { onMount } from 'svelte'
+  import { Toaster } from '$lib/components/ui/sonner'
 
   type ThemePreference = 'light' | 'dark' | 'system'
 
@@ -49,5 +50,7 @@
 </svelte:head>
 
 <div aria-hidden="true" class={['route-loading-bar', isLoading && 'active']}></div>
+
+<Toaster position="top-center" theme={data.themePreference} />
 
 {@render children()}
