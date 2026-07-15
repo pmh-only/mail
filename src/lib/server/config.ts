@@ -146,7 +146,7 @@ function fromLegacyImap(row: MailConfigRow | null): ImapConfig | null {
   }
 }
 
-function normalizeImapServers(row: MailConfigRow | null): ImapConfig[] {
+export function normalizeImapServers(row: MailConfigRow | null): ImapConfig[] {
   const sources = [...parseServerArray(row?.imapServers), ...parseServerArray(env.IMAP_SERVERS)]
   const servers = sources.flatMap((server, index) => {
     const host = asString(server.host)
@@ -189,7 +189,7 @@ function fromLegacySmtp(row: MailConfigRow | null): SmtpConfig | null {
   }
 }
 
-function normalizeSmtpServers(row: MailConfigRow | null): SmtpConfig[] {
+export function normalizeSmtpServers(row: MailConfigRow | null): SmtpConfig[] {
   const sources = [...parseServerArray(row?.smtpServers), ...parseServerArray(env.SMTP_SERVERS)]
   const servers = sources.flatMap((server, index) => {
     const host = asString(server.host)

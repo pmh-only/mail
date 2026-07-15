@@ -2033,6 +2033,29 @@
       secondaryImapTestResults[index].testing = false
     }
   }
+
+  let swappingPrimary = $state(false)
+
+  async function swapWithPrimary(secondaryId: string) {
+    if (swappingPrimary) return
+    swappingPrimary = true
+    try {
+      const res = await fetch('/api/settings/swap-imap', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ secondaryId })
+      })
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to swap IMAP servers.'))
+      }
+      toast.success('IMAP servers swapped successfully. Sync will restart.')
+      await invalidateAll()
+    } catch (err) {
+      errorDialogMessage = errorMessageFromUnknown(err, 'Failed to swap IMAP servers.')
+    } finally {
+      swappingPrimary = false
+    }
+  }
 </script>
 
 <div class="h-full min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-10">
@@ -2235,6 +2258,14 @@
                         {/if}
                       </div>
                       <div class="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onclick={() => swapWithPrimary(server.id)}
+                          disabled={swappingPrimary}
+                          class="rounded-lg border border-white/10 bg-blue-600/20 px-2.5 py-1.5 text-xs text-blue-400 transition hover:bg-blue-600/30"
+                        >
+                          Set as Primary
+                        </button>
                         <button
                           type="button"
                           onclick={() => testSecondaryImap(index)}

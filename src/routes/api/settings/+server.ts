@@ -14,10 +14,11 @@ import {
   mailboxNotificationSetting,
   passkey
 } from '$lib/server/db/schema'
-import { and, eq, ilike, inArray, or } from 'drizzle-orm'
+import { and, eq, ilike, inArray, not, or } from 'drizzle-orm'
 import {
   getAuthenticationConfig,
   getDisplayConfig,
+  getImapConfig,
   invalidateConfigCache,
   isOAuthClientConfigured,
   isOidcConfigComplete
@@ -216,9 +217,24 @@ export const POST: RequestHandler = async (event) => {
   }
 
   // IMAP fields — only persist non-empty strings, keep null for "use env var"
+  let primaryImapChanged = false
   if (body.imap) {
     shouldPersistConfig = true
     const imap = body.imap as Record<string, unknown>
+    const nextHost = typeof imap.host === 'string' ? imap.host.trim() || null : null
+    const nextUser = typeof imap.user === 'string' ? imap.user.trim() || null : null
+
+    const currentImap = await getImapConfig()
+    const currentHost = 'host' in currentImap ? currentImap.host : null
+    const currentUser = 'user' in currentImap ? currentImap.user : null
+
+    if (
+      (nextHost !== null && currentHost !== nextHost) ||
+      (nextUser !== null && currentUser !== nextUser)
+    ) {
+      primaryImapChanged = true
+    }
+
     if (typeof imap.host === 'string') values.imapHost = imap.host.trim() || null
     if (typeof imap.port === 'number') values.imapPort = imap.port > 0 ? imap.port : null
     if (typeof imap.secure === 'boolean') values.imapSecure = imap.secure
@@ -512,6 +528,65 @@ export const POST: RequestHandler = async (event) => {
           await tx
             .delete(account)
             .where(and(eq(account.userId, event.locals.user.id), eq(account.providerId, 'oidc')))
+        }
+        if (primaryImapChanged) {
+          const activeSecondaryNames = parseServerArray(values.imapServers || existingConfig?.imapServers)
+            .map((s) => s.name as string)
+            .filter(Boolean)
+
+          console.log('[DEBUG-CLEANUP] Primary IMAP changed. Cleaning legacy primary mailboxes. Active secondary names:', activeSecondaryNames)
+
+          const buildPrimaryExcludeCondition = (field: any) => {
+            if (activeSecondaryNames.length === 0) return undefined
+            return and(
+              ...activeSecondaryNames.flatMap((name) => [
+                not(ilike(field, name)),
+                not(ilike(field, `${name}/%`))
+              ])
+            )
+          }
+
+          const catalogCond = buildPrimaryExcludeCondition(mailboxCatalog.path)
+          if (catalogCond) {
+            await tx.delete(mailboxCatalog).where(catalogCond)
+          } else {
+            await tx.delete(mailboxCatalog)
+          }
+
+          const syncCond = buildPrimaryExcludeCondition(mailboxSync.mailbox)
+          if (syncCond) {
+            await tx.delete(mailboxSync).where(syncCond)
+          } else {
+            await tx.delete(mailboxSync)
+          }
+
+          const msgMailboxCond = buildPrimaryExcludeCondition(mailMessageMailbox.mailbox)
+          if (msgMailboxCond) {
+            await tx.delete(mailMessageMailbox).where(msgMailboxCond)
+          } else {
+            await tx.delete(mailMessageMailbox)
+          }
+
+          const threadSummaryCond = buildPrimaryExcludeCondition(mailThreadSummary.mailbox)
+          if (threadSummaryCond) {
+            await tx.delete(mailThreadSummary).where(threadSummaryCond)
+          } else {
+            await tx.delete(mailThreadSummary)
+          }
+
+          const threadMetadataCond = buildPrimaryExcludeCondition(mailThreadMetadata.mailbox)
+          if (threadMetadataCond) {
+            await tx.delete(mailThreadMetadata).where(threadMetadataCond)
+          } else {
+            await tx.delete(mailThreadMetadata)
+          }
+
+          const notificationCond = buildPrimaryExcludeCondition(mailboxNotificationSetting.mailbox)
+          if (notificationCond) {
+            await tx.delete(mailboxNotificationSetting).where(notificationCond)
+          } else {
+            await tx.delete(mailboxNotificationSetting)
+          }
         }
       })
     }

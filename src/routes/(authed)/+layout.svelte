@@ -61,6 +61,8 @@
       savedSearches: SavedSearch[]
       user: { name: string; email: string } | null
       simplifiedView: boolean
+      mailboxPreferences: { order: string[]; hidden: string[] }
+      secondaryNames: string[]
       demoMode: boolean
     }
     children: import('svelte').Snippet
@@ -143,14 +145,37 @@
   function buildMailboxTree(mailboxes: ImapMailbox[]) {
     const roots: MailboxTreeNode[] = []
     const nodes = new SvelteMap<string, MailboxTreeNode>()
+    const secondaryNamesLower = (data.secondaryNames || []).map((name) => name.toLowerCase())
 
     for (const mailbox of mailboxes) {
+      if (!mailbox.path) continue
+
+      const pathLower = mailbox.path.toLowerCase()
+      // Skip the root secondary folder node (e.g. 'Gmail') itself
+      if (secondaryNamesLower.includes(pathLower)) {
+        continue
+      }
+
       const segments = splitMailboxPath(mailbox.path, mailbox.delimiter)
-      const normalizedSegments = segments.length > 0 ? segments : [mailbox.path]
+      let normalizedSegments = segments.length > 0 ? segments : [mailbox.path]
+
+      // Strip the secondary prefix name segment to flatten its representation under the header
+      let isSecondary = false
+      if (normalizedSegments.length > 0) {
+        const firstSegLower = normalizedSegments[0].toLowerCase()
+        if (secondaryNamesLower.includes(firstSegLower)) {
+          normalizedSegments = normalizedSegments.slice(1)
+          isSecondary = true
+        }
+      }
+
+      if (normalizedSegments.length === 0) continue
+
       let parentKey: string | null = null
 
       for (const [index, segment] of normalizedSegments.entries()) {
-        const key = normalizedSegments.slice(0, index + 1).join(mailbox.delimiter)
+        const prefix = isSecondary ? (segments[0] + mailbox.delimiter) : ''
+        const key = prefix + normalizedSegments.slice(0, index + 1).join(mailbox.delimiter)
         let node = nodes.get(key)
 
         if (!node) {
@@ -783,6 +808,109 @@
     }
   })
 
+  function getMailboxServer(path: string | null | undefined, secondaryNames: string[]): string {
+    if (!path) return 'Primary'
+    const firstSegment = path.split('/')[0].toLowerCase()
+    const lowerSecondaryNames = (secondaryNames || []).map((name) => name.toLowerCase())
+    const matchedIdx = lowerSecondaryNames.indexOf(firstSegment)
+    if (matchedIdx !== -1) {
+      return secondaryNames[matchedIdx]
+    }
+    return 'Primary'
+  }
+
+  let collapsedAccounts = $state(new SvelteSet<string>())
+
+  function toggleAccountCollapsed(accountName: string) {
+    if (collapsedAccounts.has(accountName)) {
+      collapsedAccounts.delete(accountName)
+    } else {
+      collapsedAccounts.add(accountName)
+    }
+  }
+
+  let draggingMailboxPath = $state<string | null>(null)
+  let dragOverMailboxPath = $state<string | null>(null)
+  let dragOverDirection = $state<'above' | 'below' | null>(null)
+
+  function handleDragOver(e: DragEvent, targetPath: string) {
+    if (!draggingMailboxPath || draggingMailboxPath === targetPath) return
+    e.preventDefault()
+
+    dragOverMailboxPath = targetPath
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const mouseY = e.clientY - rect.top
+    const threshold = rect.height / 2
+
+    if (mouseY < threshold) {
+      dragOverDirection = 'above'
+    } else {
+      dragOverDirection = 'below'
+    }
+  }
+
+  async function handleMailboxDrop(targetPath: string) {
+    if (!draggingMailboxPath || draggingMailboxPath === targetPath) return
+
+    const paths = imapMailboxes.map((mb) => mb.path)
+    const dragIdx = paths.indexOf(draggingMailboxPath)
+    const dropIdx = paths.indexOf(targetPath)
+
+    if (dragIdx === -1 || dropIdx === -1) return
+
+    const filteredPaths = paths.filter((p) => p !== draggingMailboxPath)
+    let insertIdx = filteredPaths.indexOf(targetPath)
+    if (dragOverDirection === 'below') {
+      insertIdx += 1
+    }
+    filteredPaths.splice(insertIdx, 0, draggingMailboxPath)
+
+    const currentOrder = data.mailboxPreferences?.order || []
+    const basePaths = Array.from(new Set([...currentOrder, ...paths]))
+    const filteredBase = basePaths.filter((p) => p !== draggingMailboxPath)
+    let insertIdxBase = filteredBase.indexOf(targetPath)
+    if (dragOverDirection === 'below') {
+      insertIdxBase += 1
+    }
+    filteredBase.splice(insertIdxBase, 0, draggingMailboxPath)
+
+    const nextPreferences = {
+      order: filteredBase,
+      hidden: data.mailboxPreferences?.hidden || []
+    }
+
+    try {
+      const res = await fetch('/api/settings/mailbox-preferences', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ preferences: nextPreferences })
+      })
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to save order.'))
+      }
+      
+      if (data.mailboxPreferences) {
+        data.mailboxPreferences.order = filteredBase
+      }
+      const sorted = [...imapMailboxes].sort((left, right) => {
+        const leftIdx = filteredBase.indexOf(left.path)
+        const rightIdx = filteredBase.indexOf(right.path)
+        const leftVal = leftIdx === -1 ? Number.MAX_SAFE_INTEGER : leftIdx
+        const rightVal = rightIdx === -1 ? Number.MAX_SAFE_INTEGER : rightIdx
+        return leftVal - rightVal
+      })
+      imapMailboxes = sorted
+      toast.success('Mailbox order updated')
+    } catch (err) {
+      toast.error('Failed to update mailbox order')
+      console.error(err)
+    } finally {
+      draggingMailboxPath = null
+      dragOverMailboxPath = null
+      dragOverDirection = null
+    }
+  }
+
   function startResize(e: PointerEvent) {
     e.preventDefault()
     const handle = e.currentTarget as HTMLElement
@@ -943,16 +1071,67 @@
         Mail
       </p>
       <nav bind:this={mailboxNavEl} class="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
-        {#each visibleMailboxRows as row (row.key)}
+        {#each visibleMailboxRows as row, index (row.key)}
           {@const selectableIndex = row.slug
             ? mailboxes.findIndex((mb) => mb.slug === row.slug)
             : -1}
-          <div
+          {@const currentServer = getMailboxServer(row.path, data.secondaryNames)}
+          {@const prevServer = index > 0 ? getMailboxServer(visibleMailboxRows[index - 1].path, data.secondaryNames) : null}
+
+          {#if index === 0 || currentServer !== prevServer}
+            {#if index > 0}
+              <div class="my-2 border-t border-white/5"></div>
+            {/if}
+            <button
+              type="button"
+              onclick={() => toggleAccountCollapsed(currentServer)}
+              class="flex w-full items-center gap-1.5 px-3 pt-2 pb-1 text-[10px] font-bold tracking-wider text-zinc-500 hover:text-zinc-300 uppercase select-none text-left"
+            >
+              {#if collapsedAccounts.has(currentServer)}
+                <ChevronRight size={10} class="text-zinc-600" />
+              {:else}
+                <ChevronDown size={10} class="text-zinc-600" />
+              {/if}
+              {currentServer === 'Primary' ? 'Primary Account' : currentServer}
+            </button>
+          {/if}
+
+          {#if !collapsedAccounts.has(currentServer)}
+            <div
+            role="listitem"
+            draggable="true"
+            ondragstart={(e) => {
+              if (row.path) {
+                draggingMailboxPath = row.path
+                e.dataTransfer?.setData('text/plain', row.path)
+              }
+            }}
+            ondragover={(e) => {
+              if (row.path) {
+                handleDragOver(e, row.path)
+              }
+            }}
+            ondragleave={() => {
+              dragOverMailboxPath = null
+              dragOverDirection = null
+            }}
+            ondrop={(e) => {
+              e.preventDefault()
+              if (row.path) {
+                void handleMailboxDrop(row.path)
+              }
+            }}
             class={[
-              'group flex items-center gap-1 rounded-xl transition',
+              'group flex items-center gap-1 rounded-xl transition-all duration-75 relative',
               row.selectable && mailbox === row.slug
                 ? 'bg-white/8 text-white'
                 : 'text-zinc-400 hover:bg-white/4 hover:text-zinc-200',
+              dragOverMailboxPath === row.path && dragOverDirection === 'above'
+                ? 'shadow-[inset_0_2px_0_0_#10b981]'
+                : '',
+              dragOverMailboxPath === row.path && dragOverDirection === 'below'
+                ? 'shadow-[inset_0_-2px_0_0_#10b981]'
+                : '',
               row.selectable &&
               keyboard.panel === 'mailboxes' &&
               selectableIndex >= 0 &&
@@ -1031,6 +1210,7 @@
               </button>
             {/if}
           </div>
+          {/if}
         {/each}
 
         {#if savedSearches.length > 0}
