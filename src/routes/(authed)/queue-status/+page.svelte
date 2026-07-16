@@ -74,6 +74,7 @@
   let errorMessage = $state<string | null>(null)
   let autoRefresh = $state(true)
   let retryingJob = $state<string | null>(null)
+  let deletingJob = $state<string | null>(null)
   let resyncing = $state(false)
 
   const totalJobs = $derived((health?.queues.imap.total ?? 0) + (health?.queues.smtp.total ?? 0))
@@ -175,6 +176,24 @@
       errorMessage = errorMessageFromUnknown(error, 'Failed to retry job.')
     } finally {
       retryingJob = null
+    }
+  }
+
+  async function deleteJob(job: QueueError) {
+    deletingJob = `${job.queue}-${job.id}`
+    try {
+      const response = await fetch('/api/queue-health/delete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ queue: job.queue, id: job.id })
+      })
+      if (!response.ok) throw new Error(await readErrorMessage(response, 'Failed to delete job.'))
+      await loadHealth('manual')
+      toast('Job deleted successfully')
+    } catch (error) {
+      errorMessage = errorMessageFromUnknown(error, 'Failed to delete job.')
+    } finally {
+      deletingJob = null
     }
   }
 
@@ -521,22 +540,32 @@
                       {job.lastError ?? 'Unknown error'}
                     </p>
                   </div>
-                  <div class="shrink-0 rounded-xl bg-white/[0.04] px-3 py-2 text-xs text-zinc-400">
+                  <div class="shrink-0 w-72 rounded-xl bg-white/[0.04] px-3 py-2 text-xs text-zinc-400">
                     {#if job.mailbox}
-                      <div>Mailbox: <span class="text-zinc-200">{job.mailbox}</span></div>
+                      <div class="truncate" title={job.mailbox}>Mailbox: <span class="text-zinc-200">{job.mailbox}</span></div>
                     {/if}
                     {#if job.uid}
                       <div>UID: <span class="text-zinc-200">{job.uid}</span></div>
                     {/if}
                     <div>Status: <span class="text-zinc-200">{job.status}</span></div>
-                    <button
-                      type="button"
-                      onclick={() => void retryJob(job)}
-                      disabled={retryingJob === `${job.queue}-${job.id}`}
-                      class="mt-2 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-zinc-200 hover:bg-white/10 disabled:opacity-50"
-                    >
-                      {retryingJob === `${job.queue}-${job.id}` ? 'Retrying...' : 'Retry job'}
-                    </button>
+                    <div class="mt-2 flex gap-1.5">
+                      <button
+                        type="button"
+                        onclick={() => void retryJob(job)}
+                        disabled={retryingJob === `${job.queue}-${job.id}`}
+                        class="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-zinc-200 hover:bg-white/10 disabled:opacity-50"
+                      >
+                        {retryingJob === `${job.queue}-${job.id}` ? 'Retrying...' : 'Retry job'}
+                      </button>
+                      <button
+                        type="button"
+                        onclick={() => void deleteJob(job)}
+                        disabled={deletingJob === `${job.queue}-${job.id}`}
+                        class="rounded-lg border border-red-500/20 bg-red-500/10 px-2 py-1 text-xs text-red-200 hover:bg-red-500/20 disabled:opacity-50"
+                      >
+                        {deletingJob === `${job.queue}-${job.id}` ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </article>
