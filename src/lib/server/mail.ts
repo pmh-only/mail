@@ -1168,10 +1168,19 @@ async function syncOneMailbox(
       lock.release()
     }
 
-    // Do not keep an IMAP session open while rebuilding a large local cache.
-    invalidateWorkerConnection(config.id, syncClient)
-    client = null
-    await refreshThreadSummaries(mailboxPath, touchedThreadKeys)
+    // Keep the IMAP session open to reuse it for reconciliation and other mailboxes.
+    // Start a background keep-alive to prevent the provider from dropping the session during long local rebuilds.
+    const keepaliveTimer = setInterval(() => {
+      if (syncClient.usable) {
+        syncClient.noop().catch(() => {})
+      }
+    }, 15_000)
+
+    try {
+      await refreshThreadSummaries(mailboxPath, touchedThreadKeys)
+    } finally {
+      clearInterval(keepaliveTimer)
+    }
 
     const lastReconciledAt = state?.lastReconciledAt?.getTime() ?? 0
     const shouldReconcile = force || Date.now() - lastReconciledAt >= FULL_RECONCILE_INTERVAL_MS
