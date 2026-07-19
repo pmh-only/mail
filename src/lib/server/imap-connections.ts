@@ -102,7 +102,9 @@ function entryFor(config: ImapConfig) {
 
 export async function getWorkerConnection(config: ImapConfig) {
   const entry = entryFor(config)
-  if (entry.worker?.usable) return entry.worker
+  if (entry.worker && (entry.worker.usable || Boolean(entry.worker.authenticated))) {
+    return entry.worker
+  }
   if (entry.workerConnecting) return entry.workerConnecting
   if (entry.worker) {
     closeClient(entry.worker)
