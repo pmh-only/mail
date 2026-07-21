@@ -78,9 +78,7 @@ async function tick() {
     await maybeRunCleanupRulesFromWorker()
 
     // The sync clock is paused while SMTP jobs are pending/running/retrying.
-    if (await hasUnfinishedSmtpJobs()) return
-
-    await maybeRunSync()
+    if (!(await hasUnfinishedSmtpJobs())) await maybeRunSync()
 
     if (Date.now() - lastBackfillAt >= 60_000) {
       lastBackfillAt = Date.now()

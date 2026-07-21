@@ -1,3 +1,17 @@
+export function isRateLimitError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase()
+  const responseText = (err as any)?.responseText?.toLowerCase() ?? ''
+  const response = (err as any)?.response?.toLowerCase() ?? ''
+  const combined = `${msg} ${responseText} ${response}`
+  return (
+    combined.includes('too many simultaneous connections') ||
+    combined.includes('user is authenticated but not connected') ||
+    combined.includes('rate limit') ||
+    combined.includes('exceeded allow') ||
+    combined.includes('[alert]')
+  )
+}
+
 export function isAuthError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message.toLowerCase() : ''
   return (
@@ -11,7 +25,7 @@ export function isAuthError(err: unknown): boolean {
 
 /**
  * Retry an async operation with exponential back-off.
- * Auth errors are never retried regardless of `shouldRetry`.
+ * Auth errors and rate limit errors are never retried regardless of `shouldRetry`.
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
@@ -29,7 +43,7 @@ export async function withRetry<T>(
       return await fn()
     } catch (err) {
       lastError = err
-      const retryable = shouldRetry ? shouldRetry(err) : !isAuthError(err)
+      const retryable = shouldRetry ? shouldRetry(err) : (!isAuthError(err) && !isRateLimitError(err))
       if (!retryable || attempt === maxAttempts) throw err
       const delay = baseDelayMs * 2 ** (attempt - 1)
       console.warn(
