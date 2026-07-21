@@ -29,6 +29,7 @@ let tickInFlight = false
 let stopping = false
 let lastHeartbeatAt = 0
 let lastSyncAttemptAt = 0
+let lastBackfillAt = 0
 let syncRequested = false
 const dirtyMailboxes = new Map<string, Set<string>>()
 
@@ -77,9 +78,15 @@ async function tick() {
     await maybeRunCleanupRulesFromWorker()
 
     // The sync clock is paused while SMTP jobs are pending/running/retrying.
-    if (!(await hasUnfinishedSmtpJobs())) await maybeRunSync()
-    await backfillMailAuthenticationFromWorker()
-    await backfillOpenPgpFromWorker()
+    if (await hasUnfinishedSmtpJobs()) return
+
+    await maybeRunSync()
+
+    if (Date.now() - lastBackfillAt >= 60_000) {
+      lastBackfillAt = Date.now()
+      await backfillMailAuthenticationFromWorker()
+      await backfillOpenPgpFromWorker()
+    }
     void maybeClassifyPendingMailFromWorker()
   } catch (error) {
     console.error('[worker] tick failed:', error)
