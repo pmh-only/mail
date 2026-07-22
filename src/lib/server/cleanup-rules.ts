@@ -95,7 +95,15 @@ export function normalizeCleanupRuleInput(input: CleanupRuleInput) {
   }
 }
 
-export async function previewCleanupRule(input: CleanupRuleInput, limit = DEFAULT_PREVIEW_LIMIT) {
+export type CleanupPreviewResult = {
+  matches: CleanupPreviewRow[]
+  warning?: string | null
+}
+
+export async function previewCleanupRule(
+  input: CleanupRuleInput,
+  limit = DEFAULT_PREVIEW_LIMIT
+): Promise<CleanupPreviewResult> {
   const rule = {
     id: 0,
     ...normalizeCleanupRuleInput(input),
@@ -103,7 +111,17 @@ export async function previewCleanupRule(input: CleanupRuleInput, limit = DEFAUL
     createdAt: new Date(),
     updatedAt: new Date()
   }
-  return getCleanupCandidates(rule, limit)
+
+  let warning: string | null = null
+  if (rule.mailbox) {
+    const role = getMailboxRole(rule.mailbox)
+    if (role === 'trash' || role === 'archive' || role === 'spam') {
+      warning = `이 메일함('${rule.mailbox}')은 분류가 '${role}'(이)므로 보관(Archive) 청소 규칙이 적용되지 않습니다.`
+    }
+  }
+
+  const matches = await getCleanupCandidates(rule, limit)
+  return { matches, warning }
 }
 
 export async function runCleanupRules(limitPerRule = DEFAULT_RUN_LIMIT): Promise<number> {

@@ -5,10 +5,10 @@ import { isDemoModeEnabled } from '$lib/server/demo'
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
-    if (isDemoModeEnabled()) return json({ matches: [] })
+    if (isDemoModeEnabled()) return json({ matches: [], warning: null })
 
-    const matches = await previewCleanupRule(await request.json())
-    return json({ matches })
+    const result = await previewCleanupRule(await request.json())
+    return json(result)
   } catch (err) {
     return error(400, err instanceof Error ? err.message : 'Invalid cleanup rule')
   }

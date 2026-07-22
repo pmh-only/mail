@@ -25,7 +25,7 @@
     type ThemeStyleId
   } from '$lib/theme'
   import { onMount, untrack } from 'svelte'
-  import { Trash2, Plus, GripVertical, Download, Upload } from 'lucide-svelte'
+  import { Trash2, Plus, GripVertical, Download, Upload, AlertTriangle } from 'lucide-svelte'
   import { toast } from 'svelte-sonner'
 
   type DensityPreference = 'comfortable' | 'compact' | 'condensed'
@@ -579,6 +579,7 @@
   let errorDialogMessage = $state<string | null>(null)
   let filterPreview = $state<FilterPreviewMatch[]>([])
   let cleanupPreview = $state<FilterPreviewMatch[]>([])
+  let cleanupPreviewWarning = $state<string | null>(null)
   let previewingFilter = $state(false)
   let previewingCleanup = $state(false)
   let runningFilters = $state(false)
@@ -1220,6 +1221,7 @@
 
   async function previewNewCleanupRule() {
     previewingCleanup = true
+    cleanupPreviewWarning = null
     try {
       const res = await fetch('/api/cleanup-rules/preview', {
         method: 'POST',
@@ -1227,8 +1229,9 @@
         body: JSON.stringify(newCleanupRule)
       })
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to preview cleanup rule.'))
-      const payload = (await res.json()) as { matches: FilterPreviewMatch[] }
+      const payload = (await res.json()) as { matches: FilterPreviewMatch[]; warning?: string | null }
       cleanupPreview = payload.matches
+      cleanupPreviewWarning = payload.warning ?? null
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to preview cleanup rule.')
     } finally {
@@ -4439,13 +4442,20 @@
                   <label class="mb-1 block text-xs text-zinc-500" for="cleanup-mailbox"
                     >Mailbox path</label
                   >
-                  <input
+                  <select
                     id="cleanup-mailbox"
-                    type="text"
                     bind:value={newCleanupRule.mailbox}
-                    placeholder="Leave blank for all regular mailboxes"
-                    class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
-                  />
+                    class="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">All regular mailboxes (모든 일반 메일함)</option>
+                    {#if data.imapMailboxes && data.imapMailboxes.length > 0}
+                      {#each data.imapMailboxes as mailbox}
+                        <option value={mailbox.path}>
+                          {mailbox.name || mailbox.path} ({mailbox.path})
+                        </option>
+                      {/each}
+                    {/if}
+                  </select>
                 </div>
               </div>
               <div class="flex flex-wrap gap-2">
@@ -4472,9 +4482,18 @@
                   Cancel
                 </button>
               </div>
+              {#if cleanupPreviewWarning}
+                <div class="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
+                  <div class="flex items-center gap-1.5 font-medium">
+                    <AlertTriangle size={14} class="shrink-0 text-amber-400" />
+                    <span>청소 규칙 적용 안내 (Notice)</span>
+                  </div>
+                  <p class="mt-1.5 text-amber-300/90 leading-relaxed">{cleanupPreviewWarning}</p>
+                </div>
+              {/if}
               {#if cleanupPreview.length > 0}
                 <div class="rounded-lg border border-white/8 bg-black/20 p-3">
-                  <p class="mb-2 text-xs font-medium text-zinc-400">Dry-run preview</p>
+                  <p class="mb-2 text-xs font-medium text-zinc-400">Dry-run preview ({cleanupPreview.length} items matched)</p>
                   <div class="space-y-2">
                     {#each cleanupPreview as match (match.id)}
                       <div class="text-xs text-zinc-400">

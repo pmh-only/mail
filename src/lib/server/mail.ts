@@ -3062,10 +3062,10 @@ export async function markMessageAsUnread(message: MailRow) {
 export type MessageAction = 'archive' | 'trash' | 'spam' | 'inbox'
 
 const ROLE_PATTERNS: Record<MessageAction, RegExp> = {
-  inbox: /\binbox\b/i,
-  archive: /\b(archive|all[\s._-]?mail)\b/i,
-  trash: /\b(trash|deleted[\s._-]?(items|messages)?)\b/i,
-  spam: /\b(spam|junk([\s._-]?email)?)\b/i
+  inbox: /\binbox\b|받은메일함|받은\s?메일함/i,
+  archive: /\b(archive|all[\s._-]?mail)\b|전체보관함|보관함/i,
+  trash: /\b(trash|deleted[\s._-]?(items|messages)?)\b|휴지통|지운\s?편지함/i,
+  spam: /\b(spam|junk([\s._-]?email)?)\b|스팸|스팸함|스팸편지함/i
 }
 
 const ROLE_SPECIAL_USE: Record<MessageAction, string[]> = {
