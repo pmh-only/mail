@@ -1458,7 +1458,7 @@
                   <span
                     id="tracing-code-tooltip"
                     role="tooltip"
-                    class="pointer-events-none absolute top-full left-1/2 z-20 mt-2 w-max max-w-64 -translate-x-1/2 rounded-md border border-white/10 bg-zinc-800 px-2 py-1 text-xs font-normal text-zinc-200 normal-case opacity-0 shadow-xl transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+                    class="pointer-events-none absolute top-full left-1/2 z-20 mt-2 hidden w-max max-w-64 -translate-x-1/2 rounded-md border border-white/10 bg-zinc-800 px-2 py-1 text-xs font-normal text-zinc-200 normal-case shadow-xl group-hover:block"
                   >
                     {message.tracingCodeCount} tracing code{message.tracingCodeCount === 1
                       ? ''

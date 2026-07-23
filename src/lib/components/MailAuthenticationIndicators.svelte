@@ -53,7 +53,7 @@
   <div
     id={tooltipId}
     role="tooltip"
-    class="pointer-events-none absolute top-full left-0 z-20 mt-2 w-48 rounded-md border border-white/10 bg-zinc-800 p-2 text-xs font-normal text-zinc-200 normal-case opacity-0 shadow-xl transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+    class="pointer-events-none absolute top-full left-0 z-20 mt-2 hidden w-48 rounded-md border border-white/10 bg-zinc-800 p-2 text-xs font-normal text-zinc-200 normal-case shadow-xl group-hover:block"
   >
     <dl class="space-y-1">
       {#each checks as check (check.label)}
