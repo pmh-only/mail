@@ -82,6 +82,7 @@ import {
   listDemoStoredThreads,
   markDemoMessageAsRead,
   markDemoMessageAsUnread,
+  markDemoMailboxMessagesSeen,
   moveDemoMessage,
   searchDemoMessages,
   searchDemoMessagesByRegex,
@@ -3404,36 +3405,60 @@ export async function markMessagesSeen(ids: number[], seen: boolean) {
     .where(inArray(mailMessageMailbox.messageId, messageIds))
 
   const changedRows = changedReadStateCopies(rows, new Set(messageIds), seen)
+  if (changedRows.length === 0) return 0
+
   const touchedThreadKeysByMailbox = new Map<string, Set<string>>()
+  for (const row of changedRows) {
+    const touchedThreadKeys = touchedThreadKeysByMailbox.get(row.mailbox) ?? new Set<string>()
+    touchedThreadKeys.add(row.threadKey)
+    touchedThreadKeysByMailbox.set(row.mailbox, touchedThreadKeys)
+  }
+
+  const rowsByFlags = new Map<string, number[]>()
+  for (const row of changedRows) {
+    const list = rowsByFlags.get(row.flags) ?? []
+    list.push(row.id)
+    rowsByFlags.set(row.flags, list)
+  }
+
+  const now = new Date()
+  const jobs = changedRows.map((row) => {
+    const job = seenJob(row.uid, row.mailbox, seen)
+    return {
+      type: job.type,
+      mailbox: row.mailbox,
+      uid: row.uid,
+      targetMailbox: null,
+      status: 'pending' as const,
+      dedupeKey: job.dedupeKey,
+      attemptCount: 0,
+      availableAt: now,
+      lastError: null,
+      createdAt: now,
+      updatedAt: now
+    }
+  })
 
   await db.transaction(async (tx) => {
-    for (const row of changedRows) {
-      await tx
-        .update(mailMessageMailbox)
-        .set({ flags: row.flags })
-        .where(eq(mailMessageMailbox.id, row.id))
+    for (const [flags, ids] of rowsByFlags) {
+      for (let i = 0; i < ids.length; i += 500) {
+        const chunk = ids.slice(i, i + 500)
+        await tx
+          .update(mailMessageMailbox)
+          .set({ flags })
+          .where(inArray(mailMessageMailbox.id, chunk))
+      }
+    }
 
-      const job = seenJob(row.uid, row.mailbox, seen)
-      const now = new Date()
+    for (let i = 0; i < jobs.length; i += 500) {
+      const chunk = jobs.slice(i, i + 500)
       await tx
         .insert(imapJob)
-        .values({
-          type: job.type,
-          mailbox: row.mailbox,
-          uid: row.uid,
-          targetMailbox: null,
-          status: 'pending',
-          dedupeKey: job.dedupeKey,
-          attemptCount: 0,
-          availableAt: now,
-          lastError: null,
-          createdAt: now,
-          updatedAt: now
-        })
+        .values(chunk)
         .onConflictDoUpdate({
           target: imapJob.dedupeKey,
           set: {
-            type: job.type,
+            type: seen ? 'mark_read' : 'mark_unread',
             status: 'pending',
             attemptCount: 0,
             availableAt: now,
@@ -3441,10 +3466,6 @@ export async function markMessagesSeen(ids: number[], seen: boolean) {
             updatedAt: now
           }
         })
-
-      const touchedThreadKeys = touchedThreadKeysByMailbox.get(row.mailbox) ?? new Set<string>()
-      touchedThreadKeys.add(row.threadKey)
-      touchedThreadKeysByMailbox.set(row.mailbox, touchedThreadKeys)
     }
   })
 
@@ -3489,6 +3510,31 @@ export async function markMessageAsUnread(message: MailRow) {
       uid: message.uid
     })
   }
+}
+
+export async function markMailboxMessagesSeen(mailboxSlug: string) {
+  const imapMailboxes = await getImapMailboxes()
+  const scope = await resolveMailboxScope(mailboxSlug, imapMailboxes)
+
+  if (scope.paths.length === 0) return 0
+
+  if (isDemoModeEnabled()) {
+    return markDemoMailboxMessagesSeen(scope.paths)
+  }
+
+  const rows = await db
+    .select({ id: mailMessageMailbox.id })
+    .from(mailMessageMailbox)
+    .where(
+      and(
+        inArray(mailMessageMailbox.mailbox, scope.paths),
+        notLike(mailMessageMailbox.flags, '%\\\\Seen%')
+      )
+    )
+
+  const ids = rows.map((r) => r.id)
+  if (ids.length === 0) return 0
+  return await markMessagesSeen(ids, true)
 }
 
 export type MessageAction = 'archive' | 'trash' | 'spam' | 'inbox'

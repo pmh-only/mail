@@ -1276,6 +1276,16 @@ export function markDemoMessagesSeen(ids: number[], seen: boolean) {
   return count
 }
 
+export function markDemoMailboxMessagesSeen(paths: string[]) {
+  const pathSet = new Set(paths)
+  const ids = demoMessages
+    .filter((m) => pathSet.has(m.mailbox) && !(JSON.parse(m.flags) as string[]).includes('\\Seen'))
+    .map((m) => m.id)
+
+  if (ids.length === 0) return 0
+  return markDemoMessagesSeen(ids, true)
+}
+
 export function snoozeDemoMessages(ids: number[], snoozedUntil: Date | null) {
   let count = 0
   const selectedIds = new Set(ids)

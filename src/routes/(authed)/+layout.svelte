@@ -29,6 +29,7 @@
     ChevronDown,
     BellRing,
     Braces,
+    CheckCheck,
     X
   } from 'lucide-svelte'
   import { resolve } from '$app/paths'
@@ -610,6 +611,80 @@
     } catch (error) {
       savedSearches = previousSearches
       smartFolderError = errorMessageFromUnknown(error, 'Failed to rename smart folder.')
+    }
+  }
+
+  type MailboxContextMenuState = {
+    row: VisibleMailboxRow
+    x: number
+    y: number
+  } | null
+
+  let mailboxContextMenu = $state<MailboxContextMenuState>(null)
+  let markingMailboxRead = $state(false)
+
+  function openMailboxContextMenu(event: MouseEvent, row: VisibleMailboxRow) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!row.slug && !row.path) return
+
+    const menuWidth = 192
+    const menuHeight = 50
+    const windowWidth = window.innerWidth
+    const windowHeight = window.innerHeight
+
+    let x = event.clientX
+    let y = event.clientY
+
+    if (x + menuWidth > windowWidth) {
+      x = Math.max(10, windowWidth - menuWidth - 10)
+    }
+    if (y + menuHeight > windowHeight) {
+      y = Math.max(10, windowHeight - menuHeight - 10)
+    }
+
+    mailboxContextMenu = { row, x, y }
+  }
+
+  function closeMailboxContextMenu() {
+    mailboxContextMenu = null
+  }
+
+  async function markMailboxAllRead(row: VisibleMailboxRow) {
+    const mailboxTarget = row.slug || row.path
+    if (!mailboxTarget) return
+    closeMailboxContextMenu()
+
+    const nextUnreadCounts = { ...unreadCounts }
+    if (row.path) nextUnreadCounts[row.path] = 0
+    if (row.slug) nextUnreadCounts[row.slug] = 0
+    unreadCounts = nextUnreadCounts
+    window.dispatchEvent(new CustomEvent(MAILBOX_STATE_CHANGED_EVENT))
+
+    markingMailboxRead = true
+    try {
+      const res = await fetch('/api/mailboxes/mark-read', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mailbox: mailboxTarget })
+      })
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to mark mailbox as read.'))
+      }
+      const { count } = (await res.json()) as { count: number }
+      if (count > 0) {
+        toast.success(`Marked ${count} message${count === 1 ? '' : 's'} as read in "${row.label}"`)
+      } else {
+        toast.info(`No unread messages in "${row.label}"`)
+      }
+      await refreshMailboxState('mark-read')
+      window.dispatchEvent(new CustomEvent(MAILBOX_STATE_CHANGED_EVENT))
+      await invalidateAll()
+    } catch (err) {
+      smartFolderError = errorMessageFromUnknown(err, 'Failed to mark mailbox as read.')
+      await refreshMailboxState('mark-read-error')
+    } finally {
+      markingMailboxRead = false
     }
   }
 
@@ -1208,6 +1283,11 @@
                 e.preventDefault()
                 if (row.path) {
                   void handleMailboxDrop(row.path)
+                }
+              }}
+              oncontextmenu={(event) => {
+                if (row.selectable && (row.slug || row.path)) {
+                  openMailboxContextMenu(event, row)
                 }
               }}
               class={[
@@ -1813,4 +1893,39 @@
     onconfirm={(value) => closeActionModal(value ?? true)}
     oncancel={() => closeActionModal(null)}
   />
+{/if}
+
+{#if mailboxContextMenu}
+  {@const activeMenu = mailboxContextMenu}
+  <div
+    class="fixed inset-0 z-50 bg-transparent"
+    role="presentation"
+    onclick={closeMailboxContextMenu}
+    onkeydown={(e) => e.key === 'Escape' && closeMailboxContextMenu()}
+    oncontextmenu={(event) => {
+      event.preventDefault()
+      closeMailboxContextMenu()
+    }}
+  >
+    <div
+      class="fixed z-50 min-w-48 rounded-xl border border-white/10 bg-zinc-900/95 p-1 text-sm text-zinc-200 shadow-2xl backdrop-blur-xl transition"
+      style={`left:${activeMenu.x}px;top:${activeMenu.y}px;`}
+      role="menu"
+      tabindex="-1"
+      onclick={(event) => event.stopPropagation()}
+      onkeydown={(event) => event.stopPropagation()}
+      oncontextmenu={(event) => event.preventDefault()}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        onclick={() => void markMailboxAllRead(activeMenu.row)}
+        disabled={markingMailboxRead}
+        class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-white/8 disabled:opacity-50"
+      >
+        <CheckCheck size={14} class="shrink-0 text-emerald-400" />
+        <span>Mark all as read</span>
+      </button>
+    </div>
+  </div>
 {/if}
