@@ -4,6 +4,10 @@ import { db } from '$lib/server/db'
 import { mailAttachment, mailShare } from '$lib/server/db/schema'
 import { eq } from 'drizzle-orm'
 import { getDemoSharedAttachment, isDemoModeEnabled } from '$lib/server/demo'
+import {
+  ATTACHMENT_SECURITY_HEADERS,
+  inlineAttachmentDisposition
+} from '$lib/server/attachment-response'
 
 export const GET: RequestHandler = async ({ params, url }) => {
   const id = Number(params.id)
@@ -14,9 +18,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
     if (!attachment) return error(404, 'Shared attachment not found')
 
     const inline = url.searchParams.get('inline') === '1'
-    const disposition = inline
-      ? 'inline'
-      : `attachment; filename="${encodeURIComponent(attachment.filename)}"`
+    const disposition = inlineAttachmentDisposition(
+      inline,
+      attachment.contentType,
+      attachment.filename
+    )
 
     const body = attachment.content.buffer.slice(
       attachment.content.byteOffset,
@@ -28,7 +34,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
         'Content-Type': attachment.contentType,
         'Content-Disposition': disposition,
         'Content-Length': String(attachment.size),
-        'Cache-Control': 'private, max-age=3600'
+        'Cache-Control': 'private, max-age=3600',
+        ...ATTACHMENT_SECURITY_HEADERS
       }
     })
   }
@@ -51,9 +58,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
   }
 
   const inline = url.searchParams.get('inline') === '1'
-  const disposition = inline
-    ? 'inline'
-    : `attachment; filename="${encodeURIComponent(attachment.filename)}"`
+  const disposition = inlineAttachmentDisposition(
+    inline,
+    attachment.contentType,
+    attachment.filename
+  )
 
   const body =
     attachment.content instanceof Buffer
@@ -68,7 +77,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
       'Content-Type': attachment.contentType,
       'Content-Disposition': disposition,
       'Content-Length': String(attachment.size),
-      'Cache-Control': 'private, max-age=3600'
+      'Cache-Control': 'private, max-age=3600',
+      ...ATTACHMENT_SECURITY_HEADERS
     }
   })
 }
