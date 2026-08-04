@@ -472,10 +472,11 @@ async function runBatchOperation(group: ImapJobRow[]) {
         try {
           for (let i = 0; i < uids.length; i += 100) {
             const uidChunk = uids.slice(i, i + 100).join(',')
-            if (isRead) {
-              await client.messageFlagsAdd(uidChunk, ['\\Seen'], { uid: true })
-            } else {
-              await client.messageFlagsRemove(uidChunk, ['\\Seen'], { uid: true })
+            const updated = isRead
+              ? await client.messageFlagsAdd(uidChunk, ['\\Seen'], { uid: true })
+              : await client.messageFlagsRemove(uidChunk, ['\\Seen'], { uid: true })
+            if (!updated) {
+              throw new Error(`Failed to update flags for UIDs ${uidChunk} in ${target.mailbox}`)
             }
           }
         } finally {
