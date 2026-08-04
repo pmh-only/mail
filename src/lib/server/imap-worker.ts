@@ -457,16 +457,97 @@ function startOperation(job: ImapJobRow) {
   )
 }
 
+async function runBatchOperation(group: ImapJobRow[]) {
+  const first = group[0]
+  try {
+    const target = await resolveJobTarget(first)
+    const isRead = first.type === 'mark_read'
+    const uids = group.map((j) => j.uid).filter((uid): uid is number => uid !== null)
+
+    if (uids.length > 0) {
+      let client: ImapFlow | null = null
+      try {
+        client = await connectImap(target.config, `batch-${first.type} ${target.mailbox}`)
+        const lock = await client.getMailboxLock(target.mailbox)
+        try {
+          for (let i = 0; i < uids.length; i += 100) {
+            const uidChunk = uids.slice(i, i + 100).join(',')
+            if (isRead) {
+              await client.messageFlagsAdd(uidChunk, ['\\Seen'], { uid: true })
+            } else {
+              await client.messageFlagsRemove(uidChunk, ['\\Seen'], { uid: true })
+            }
+          }
+        } finally {
+          lock.release()
+        }
+      } catch (error) {
+        if (client) invalidateWorkerConnection(target.config.id, client)
+        throw error
+      }
+    }
+
+    await Promise.all(group.map(markJobDone))
+  } catch (error) {
+    logServerError(`imapOperation.batch.${first.type}`, error, {
+      mailbox: first.mailbox,
+      count: group.length
+    })
+    await Promise.all(group.map((job) => failJob(job, error)))
+  }
+}
+
+function startBatchOperation(group: ImapJobRow[]) {
+  const first = group[0]
+  startBackgroundAction(
+    activeOperations,
+    first.id,
+    () => runBatchOperation(group),
+    (error) => {
+      logServerError('imapOperation.batch.unhandled', error, { jobId: first.id })
+    }
+  )
+}
+
 export async function dispatchReadyImapOperations() {
   const jobs = await db
     .select()
     .from(imapJob)
     .where(and(eq(imapJob.status, 'pending'), lte(imapJob.availableAt, new Date())))
+    .limit(50)
+
+  if (jobs.length === 0) return 0
 
   const claimed = (await Promise.all(jobs.map(markJobRunning))).filter(
     (job): job is ImapJobRow => job !== null
   )
-  for (const job of claimed) startOperation(job)
+
+  const batchableJobs = new Map<string, ImapJobRow[]>()
+  const unbatchableJobs: ImapJobRow[] = []
+
+  for (const job of claimed) {
+    if ((job.type === 'mark_read' || job.type === 'mark_unread') && job.uid !== null) {
+      const key = `${job.type}:${job.mailbox}`
+      const group = batchableJobs.get(key) ?? []
+      group.push(job)
+      batchableJobs.set(key, group)
+    } else {
+      unbatchableJobs.push(job)
+    }
+  }
+
+  for (const job of unbatchableJobs) {
+    startOperation(job)
+  }
+
+  for (const group of batchableJobs.values()) {
+    if (group.length === 1) {
+      startOperation(group[0])
+    } else {
+      startBatchOperation(group)
+    }
+  }
+
   return claimed.length
 }
 
