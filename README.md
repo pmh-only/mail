@@ -1,9 +1,7 @@
 # ✉️ mail
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-
-[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
-
+[![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 The next webmail client
@@ -235,6 +233,7 @@ after the key is configured and settings are loaded.
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://lth.so"><img src="https://avatars.githubusercontent.com/u/44047052?v=4?s=100" width="100px;" alt="Taehyun Lim"/><br /><sub><b>Taehyun Lim</b></sub></a><br /><a href="https://github.com/pmh-only/mail/commits?author=noeulnight" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://csnewcs.dev"><img src="https://avatars.githubusercontent.com/u/43161373?v=4?s=100" width="100px;" alt="Jae-Hyeon Bae"/><br /><sub><b>Jae-Hyeon Bae</b></sub></a><br /><a href="https://github.com/pmh-only/mail/commits?author=csnewcs" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/designed-re"><img src="https://avatars.githubusercontent.com/u/33867923?v=4?s=100" width="100px;" alt="Seojun Yun"/><br /><sub><b>Seojun Yun</b></sub></a><br /><a href="#security-designed-re" title="Security">🛡️</a></td>
     </tr>
   </tbody>
 </table>
