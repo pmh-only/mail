@@ -693,7 +693,7 @@ const initialNextFilterId = nextFilterId
 const initialNextMessageTemplateId = nextMessageTemplateId
 const initialNextSenderRuleId = nextSenderRuleId
 
-function resetDemoState() {
+export function resetDemoState() {
   demoConfig.signature = initialDemoConfig.signature
   demoConfig.signatureProfiles = initialDemoConfig.signatureProfiles.map((signature) => ({
     ...signature
