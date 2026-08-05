@@ -57,8 +57,8 @@ importers:
         specifier: ^3.9.14
         version: 3.9.14
       nodemailer:
-        specifier: ^9.0.3
-        version: 9.0.3
+        specifier: ^9.0.4
+        version: 9.0.4
       openai:
         specifier: ^7.3.0
         version: 7.3.0(ws@8.21.1)(zod@4.4.3)
@@ -2517,6 +2517,10 @@ packages:
     resolution: {integrity: sha512-n+YP+NKwR5zRWa60k3GiQ6Q3B4KXCoAw40dAKeCtYn020iNN74aWK2liXIC3ZEATeGql7we3tE3t8QwhY0eskw==}
     engines: {node: '>=6.0.0'}
 
+  nodemailer@9.0.4:
+    resolution: {integrity: sha512-LmJNRVRtfSCULxcZpy0Cpg4WWenlUZ9+zbmTO+S7v9wD6XreYLjXRFtDjtV/4F0HT5p1GyZfA0Ux/myxHb18CQ==}
+    engines: {node: '>=6.0.0'}
+
   obug@2.1.1:
     resolution: {integrity: sha512-uTqF9MuPraAQ+IsnPf366RG4cP9RtUi7MLO1N3KEc+wb0a6yKpeL0lmk2IB1jY5KHPAlTc6T/JRdC/YqxHNwkQ==}
 
@@ -4763,6 +4767,8 @@ snapshots:
   nanostores@1.4.2: {}
 
   nodemailer@9.0.3: {}
+
+  nodemailer@9.0.4: {}
 
   obug@2.1.1: {}
 
