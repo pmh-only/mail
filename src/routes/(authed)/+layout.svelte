@@ -28,6 +28,7 @@
     ChevronRight,
     ChevronDown,
     BellRing,
+    AlertTriangle,
     Braces,
     CheckCheck,
     X
@@ -80,6 +81,7 @@
       secondaryNames: string[]
       sidebarWidth: number
       demoMode: boolean
+      hasLegacyApiKey: boolean
     }
     children: import('svelte').Snippet
   }
@@ -1159,10 +1161,25 @@
 <svelte:window bind:innerWidth={viewportWidth} />
 
 <div
-  class="app-shell flex h-screen overflow-hidden text-zinc-100"
+  class="app-shell flex h-screen flex-col overflow-hidden text-zinc-100"
   class:cursor-col-resize={resizing}
   class:select-none={resizing}
 >
+  {#if data.hasLegacyApiKey}
+    <div role="alert" class="border-b border-amber-400/20 bg-amber-500/10 px-4 py-2.5 sm:px-6">
+      <div class="mx-auto flex max-w-6xl items-start gap-3">
+        <AlertTriangle size={17} class="mt-0.5 shrink-0 text-amber-300" />
+        <div class="min-w-0 text-sm text-amber-100">
+          <p class="font-medium">Replace your legacy API key.</p>
+          <p class="mt-0.5 text-xs text-amber-100/70">
+            Legacy keys no longer work. Create a replacement, update its client, then revoke the old key.
+          </p>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <div class="flex min-h-0 flex-1">
   {#if isMobile && mobileNavOpen}
     <button
       type="button"
@@ -1873,6 +1890,7 @@
         {@render children()}
       </div>
     </div>
+  </div>
   </div>
 </div>
 

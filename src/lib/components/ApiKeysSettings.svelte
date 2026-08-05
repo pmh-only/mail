@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { invalidateAll } from '$app/navigation'
   import { resolve } from '$app/paths'
   import { KeyRound, Copy, Trash2 } from 'lucide-svelte'
   import { toast } from 'svelte-sonner'
@@ -82,6 +83,7 @@
       issuedKeyId = null
     }
     toast('API key revoked')
+    await invalidateAll()
   }
 
   async function copyIssuedKey() {

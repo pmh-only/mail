@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { and, desc, eq } from 'drizzle-orm'
-import { API_KEY_PREFIX, generateApiKeyValue, hashApiKey, bearerApiKey } from '$lib/api-key-value'
+import {
+  API_KEY_PREFIX,
+  apiKeyPrefix,
+  bearerApiKey,
+  generateApiKeyValue,
+  hashApiKey,
+  verifyApiKeyHash
+} from '$lib/api-key-value'
 import { db } from './db'
 import { mailApiKey, user } from './db/schema'
 
@@ -24,8 +31,8 @@ export async function createApiKey(userId: string, name: string) {
       id: randomUUID(),
       userId,
       name,
-      prefix: `${key.slice(0, 14)}...`,
-      keyHash: hashApiKey(key)
+      prefix: apiKeyPrefix(key),
+      keyHash: await hashApiKey(key)
     })
     .returning()
 
@@ -55,13 +62,14 @@ export async function verifyApiKey(value: string) {
     .select({
       id: mailApiKey.id,
       userId: mailApiKey.userId,
-      user
+      user,
+      keyHash: mailApiKey.keyHash
     })
     .from(mailApiKey)
     .innerJoin(user, eq(mailApiKey.userId, user.id))
-    .where(eq(mailApiKey.keyHash, hashApiKey(value)))
+    .where(eq(mailApiKey.prefix, apiKeyPrefix(value)))
     .limit(1)
-  if (!row) return null
+  if (!row || !(await verifyApiKeyHash(value, row.keyHash))) return null
 
   await db.update(mailApiKey).set({ lastUsedAt: new Date() }).where(eq(mailApiKey.id, row.id))
   return { id: row.id, userId: row.userId, user: row.user }

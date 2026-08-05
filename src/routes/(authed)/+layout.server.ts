@@ -1,11 +1,11 @@
 import type { LayoutServerLoad } from './$types'
 import { redirect } from '@sveltejs/kit'
 import { db } from '$lib/server/db'
-import { mailMessage, mailMessageMailbox, savedSearch } from '$lib/server/db/schema'
+import { mailApiKey, mailMessage, mailMessageMailbox, savedSearch } from '$lib/server/db/schema'
 import { getImapMailboxes } from '$lib/server/mail'
 import { isAlwaysReadMailbox } from '$lib/mailbox'
 import { applyMailboxPreferences, getStoredPreferences } from '$lib/server/preferences'
-import { asc, eq, notLike, sql } from 'drizzle-orm'
+import { and, asc, eq, notLike, sql } from 'drizzle-orm'
 import { getDemoUnreadCounts, isDemoModeEnabled } from '$lib/server/demo'
 import { getImapConfigs, getOpenAIConfig } from '$lib/server/config'
 import {
@@ -31,14 +31,16 @@ export const load: LayoutServerLoad = async ({ locals }) => {
       translationTargetLanguage: preferences.translationTargetLanguage,
       sidebarWidth: preferences.sidebarWidth,
       savedSearches: [],
-      hasOpenAiKey: true
+      hasOpenAiKey: true,
+      hasLegacyApiKey: false
     }
   }
 
   const [
     openaiConfig,
     imapConfigs,
-    [imapMailboxes, unreadRows, savedSearchRows, composedMailboxes]
+    [imapMailboxes, unreadRows, savedSearchRows, composedMailboxes],
+    legacyApiKeyRows
   ] = await Promise.all([
     getOpenAIConfig(),
     getImapConfigs(),
@@ -55,7 +57,12 @@ export const load: LayoutServerLoad = async ({ locals }) => {
         .groupBy(mailMessageMailbox.mailbox),
       db.select().from(savedSearch).orderBy(asc(savedSearch.name)),
       listComposedMailboxes()
-    ])
+    ]),
+    db
+      .select({ id: mailApiKey.id })
+      .from(mailApiKey)
+      .where(and(eq(mailApiKey.userId, locals.user.id), notLike(mailApiKey.keyHash, 'scrypt$%')))
+      .limit(1)
   ])
 
   const secondaryNames = imapConfigs
@@ -82,6 +89,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
     translationTargetLanguage: preferences.translationTargetLanguage,
     sidebarWidth: preferences.sidebarWidth,
     savedSearches: savedSearchRows,
-    hasOpenAiKey: Boolean(openaiConfig.apiKey)
+    hasOpenAiKey: Boolean(openaiConfig.apiKey),
+    hasLegacyApiKey: legacyApiKeyRows.length > 0
   }
 }
