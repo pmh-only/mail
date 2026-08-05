@@ -1,0 +1,36 @@
+name: Build release Docker images
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  web:
+    name: Build release web image
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      image-name: mail
+      target: runtime
+      tags: |
+        type=semver,pattern={{version}},value=${{ github.event.release.tag_name }}
+        type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name }}
+        type=semver,pattern={{major}},value=${{ github.event.release.tag_name }},enable=${{ !startsWith(github.event.release.tag_name, 'v0.') }}
+        type=raw,value=stable,enable=${{ !github.event.release.prerelease }}
+        type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
+
+  worker:
+    name: Build release worker image
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      image-name: mail-worker
+      target: worker
+      tags: |
+        type=semver,pattern={{version}},value=${{ github.event.release.tag_name }}
+        type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name }}
+        type=semver,pattern={{major}},value=${{ github.event.release.tag_name }},enable=${{ !startsWith(github.event.release.tag_name, 'v0.') }}
+        type=raw,value=stable,enable=${{ !github.event.release.prerelease }}
+        type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
