@@ -12,6 +12,7 @@ import {
   type PrivateKey,
   type PublicKey
 } from 'openpgp'
+import { env } from '$env/dynamic/private'
 import { openPgpKeyEmails } from './openpgp-keyservers.ts'
 
 export type OpenPgpSigningMethod = 'none' | 'cleartext' | 'detached' | 'pgp-mime'
@@ -34,6 +35,31 @@ export type OpenPgpSecurityResult = {
 }
 
 export type InboundOpenPgpResult = OpenPgpSecurityResult & { rawMessage: Buffer }
+
+/**
+ * Maximum size (in bytes) the OpenPGP library is allowed to produce when
+ * decompressing an incoming message. OpenPGP packets may be compressed, and
+ * openpgp.js defaults to an unbounded decompression limit (`Infinity`), which
+ * enables a zip-bomb denial of service: a tiny compressed message can expand
+ * into hundreds of megabytes during `decrypt`, exhausting worker memory.
+ *
+ * Configure via the `OPENPGP_MAX_DECOMPRESSED_MESSAGE_SIZE` environment
+ * variable (bytes). Defaults to 30 MB.
+ */
+const DEFAULT_MAX_DECOMPRESSED_MESSAGE_SIZE = 30 * 1024 * 1024
+
+function maxDecompressedMessageSize(): number {
+  const raw = env.OPENPGP_MAX_DECOMPRESSED_MESSAGE_SIZE?.trim()
+  if (!raw) return DEFAULT_MAX_DECOMPRESSED_MESSAGE_SIZE
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.trunc(parsed)
+    : DEFAULT_MAX_DECOMPRESSED_MESSAGE_SIZE
+}
+
+function openPgpParseConfig() {
+  return { maxDecompressedMessageSize: maxDecompressedMessageSize() }
+}
 
 const EMPTY_RESULT: OpenPgpSecurityResult = {
   signed: false,
@@ -385,14 +411,16 @@ async function decryptPgpMime(
     }
   try {
     const encryptedData = decodePart(parts[1]!)
+    const parseConfig = openPgpParseConfig()
     const message = encryptedData.toString('utf8').includes('BEGIN PGP MESSAGE')
-      ? await readMessage({ armoredMessage: encryptedData.toString('utf8') })
-      : await readMessage({ binaryMessage: encryptedData })
+      ? await readMessage({ armoredMessage: encryptedData.toString('utf8'), config: parseConfig })
+      : await readMessage({ binaryMessage: encryptedData, config: parseConfig })
     const decrypted = await decrypt({
       message,
       decryptionKeys: privateKeys,
       verificationKeys,
-      format: 'binary'
+      format: 'binary',
+      config: parseConfig
     })
     const entity = Buffer.from(decrypted.data).toString('utf8')
     const signature = await signatureResult(
@@ -458,11 +486,13 @@ export async function processInboundOpenPgp(input: {
       }
     }
     try {
+      const inlineParseConfig = openPgpParseConfig()
       const decrypted = await decrypt({
-        message: await readMessage({ armoredMessage: text }),
+        message: await readMessage({ armoredMessage: text, config: inlineParseConfig }),
         decryptionKeys: input.privateKeys,
         verificationKeys: input.verificationKeys,
-        format: 'utf8'
+        format: 'utf8',
+        config: inlineParseConfig
       })
       const signature = await signatureResult(
         decrypted,
