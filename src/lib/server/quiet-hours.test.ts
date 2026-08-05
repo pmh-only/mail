@@ -76,7 +76,10 @@ describe('quiet-hours normalization', () => {
       false
     )
     assert.equal(
-      isQuietHoursActive({ ...baseConfig, start: 'invalid', end: 'invalid' }, new Date()),
+      isQuietHoursActive(
+        { ...baseConfig, start: 'invalid', end: 'invalid' },
+        new Date('2026-05-29T12:00:00Z')
+      ),
       false
     )
   })
