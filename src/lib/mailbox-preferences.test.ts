@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { mergeMailboxPreferences, normalizeMailboxPreferences } from './mailbox-preferences.ts'
 
 test('defaults legacy mailbox preferences to no collapsed accounts', () => {

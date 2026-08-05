@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import {
   DEFAULT_SHARE_CLICK_ACTION,
   DEFAULT_SHARE_SHIFT_CLICK_ACTION,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { prepareRemoteContent, sanitizeRemoteContent } from './remote-content.ts'
 
 const remoteHtml = '<p>Hello</p><img src="https://images.example/pixel.png">'

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { generateKey, readKey } from 'openpgp'
 import { lookupOpenPgpKeysByEmail, openPgpKeyEmails } from './openpgp-keyservers.ts'
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { startBackgroundAction, waitForBackgroundActions } from './background-actions.ts'
 
 test('starts actions independently without blocking the caller', async () => {

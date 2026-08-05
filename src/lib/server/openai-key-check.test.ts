@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { normalizeOpenAIApiKey } from '../openai-api-key.js'
 
 test('evaluates OpenAI API key presence correctly', () => {

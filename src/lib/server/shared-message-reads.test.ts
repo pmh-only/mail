@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { SharedMessageReads } from './shared-message-reads.ts'
 
 test('resolves registered share tokens and rejects unknown tokens', () => {

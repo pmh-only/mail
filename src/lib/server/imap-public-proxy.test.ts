@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createConnection, createServer } from 'node:net'
-import test from 'node:test'
+import { test } from 'vitest'
 import { createImapProxyServer } from './imap-proxy.ts'
 
 function listen(server: ReturnType<typeof createServer>) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { parseMailtoUrl, registerMailtoProtocolHandler } from './mailto.ts'
 
 test('registers the compose route as a mailto protocol handler', () => {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { API_KEY_PREFIX, bearerApiKey, generateApiKeyValue, hashApiKey } from './api-key-value.ts'
 
 test('generates opaque prefixed API keys and hashes them deterministically', () => {

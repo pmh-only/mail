@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { serializeDate } from './serialize-date.ts'
 
 test('serializes database date values without assuming their runtime type', () => {

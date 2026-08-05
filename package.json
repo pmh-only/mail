@@ -1,7 +1,7 @@
 {
   "name": "mail",
   "private": true,
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
@@ -18,6 +18,8 @@
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "test": "DEMO_MODE=true vitest run",
+    "test:coverage": "DEMO_MODE=true vitest run --coverage",
     "lint": "prettier --check . && eslint .",
     "format": "prettier --write .",
     "db:push": "drizzle-kit push",
@@ -39,6 +41,7 @@
     "@types/nodemailer": "^8.0.0",
     "@types/web-push": "^3.6.4",
     "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
@@ -53,7 +56,8 @@
     "tailwindcss": "^4.2.4",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.58.1",
-    "vite": "^8.0.7"
+    "vite": "^8.0.7",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "@better-auth/passkey": "1.4.22",

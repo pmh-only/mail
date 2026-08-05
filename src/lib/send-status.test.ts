@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { sendStatusLabel } from './send-status.ts'
 
 test('shows read only after a sent message has an open timestamp', () => {

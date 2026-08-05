@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { aiComposePreviewText, sanitizeAiComposeHtml } from './ai-compose-html.ts'
 
 test('allows only compose tags and safe link protocols', () => {

@@ -1,0 +1,59 @@
+'area: web':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**/*.svelte'
+          - 'src/routes/**/+page.ts'
+          - 'src/routes/**/+page.server.ts'
+
+'area: server':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/lib/server/**'
+          - 'src/routes/**/+server.ts'
+          - 'server.js'
+          - 'adapter-node.js'
+
+'area: worker':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/worker.ts'
+          - 'scripts/dev-worker.mjs'
+          - 'vite.worker.config.ts'
+
+'area: database':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'drizzle/**'
+          - 'drizzle.config.ts'
+
+'area: documentation':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'README.md'
+          - 'docs/**'
+          - '*.md'
+
+'area: github':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'CODEOWNERS'
+
+'area: project':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '*'
+          - '.*'
+          - 'static/**'
+
+'dependencies':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'pnpm-lock.yaml'
+          - 'pnpm-workspace.yaml'
+
+'tests':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.test.ts'

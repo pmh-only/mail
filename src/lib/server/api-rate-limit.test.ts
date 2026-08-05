@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { checkApiRateLimit, checkApiSendRateLimit } from './api-rate-limit.ts'
 
 test('limits external API requests per key and resets the window', () => {

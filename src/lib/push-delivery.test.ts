@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { pushDeliveryComplete } from './push-delivery.ts'
 
 test('completes after any delivery without retrying healthy devices', () => {

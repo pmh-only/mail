@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { beforeAll, test } from 'vitest'
 import {
   createMessage,
   encrypt,
@@ -32,7 +32,7 @@ const RAW_MESSAGE = Buffer.from(
 let privateKey: PrivateKey
 let publicKey: PublicKey
 
-test.before(async () => {
+beforeAll(async () => {
   const generated = await generateKey({
     type: 'curve25519',
     userIDs: [{ name: 'Alice', email: 'alice@example.com' }],

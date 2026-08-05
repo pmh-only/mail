@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import test from 'node:test'
+import { test } from 'vitest'
 import { parseShareTarget, shareContent } from './web-share.ts'
 
 test('declares the compose route as a text and URL share target', () => {

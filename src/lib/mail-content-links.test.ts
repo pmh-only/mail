@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { interceptMailContentLinks, resolveMailContentUrl } from './mail-content-links.ts'
 
 test('resolves absolute and relative mail content links', () => {
