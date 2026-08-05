@@ -1,6 +1,7 @@
 # ✉️ mail
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+
 [![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
@@ -244,7 +245,9 @@ after the key is configured and settings are loaded.
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 ## Special Thanks to
+
 ### Security: designed-re
+
 [@designed-re](https://github.com/designed-re) reported the serious XSS vulnerability in [pr #26](https://github.com/pmh-only/mail/pull/26)
 
 ## License / Contribution Rules

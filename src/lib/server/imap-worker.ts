@@ -213,7 +213,8 @@ async function runMove(
     const uid = jobUid(job)
     const [entry] = await db
       .select({ id: mailMessageMailbox.id, threadKey: mailMessage.threadKey })
-      .from(mailMessageMailbox).innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
+      .from(mailMessageMailbox)
+      .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
       .where(and(eq(mailMessageMailbox.mailbox, job.mailbox), eq(mailMessageMailbox.uid, uid)))
       .limit(1)
     if (entry) {

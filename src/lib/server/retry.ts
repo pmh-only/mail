@@ -43,7 +43,7 @@ export async function withRetry<T>(
       return await fn()
     } catch (err) {
       lastError = err
-      const retryable = shouldRetry ? shouldRetry(err) : (!isAuthError(err) && !isRateLimitError(err))
+      const retryable = shouldRetry ? shouldRetry(err) : !isAuthError(err) && !isRateLimitError(err)
       if (!retryable || attempt === maxAttempts) throw err
       const delay = baseDelayMs * 2 ** (attempt - 1)
       console.warn(

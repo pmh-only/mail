@@ -18,7 +18,8 @@ export class SharedMessageReads {
       if (targetJson) {
         if (existingThread && JSON.stringify(existingThread) === targetJson) return token
       } else {
-        if (!existingThread || (existingThread.length === 1 && existingThread[0] === messageId)) return token
+        if (!existingThread || (existingThread.length === 1 && existingThread[0] === messageId))
+          return token
       }
     }
     return null

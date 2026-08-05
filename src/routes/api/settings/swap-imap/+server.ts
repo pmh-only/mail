@@ -12,7 +12,11 @@ import {
 } from '$lib/server/db/schema'
 import { eq, or, ilike, and, not } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '$lib/server/secrets'
-import { invalidateConfigCache, normalizeImapServers, normalizeSmtpServers } from '$lib/server/config'
+import {
+  invalidateConfigCache,
+  normalizeImapServers,
+  normalizeSmtpServers
+} from '$lib/server/config'
 import type { ImapConfig, SmtpConfig } from '$lib/server/config'
 import { invalidateAuth } from '$lib/server/auth'
 
@@ -50,9 +54,10 @@ export const POST: RequestHandler = async ({ request }) => {
   const targetImap = secondaryImapServers[targetImapIndex]
   const targetImapName = targetImap.name as string
 
-  const targetSmtp = secondarySmtpServers.find(
-    (s: SmtpConfig) => s.user === targetImap.user || s.host === targetImap.host
-  ) || null
+  const targetSmtp =
+    secondarySmtpServers.find(
+      (s: SmtpConfig) => s.user === targetImap.user || s.host === targetImap.host
+    ) || null
 
   // Passwords exchange
   let decryptedPrimaryImapPass = ''
@@ -105,17 +110,19 @@ export const POST: RequestHandler = async ({ request }) => {
     source: 'db'
   }
 
-  const oldPrimarySmtp = existingConfig.smtpHost ? {
-    id: `server-${Date.now()}-smtp`,
-    name: 'Legacy Primary SMTP',
-    host: existingConfig.smtpHost || '',
-    port: existingConfig.smtpPort || 587,
-    secure: existingConfig.smtpSecure ?? false,
-    user: existingConfig.smtpUser || '',
-    password: decryptedPrimarySmtpPass ? encryptSecret(decryptedPrimarySmtpPass) : '',
-    from: existingConfig.smtpFrom || '',
-    source: 'db'
-  } : null
+  const oldPrimarySmtp = existingConfig.smtpHost
+    ? {
+        id: `server-${Date.now()}-smtp`,
+        name: 'Legacy Primary SMTP',
+        host: existingConfig.smtpHost || '',
+        port: existingConfig.smtpPort || 587,
+        secure: existingConfig.smtpSecure ?? false,
+        user: existingConfig.smtpUser || '',
+        password: decryptedPrimarySmtpPass ? encryptSecret(decryptedPrimarySmtpPass) : '',
+        from: existingConfig.smtpFrom || '',
+        source: 'db'
+      }
+    : null
 
   // Overwrite arrays
   const dbImapServers = parseServerArray(existingConfig.imapServers)
@@ -160,7 +167,9 @@ export const POST: RequestHandler = async ({ request }) => {
     updatePayload.smtpPort = (targetSmtp.port as number) || null
     updatePayload.smtpSecure = targetSmtp.secure === true
     updatePayload.smtpUser = (targetSmtp.user as string) || null
-    updatePayload.smtpPassword = decryptedSecondarySmtpPass ? encryptSecret(decryptedSecondarySmtpPass) : null
+    updatePayload.smtpPassword = decryptedSecondarySmtpPass
+      ? encryptSecret(decryptedSecondarySmtpPass)
+      : null
     updatePayload.smtpFrom = (targetSmtp.from as string) || null
     updatePayload.smtpServers = nextSmtpServers
   }
@@ -195,21 +204,43 @@ export const POST: RequestHandler = async ({ request }) => {
           ilike(mailboxCatalog.path, `${prefix}%`)
         ]
         await tx.delete(mailboxCatalog).where(or(...conditions))
-        await tx.delete(mailboxSync).where(
-          or(ilike(mailboxSync.mailbox, targetImapName), ilike(mailboxSync.mailbox, `${prefix}%`))
-        )
-        await tx.delete(mailMessageMailbox).where(
-          or(ilike(mailMessageMailbox.mailbox, targetImapName), ilike(mailMessageMailbox.mailbox, `${prefix}%`))
-        )
-        await tx.delete(mailThreadSummary).where(
-          or(ilike(mailThreadSummary.mailbox, targetImapName), ilike(mailThreadSummary.mailbox, `${prefix}%`))
-        )
-        await tx.delete(mailThreadMetadata).where(
-          or(ilike(mailThreadMetadata.mailbox, targetImapName), ilike(mailThreadMetadata.mailbox, `${prefix}%`))
-        )
-        await tx.delete(mailboxNotificationSetting).where(
-          or(ilike(mailboxNotificationSetting.mailbox, targetImapName), ilike(mailboxNotificationSetting.mailbox, `${prefix}%`))
-        )
+        await tx
+          .delete(mailboxSync)
+          .where(
+            or(ilike(mailboxSync.mailbox, targetImapName), ilike(mailboxSync.mailbox, `${prefix}%`))
+          )
+        await tx
+          .delete(mailMessageMailbox)
+          .where(
+            or(
+              ilike(mailMessageMailbox.mailbox, targetImapName),
+              ilike(mailMessageMailbox.mailbox, `${prefix}%`)
+            )
+          )
+        await tx
+          .delete(mailThreadSummary)
+          .where(
+            or(
+              ilike(mailThreadSummary.mailbox, targetImapName),
+              ilike(mailThreadSummary.mailbox, `${prefix}%`)
+            )
+          )
+        await tx
+          .delete(mailThreadMetadata)
+          .where(
+            or(
+              ilike(mailThreadMetadata.mailbox, targetImapName),
+              ilike(mailThreadMetadata.mailbox, `${prefix}%`)
+            )
+          )
+        await tx
+          .delete(mailboxNotificationSetting)
+          .where(
+            or(
+              ilike(mailboxNotificationSetting.mailbox, targetImapName),
+              ilike(mailboxNotificationSetting.mailbox, `${prefix}%`)
+            )
+          )
       }
 
       // Purge B: Cleanup legacy primary mailboxes (they will now be synced under secondary prefix)

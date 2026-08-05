@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "ignorePatterns": [".svelte-kit/**", "build/**", "build-worker/**", "coverage/**", "data/**"],
+  "rules": {
+    "no-undef": "off",
+    "no-unused-vars": "off",
+    "no-unassigned-vars": "off",
+    "no-control-regex": "off",
+    "unicorn/no-useless-spread": "off"
+  }
+}

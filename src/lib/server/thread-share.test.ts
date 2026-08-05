@@ -46,8 +46,7 @@ test('reuses existing share token when same message selection is shared again', 
 
 test('authorizes attachments and counts reads for all messages included in thread share', async () => {
   resetDemoState()
-  const { getDemoSharedAttachment, countDemoSharedMessageReads, markDemoShareTokenAsRead } =
-    await import('./demo.js')
+  const { countDemoSharedMessageReads, markDemoShareTokenAsRead } = await import('./demo.js')
   const messageIds = ['<demo-1@mail.local>', '<demo-2@mail.local>']
   const token = await createThreadShareToken(messageIds)
 

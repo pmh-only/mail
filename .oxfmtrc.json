@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "useTabs": false,
+  "singleQuote": true,
+  "trailingComma": "none",
+  "semi": false,
+  "printWidth": 100,
+  "ignorePatterns": [
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bun.lock",
+    "bun.lockb",
+    "static/**",
+    "drizzle/**"
+  ]
+}

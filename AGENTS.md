@@ -2,11 +2,12 @@
 
 - **Language**: TypeScript
 - **Package Manager**: pnpm
-- **Add-ons**: prettier, eslint, tailwindcss, drizzle, better-auth, mcp
+- **Add-ons**: oxfmt, oxlint, tailwindcss, drizzle, better-auth, mcp
 
 ## Commits
 
 All commits must follow the Conventional Commits format and include a brief description.
+Before committing, formatting, linting, tests, coverage checks, type checks, and builds must succeed.
 
 ## Pull Requests
 

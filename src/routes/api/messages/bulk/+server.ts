@@ -27,14 +27,16 @@ function parseSnoozedUntil(value: unknown) {
 async function expandThreadIds(ids: number[], mailboxes: string[]) {
   const selected = await db
     .select({ threadKey: mailMessage.threadKey })
-    .from(mailMessageMailbox).innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
+    .from(mailMessageMailbox)
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(inArray(mailMessageMailbox.id, ids))
   const threadKeys = [...new Set(selected.map((row) => row.threadKey))]
   if (threadKeys.length === 0) return []
 
   return db
     .select({ id: mailMessageMailbox.id })
-    .from(mailMessageMailbox).innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
+    .from(mailMessageMailbox)
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(
       and(
         inArray(mailMessageMailbox.mailbox, mailboxes),
