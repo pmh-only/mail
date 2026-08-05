@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
   queryResults: [] as unknown[],
   insertReturningResults: [] as unknown[],
   calls: [] as Array<{ operation: string; values?: unknown; set?: unknown; returning?: boolean }>,
-  connections: [] as Array<Record<string, unknown>>,
+  connections: [] as Array<Record<string, unknown> | Error>,
   invalidated: [] as Array<{ configId: string; connection: unknown }>,
   moves: [] as Array<{ uid: number; mailbox: string; targetMailbox: string }>,
   dismissedNotifications: [] as number[][],
@@ -26,6 +26,10 @@ const state = vi.hoisted(() => ({
   privateKeys: [] as unknown[],
   publicKeys: [] as Array<{ getFingerprint: () => string }>,
   pushError: null as Error | null,
+  simpleParserOverride: null as
+    | ((parsed: Record<string, unknown>) => Record<string, unknown>)
+    | null,
+  demoStoredMessageOverride: null as Record<string, unknown> | null,
   dismissPush: vi.fn(async (messageIds: number[]) => {
     state.dismissedNotifications.push(messageIds)
   }),
@@ -66,6 +70,7 @@ const query = (operation: string) => {
       return query
     }
   }
+  // oxlint-disable-next-line unicorn/no-thenable -- mocks drizzle's thenable query builder
   query.then = (resolve: (value: unknown[]) => unknown, reject?: (reason: unknown) => unknown) => {
     const result =
       call.operation === 'insert' && call.returning && state.insertReturningResults.length > 0
@@ -105,10 +110,16 @@ vi.mock('./db', () => ({
   }
 }))
 
-vi.mock('./demo', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./demo')>()),
-  isDemoModeEnabled: () => state.demoMode
-}))
+vi.mock('./demo', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./demo')>()
+  return {
+    ...actual,
+    isDemoModeEnabled: () => state.demoMode,
+    getDemoStoredMessageById: ((id) =>
+      state.demoStoredMessageOverride ??
+      actual.getDemoStoredMessageById(id)) as typeof actual.getDemoStoredMessageById
+  }
+})
 
 vi.mock('./config', () => ({
   getImapConfigs: vi.fn(async () => state.configs),
@@ -120,6 +131,7 @@ vi.mock('./imap-connections', () => ({
   getWorkerConnection: vi.fn(async () => {
     const connection = state.connections.shift()
     if (!connection) throw new Error('Unexpected IMAP connection')
+    if (connection instanceof Error) throw connection
     return connection
   }),
   invalidateWorkerConnection: vi.fn((configId: string, connection: unknown) => {
@@ -206,6 +218,19 @@ vi.mock('./openpgp-message', () => ({
 
 vi.mock('openpgp', () => ({ readKey: state.readKey }))
 
+vi.mock('mailparser', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('mailparser')>()
+  return {
+    ...actual,
+    simpleParser: (async (source: Parameters<typeof actual.simpleParser>[0]) => {
+      const parsed = await actual.simpleParser(source)
+      return state.simpleParserOverride
+        ? state.simpleParserOverride(parsed as unknown as Record<string, unknown>)
+        : parsed
+    }) as typeof actual.simpleParser
+  }
+})
+
 import {
   backfillMailAuthenticationFromWorker,
   backfillOpenPgpFromWorker,
@@ -285,6 +310,8 @@ beforeEach(() => {
   state.privateKeys = []
   state.publicKeys = []
   state.pushError = null
+  state.simpleParserOverride = null
+  state.demoStoredMessageOverride = null
   state.dismissPush.mockReset()
   state.dismissPush.mockImplementation(async (messageIds: number[]) => {
     state.dismissedNotifications.push(messageIds)
@@ -885,7 +912,7 @@ test('updates every copy and queues durable unread jobs', async () => {
       (call.values as Array<{ type?: string }>).some((job) => job.type === 'mark_unread')
   )
   assert.deepEqual(
-    (queuedJobs?.values as Array<{ mailbox: string; uid: number; type: string }>).map(
+    (queuedJobs!.values as Array<{ mailbox: string; uid: number; type: string }>).map(
       ({ mailbox, uid, type }) => ({ mailbox, uid, type })
     ),
     [{ mailbox: 'Inbox', uid: 10, type: 'mark_unread' }]
@@ -1996,7 +2023,7 @@ test('reprocesses PGP sources after discovering a sender verification key', asyn
   assert.equal(await backfillOpenPgpFromWorker(), 1)
   assert.equal(state.processInboundOpenPgp.mock.calls.length, 2)
   assert.equal(
-    (state.processInboundOpenPgp.mock.calls[1]?.[0] as { verificationKeys: unknown[] })
+    (state.processInboundOpenPgp.mock.calls[1]![0] as { verificationKeys: unknown[] })
       .verificationKeys.length,
     1
   )
@@ -3028,7 +3055,7 @@ test('handles malformed attached PGP public keys without failing the OpenPGP bac
   assert.equal(await backfillOpenPgpFromWorker(), 1)
   assert.equal(state.processInboundOpenPgp.mock.calls.length, 1)
   assert.deepEqual(
-    (state.processInboundOpenPgp.mock.calls[0]?.[0] as { verificationKeys: unknown[] })
+    (state.processInboundOpenPgp.mock.calls[0]![0] as { verificationKeys: unknown[] })
       .verificationKeys,
     []
   )
@@ -3658,7 +3685,7 @@ test('updates five hundred cached IMAP mailbox entries without downloading sourc
     [],
     [],
     rows,
-    rows.map((row, index) => ({ uid: index + 1, rawStored: true })),
+    rows.map((_row, index) => ({ uid: index + 1, rawStored: true })),
     [],
     [],
     []
@@ -3829,12 +3856,12 @@ test('uses wildcard trusted auth servers and passes detached PGP signatures to v
   assert.equal(await backfillOpenPgpFromWorker(), 1)
   assert.equal(
     (
-      state.processInboundOpenPgp.mock.calls[0]?.[0] as { detachedSignatures: Buffer[] }
+      state.processInboundOpenPgp.mock.calls[0]![0] as { detachedSignatures: Buffer[] }
     ).detachedSignatures[0]?.toString(),
     'signature'
   )
   assert.deepEqual(
-    (state.processInboundOpenPgp.mock.calls[0]?.[0] as { trustedFingerprints: Set<string> })
+    (state.processInboundOpenPgp.mock.calls[0]![0] as { trustedFingerprints: Set<string> })
       .trustedFingerprints,
     new Set(['trusted-fingerprint'])
   )
@@ -4213,7 +4240,7 @@ test('keeps unknown signatures unchanged when key discovery finds none and ignor
   assert.equal(await backfillOpenPgpFromWorker(), 1)
   assert.equal(state.processInboundOpenPgp.mock.calls.length, 1)
   assert.deepEqual(
-    (state.processInboundOpenPgp.mock.calls[0]?.[0] as { detachedSignatures: Buffer[] })
+    (state.processInboundOpenPgp.mock.calls[0]![0] as { detachedSignatures: Buffer[] })
       .detachedSignatures,
     []
   )
@@ -4310,7 +4337,7 @@ test('ignores oversized attached PGP keys while processing the enclosing message
 
   assert.equal(await backfillOpenPgpFromWorker(), 1)
   assert.deepEqual(
-    (state.processInboundOpenPgp.mock.calls[0]?.[0] as { verificationKeys: unknown[] })
+    (state.processInboundOpenPgp.mock.calls[0]![0] as { verificationKeys: unknown[] })
       .verificationKeys,
     []
   )
@@ -4580,4 +4607,1291 @@ test('counts unread persisted messages and retains thread counts absent from com
       ?.threadCount,
     3
   )
+})
+
+test('omits PGP key and signature candidates when a hinted source has no parsed attachments', async () => {
+  state.demoMode = false
+  const source = Buffer.from(
+    [
+      'Message-ID: <no-attachments@example.test>',
+      'From: Ada <ada@example.test>',
+      'Content-Type: application/pgp-encrypted',
+      '',
+      'Version: 1'
+    ].join('\r\n')
+  )
+  state.simpleParserOverride = (parsed) => {
+    const { attachments: _attachments, ...rest } = parsed
+    return rest
+  }
+  state.queryResults = [[{ id: 42, messageId: '<no-attachments@example.test>', rawSource: source }]]
+
+  assert.equal(await backfillOpenPgpFromWorker(), 1)
+  assert.equal(state.processInboundOpenPgp.mock.calls.length, 1)
+  const call = state.processInboundOpenPgp.mock.calls[0]![0] as {
+    detachedSignatures: Buffer[]
+  }
+  assert.deepEqual(call.detachedSignatures, [])
+})
+
+test('falls back to text, address, and reference defaults while skipping and defaulting new attachments', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  state.insertReturningResults = [[{ id: 1 }]]
+  const lock = { release: vi.fn() }
+  const source = Buffer.from(
+    [
+      'Message-ID: <field-defaults@example.test>',
+      'From: Ada <ada@example.test>',
+      'To: Bob <bob@example.test>',
+      'Subject: Field defaults',
+      '',
+      'Body text'
+    ].join('\r\n')
+  )
+  state.simpleParserOverride = (parsed) => ({
+    ...parsed,
+    text: undefined,
+    html: '<p>Hi</p>',
+    references: ['<a@example.test>', '<b@example.test>'],
+    to: { value: [{}], text: '' },
+    cc: { value: undefined, text: 'CC Fallback' },
+    attachments: [
+      { contentDisposition: 'inline', content: Buffer.from('inline-img') },
+      { contentDisposition: 'attachment', content: undefined },
+      {
+        contentDisposition: 'attachment',
+        content: Buffer.from('attached body'),
+        filename: undefined,
+        contentType: undefined,
+        size: undefined
+      }
+    ]
+  })
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    status: vi.fn(async () => ({ uidNext: 2, uidValidity: 9n, highestModseq: 12n })),
+    getMailboxLock: vi.fn(async () => lock),
+    mailbox: { uidValidity: 9n, uidNext: 2, highestModseq: 12n, usable: true },
+    fetch: vi.fn(async function* (_range: string, query: { source?: boolean }) {
+      if (query.source) {
+        yield { uid: 1, source }
+        return
+      }
+      yield {
+        uid: 1,
+        envelope: { messageId: '<field-defaults@example.test>' },
+        flags: new Set<string>(),
+        internalDate: new Date('2026-01-01T00:00:00Z')
+      }
+    }),
+    noop: vi.fn(async () => undefined)
+  }
+  state.connections = [listConnection, syncConnection]
+  state.queryResults = [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+      {
+        lastUid: 0,
+        uidValidity: 9,
+        highestModseq: 12n,
+        historyComplete: true,
+        lastReconciledAt: new Date(),
+        lastSyncedAt: null
+      }
+    ],
+    [],
+    [],
+    [],
+    []
+  ]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  const message = state.calls.find(
+    (call) =>
+      call.operation === 'insert' &&
+      (call.values as { messageId?: string } | undefined)?.messageId ===
+        '<field-defaults@example.test>'
+  )
+  assert.ok(message)
+  const values = message!.values as {
+    textContent?: string
+    htmlContent?: string | null
+    references?: string | null
+    to?: string
+    cc?: string
+  }
+  assert.equal(values.textContent, '')
+  assert.equal(values.htmlContent, '<p>Hi</p>')
+  assert.equal(values.references, '<a@example.test> <b@example.test>')
+  assert.equal(values.to, '')
+  assert.equal(values.cc, 'CC Fallback')
+
+  const attachment = state.calls.find(
+    (call) =>
+      call.operation === 'insert' &&
+      (call.values as { filename?: string } | undefined)?.filename === 'attachment'
+  )
+  assert.ok(attachment)
+  const attachmentValues = attachment!.values as {
+    contentType?: string
+    size?: number
+  }
+  assert.equal(attachmentValues.contentType, 'application/octet-stream')
+  assert.equal(attachmentValues.size, 'attached body'.length)
+  assert.equal(
+    state.calls.filter(
+      (call) =>
+        call.operation === 'insert' && 'filename' in (call.values as Record<string, unknown>)
+    ).length,
+    1
+  )
+})
+
+test('defaults missing OpenPGP signed, encrypted, and decrypted flags to false for new messages', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  state.insertReturningResults = [[{ id: 1 }]]
+  const lock = { release: vi.fn() }
+  const source = Buffer.from(
+    [
+      'Message-ID: <openpgp-flag-defaults@example.test>',
+      'From: Ada <ada@example.test>',
+      'To: Bob <bob@example.test>',
+      'Subject: pgp- hint without explicit flags',
+      '',
+      'Body text'
+    ].join('\r\n')
+  )
+  state.openPgpResult = {
+    signed: undefined,
+    signatureStatus: 'unknown',
+    signer: null,
+    fingerprint: null,
+    encrypted: undefined,
+    decrypted: undefined,
+    error: null,
+    rawMessage: source
+  }
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    status: vi.fn(async () => ({ uidNext: 2, uidValidity: 9n, highestModseq: 12n })),
+    getMailboxLock: vi.fn(async () => lock),
+    mailbox: { uidValidity: 9n, uidNext: 2, highestModseq: 12n, usable: true },
+    fetch: vi.fn(async function* (_range: string, query: { source?: boolean }) {
+      if (query.source) {
+        yield { uid: 1, source }
+        return
+      }
+      yield {
+        uid: 1,
+        envelope: { messageId: '<openpgp-flag-defaults@example.test>' },
+        flags: new Set<string>(),
+        internalDate: new Date('2026-01-01T00:00:00Z')
+      }
+    }),
+    noop: vi.fn(async () => undefined)
+  }
+  state.connections = [listConnection, syncConnection]
+  state.queryResults = [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+      {
+        lastUid: 0,
+        uidValidity: 9,
+        highestModseq: 12n,
+        historyComplete: true,
+        lastReconciledAt: new Date(),
+        lastSyncedAt: null
+      }
+    ],
+    [],
+    [],
+    [],
+    []
+  ]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  const mailboxEntry = state.calls.find(
+    (call) =>
+      call.operation === 'insert' &&
+      (call.values as { messageId?: string } | undefined)?.messageId ===
+        '<openpgp-flag-defaults@example.test>' &&
+      'openPgpSigned' in (call.values as Record<string, unknown>)
+  )
+  assert.ok(mailboxEntry)
+  const values = mailboxEntry!.values as {
+    openPgpSigned?: boolean
+    openPgpEncrypted?: boolean
+    openPgpDecrypted?: boolean
+  }
+  assert.equal(values.openPgpSigned, false)
+  assert.equal(values.openPgpEncrypted, false)
+  assert.equal(values.openPgpDecrypted, false)
+})
+
+test('omits attachments entirely when replacing content for an existing message', async () => {
+  state.demoMode = false
+  const source = Buffer.from(
+    [
+      'Message-ID: <replace-no-attachments@example.test>',
+      'Content-Type: application/pgp-encrypted',
+      '',
+      'Version: 1'
+    ].join('\r\n')
+  )
+  const decryptedSource = Buffer.from(
+    [
+      'Message-ID: <replace-no-attachments@example.test>',
+      'From: Ada <ada@example.test>',
+      'To: Bob <bob@example.test>',
+      'Subject: Decrypted without attachments',
+      '',
+      'Plaintext body'
+    ].join('\r\n')
+  )
+  state.simpleParserOverride = (parsed) => {
+    const { attachments: _attachments, ...rest } = parsed
+    return rest
+  }
+  state.openPgpResult = {
+    signed: false,
+    signatureStatus: null,
+    signer: null,
+    fingerprint: null,
+    encrypted: true,
+    decrypted: true,
+    error: null,
+    rawMessage: decryptedSource
+  }
+  state.queryResults = [
+    [{ id: 42, messageId: '<replace-no-attachments@example.test>', rawSource: source }],
+    [],
+    [],
+    [{ id: 5 }],
+    [],
+    [],
+    []
+  ]
+
+  assert.equal(await backfillOpenPgpFromWorker(), 1)
+  assert.deepEqual(
+    state.calls.filter(
+      (call) =>
+        call.operation === 'insert' && 'filename' in (call.values as Record<string, unknown>)
+    ),
+    []
+  )
+})
+
+test('skips inline and contentless attachments while defaulting fields when replacing content', async () => {
+  state.demoMode = false
+  const source = Buffer.from(
+    [
+      'Message-ID: <replace-attachments@example.test>',
+      'Content-Type: application/pgp-encrypted',
+      '',
+      'Version: 1'
+    ].join('\r\n')
+  )
+  const decryptedSource = Buffer.from(
+    [
+      'Message-ID: <replace-attachments@example.test>',
+      'From: Ada <ada@example.test>',
+      'To: Bob <bob@example.test>',
+      'Subject: Decrypted with attachments',
+      '',
+      'Plaintext body'
+    ].join('\r\n')
+  )
+  state.simpleParserOverride = (parsed) => ({
+    ...parsed,
+    attachments: [
+      { contentDisposition: 'inline', content: Buffer.from('inline-img') },
+      {
+        contentDisposition: 'attachment',
+        content: Buffer.from('replaced body'),
+        filename: undefined,
+        contentType: undefined,
+        size: undefined
+      }
+    ]
+  })
+  state.openPgpResult = {
+    signed: false,
+    signatureStatus: null,
+    signer: null,
+    fingerprint: null,
+    encrypted: true,
+    decrypted: true,
+    error: null,
+    rawMessage: decryptedSource
+  }
+  state.queryResults = [
+    [{ id: 42, messageId: '<replace-attachments@example.test>', rawSource: source }],
+    [],
+    [],
+    [{ id: 5 }],
+    [],
+    [],
+    []
+  ]
+
+  assert.equal(await backfillOpenPgpFromWorker(), 1)
+  const attachment = state.calls.find(
+    (call) =>
+      call.operation === 'insert' &&
+      (call.values as { filename?: string } | undefined)?.filename === 'attachment'
+  )
+  assert.ok(attachment)
+  const attachmentValues = attachment!.values as { contentType?: string; size?: number }
+  assert.equal(attachmentValues.contentType, 'application/octet-stream')
+  assert.equal(attachmentValues.size, 'replaced body'.length)
+  assert.equal(
+    state.calls.filter(
+      (call) =>
+        call.operation === 'insert' && 'filename' in (call.values as Record<string, unknown>)
+    ).length,
+    1
+  )
+})
+
+test('throws when a conflicting message insert cannot be resolved to an existing row', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const lock = { release: vi.fn() }
+  const source = Buffer.from(
+    [
+      'Message-ID: <vanished@example.test>',
+      'From: Ada <ada@example.test>',
+      'To: Bob <bob@example.test>',
+      'Subject: Vanished',
+      '',
+      'Body text'
+    ].join('\r\n')
+  )
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    status: vi.fn(async () => ({ uidNext: 2, uidValidity: 9n, highestModseq: 12n })),
+    getMailboxLock: vi.fn(async () => lock),
+    mailbox: { uidValidity: 9n, uidNext: 2, highestModseq: 12n, usable: true },
+    fetch: vi.fn(async function* (_range: string, query: { source?: boolean }) {
+      if (query.source) {
+        yield { uid: 1, source }
+        return
+      }
+      yield {
+        uid: 1,
+        envelope: { messageId: '<vanished@example.test>' },
+        flags: new Set<string>(),
+        internalDate: new Date('2026-01-01T00:00:00Z')
+      }
+    }),
+    noop: vi.fn(async () => undefined)
+  }
+  state.connections = [listConnection, syncConnection]
+  state.queryResults = [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+      {
+        lastUid: 0,
+        uidValidity: 9,
+        highestModseq: 12n,
+        historyComplete: true,
+        lastReconciledAt: new Date(),
+        lastSyncedAt: null
+      }
+    ],
+    [], // insert onConflictDoNothing returning -> conflict, no row returned
+    [] // fallback select for existing message -> also empty
+  ]
+
+  await assert.rejects(runMailboxSyncOnce(), /Unable to resolve stored message/)
+})
+
+test('uses an empty trusted authserv list when the environment variable is unset', async () => {
+  state.demoMode = false
+  state.trustedAuthservIds = undefined as unknown as string
+  state.queryResults = [
+    [
+      {
+        id: 9,
+        messageId: '<untrusted-env@example.test>',
+        mailbox: 'Inbox',
+        uid: 1,
+        flags: '[]',
+        subject: 'Untrusted',
+        from: 'Ada <ada@example.test>',
+        to: 'Bob <bob@example.test>',
+        cc: '',
+        preview: 'Preview',
+        receivedAt: null,
+        threadId: '<thread@example.test>',
+        textContent: 'Body',
+        htmlContent: null,
+        replyTo: null,
+        inReplyTo: null,
+        references: null,
+        authservId: 'mx.example.test'
+      }
+    ]
+  ]
+
+  const rows = await listMessagesBySender('Inbox', 'ada@example.test')
+  assert.equal(
+    (rows[0] as MailRow & { authenticationTrusted?: boolean }).authenticationTrusted,
+    false
+  )
+})
+
+test('treats a blank thrown string as an unknown IMAP sync error', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const connection = {
+    list: vi.fn(async () => {
+      throw '   '
+    })
+  }
+  state.connections = [connection]
+
+  await assert.rejects(runMailboxSyncOnce(), (error) => error === '   ')
+  assert.ok(
+    state.calls.some(
+      (call) =>
+        call.operation === 'insert' &&
+        (call.values as { lastError?: string } | undefined)?.lastError === 'Unknown IMAP sync error'
+    )
+  )
+})
+
+test('sorts differently named mailboxes of the same special-use rank alphabetically', async () => {
+  state.demoMode = false
+  state.queryResults = [
+    [
+      {
+        path: 'Zeta',
+        configId: 'primary',
+        remotePath: 'Zeta',
+        name: 'Zeta',
+        delimiter: '/',
+        specialUse: null
+      },
+      {
+        path: 'Alpha',
+        configId: 'primary',
+        remotePath: 'Alpha',
+        name: 'Alpha',
+        delimiter: '/',
+        specialUse: null
+      }
+    ]
+  ]
+
+  const mailboxes = await getImapMailboxes()
+  assert.deepEqual(
+    mailboxes.map((mailbox) => mailbox.path),
+    ['Alpha', 'Zeta']
+  )
+})
+
+test('skips catalog inserts when a live listing returns no mailboxes but existing catalog rows exist', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const listConnection = { list: vi.fn(async () => []) }
+  state.connections = [listConnection]
+  state.queryResults = [
+    [],
+    [],
+    [
+      {
+        path: 'Inbox',
+        configId: 'primary',
+        remotePath: 'Inbox',
+        name: 'Inbox',
+        delimiter: '/',
+        specialUse: null
+      }
+    ]
+  ]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  assert.deepEqual(
+    state.calls.filter(
+      (call) => call.operation === 'insert' && 'path' in (call.values as Record<string, unknown>)
+    ),
+    []
+  )
+})
+
+test('summarizes sync without a runtime row or any recorded sync timestamp', async () => {
+  state.demoMode = false
+  state.config = imapConfig
+  state.queryResults = [
+    [],
+    [{ mailbox: 'Inbox', lastSyncedAt: undefined, lastError: null }],
+    [],
+    [{ lastFetchedCount: 0, lastStoredCount: 0, lastSyncedAt: null, lastError: null }]
+  ]
+
+  assert.deepEqual(await getSyncSummary(), {
+    syncing: false,
+    configured: true,
+    hasError: false,
+    lastSyncedAt: null,
+    errorMessage: null,
+    progress: null
+  })
+  assert.deepEqual(await getMailboxSyncStatus('Inbox'), {
+    mailbox: 'Inbox',
+    configured: true,
+    skipped: false,
+    syncing: false,
+    fetchedCount: 0,
+    storedCount: 0,
+    lastSyncedAt: null,
+    lastError: null,
+    reason: undefined
+  })
+})
+
+test('defaults omitted thread metadata flags in demo mode and to stored values otherwise', async () => {
+  assert.deepEqual(await setThreadMetadata('Inbox', '<thread@example.test>', {}), {
+    starred: false,
+    pinned: false
+  })
+
+  state.demoMode = false
+  state.queryResults = [[{ starred: false, pinned: true }], []]
+
+  assert.deepEqual(await setThreadMetadata('Inbox', '<thread@example.test>', { starred: true }), {
+    starred: true,
+    pinned: true
+  })
+})
+
+test('records a zero thread count when the summary count query returns no row', async () => {
+  state.demoMode = false
+  state.queryResults = [
+    [{ representativeMailboxEntryId: 5, latestUid: 5, latestReceivedAt: null }],
+    [],
+    []
+  ]
+
+  await refreshThreadSummaries('Inbox', ['<thread@example.test>', ''])
+
+  assert.equal(
+    state.calls.filter(
+      (call) =>
+        call.operation === 'insert' &&
+        (call.values as { threadCount?: number } | undefined)?.threadCount === 0
+    ).length,
+    1
+  )
+})
+
+test('filters stored messages and threads by the pinned thread metadata flag', async () => {
+  state.demoMode = false
+  state.queryResults = [[], [{ value: 0 }], [], [{ value: 0 }]]
+
+  assert.deepEqual(await listStoredMessages('Inbox', 10, 0, false, 'pinned'), [])
+  assert.equal(await countStoredMessages('Inbox', false, 'pinned'), 0)
+  assert.deepEqual(await listStoredThreads('Inbox', 10, 0, false, 'pinned'), [])
+  assert.equal(await countStoredThreads('Inbox', false, 'pinned'), 0)
+})
+
+test('drops queued sends whose job status has no send state', async () => {
+  state.demoMode = false
+  state.smtpConfigs = [{ id: 'smtp-1', from: 'Ada <ada@example.test>' }]
+  state.queryResults = [
+    [
+      {
+        id: 21,
+        payload: JSON.stringify({ to: 'Bob <bob@example.test>', subject: 'Cancelled send' }),
+        status: 'cancelled',
+        messageId: '<cancelled@example.test>',
+        sentMailbox: 'Sent',
+        placeholderActive: true,
+        deliveredAt: null,
+        openedAt: null,
+        createdAt: new Date('2026-02-01T12:00:00Z')
+      }
+    ],
+    []
+  ]
+
+  assert.deepEqual(await listStoredMessages('Sent', 10), [])
+})
+
+test('orders merged Sent placeholders by pinned state, timestamp, then uid', async () => {
+  state.demoMode = false
+  state.smtpConfigs = []
+  const sameTime = new Date('2026-02-01T12:00:00Z')
+  const job = (id: number) => ({
+    id,
+    payload: JSON.stringify({ to: 'Bob <bob@example.test>', subject: `Queued ${id}` }),
+    status: 'pending',
+    messageId: `<queued-${id}@example.test>`,
+    sentMailbox: 'Sent',
+    placeholderActive: true,
+    deliveredAt: null,
+    openedAt: null,
+    createdAt: sameTime
+  })
+  state.queryResults = [
+    [job(1), job(2)],
+    [
+      {
+        id: 31,
+        messageId: '<pinned@example.test>',
+        mailbox: 'Sent',
+        uid: 3,
+        flags: '[]',
+        subject: 'Pinned',
+        from: 'Ada <ada@example.test>',
+        to: '',
+        cc: '',
+        preview: '',
+        receivedAt: new Date('2026-02-02T12:00:00Z'),
+        threadId: '<thread@example.test>',
+        threadPinned: true
+      },
+      {
+        id: 32,
+        messageId: '<undated-a@example.test>',
+        mailbox: 'Sent',
+        uid: 4,
+        flags: '[]',
+        subject: 'Undated A',
+        from: 'Ada <ada@example.test>',
+        to: '',
+        cc: '',
+        preview: '',
+        receivedAt: null,
+        threadId: '<thread@example.test>',
+        threadPinned: false
+      },
+      {
+        id: 33,
+        messageId: '<undated-b@example.test>',
+        mailbox: 'Sent',
+        uid: 5,
+        flags: '[]',
+        subject: 'Undated B',
+        from: 'Ada <ada@example.test>',
+        to: '',
+        cc: '',
+        preview: '',
+        receivedAt: null,
+        threadId: '<thread@example.test>',
+        threadPinned: false
+      }
+    ]
+  ]
+
+  const messages = await listStoredMessages('Sent', 10)
+  assert.deepEqual(messages[0]?.subject, 'Pinned')
+  assert.deepEqual(
+    messages
+      .slice(1)
+      .map(({ subject }) => subject)
+      .sort(),
+    ['Queued 1', 'Queued 2', 'Undated A', 'Undated B']
+  )
+})
+
+test('stores null catalog identifiers when a listing and its account omit them', async () => {
+  state.demoMode = false
+  state.configs = [{ ...imapConfig, id: undefined }]
+  const listConnection = {
+    list: vi.fn(async () => [{ name: 'Weird', flags: new Set(['\\Noselect']) }])
+  }
+  state.connections = [listConnection]
+  state.queryResults = [[], [], [], [], [], [], [], []]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  const catalogInsert = state.calls.find(
+    (call) =>
+      call.operation === 'insert' &&
+      (call.values as { name?: string } | undefined)?.name === 'Weird'
+  )
+  assert.deepEqual(
+    (catalogInsert!.values as { configId: string | null; remotePath: string | null }).configId,
+    null
+  )
+  assert.deepEqual(
+    (catalogInsert!.values as { configId: string | null; remotePath: string | null }).remotePath,
+    null
+  )
+})
+
+test('logs a slow thread key resolution that stays on the message itself', async () => {
+  state.demoMode = false
+  let time = 0
+  const now = vi.spyOn(Date, 'now').mockImplementation(() => (time += 30_000))
+  const source = Buffer.from('Content-Type: application/pgp-encrypted\r\n\r\nVersion: 1')
+  const decryptedSource = Buffer.from(
+    'Message-ID: <self@example.test>\r\nIn-Reply-To: <root@example.test>\r\n\r\nPlaintext body'
+  )
+  state.openPgpResult = {
+    signed: false,
+    signatureStatus: null,
+    signer: null,
+    fingerprint: null,
+    encrypted: true,
+    decrypted: true,
+    error: null,
+    rawMessage: decryptedSource
+  }
+  state.insertReturningResults = [[{ id: 5 }]]
+  state.queryResults = [
+    [{ id: 42, messageId: '<self@example.test>', rawSource: source }],
+    [{ rawSource: source }],
+    [{ messageId: '<root@example.test>', threadKey: '<self@example.test>' }]
+  ]
+
+  assert.equal(await backfillOpenPgpFromWorker(), 1)
+  assert.ok(
+    state.calls.some(
+      (call) =>
+        call.operation === 'insert' &&
+        (call.values as { threadKey?: string } | undefined)?.threadKey === '<self@example.test>'
+    )
+  )
+  now.mockRestore()
+})
+
+test('lists unread persisted messages and starred threads through their own filters', async () => {
+  state.demoMode = false
+  state.queryResults = [[], [], [{ value: 0 }]]
+
+  assert.deepEqual(await listStoredMessages('Inbox', 10, 0, true), [])
+  assert.deepEqual(await listStoredThreads('Inbox', 10, 0, false, 'starred'), [])
+  assert.equal(await countStoredThreads('Inbox', false, 'starred'), 0)
+})
+
+test('renders a demo raw message without a received date', async () => {
+  state.demoStoredMessageOverride = {
+    id: 1,
+    messageId: '<undated@example.test>',
+    receivedAt: null,
+    from: 'Ada <ada@example.test>',
+    to: 'Bob <bob@example.test>',
+    subject: 'Undated',
+    textContent: 'Body'
+  }
+
+  const raw = await getStoredRawMessageById(1)
+  assert.match(raw!.toString('utf8'), /^Date: $/m)
+})
+
+test('parses raw backfill sources that expose no header lines', async () => {
+  state.demoMode = false
+  state.simpleParserOverride = (parsed) => ({ ...parsed, headerLines: undefined })
+  const source = Buffer.from(
+    ['Message-ID: <headerless@example.test>', 'Subject: Headerless', '', 'Body'].join('\r\n')
+  )
+  const connection = {
+    mailboxOpen: vi.fn(async () => undefined),
+    mailbox: { uidValidity: 9n },
+    fetch: vi.fn(async function* () {
+      yield { uid: 4, source }
+    })
+  }
+  state.configs = [imapConfig]
+  state.connections = [connection]
+  state.queryResults = [
+    [
+      {
+        id: 12,
+        messageId: '<headerless@example.test>',
+        mailbox: 'Inbox',
+        uid: 4,
+        uidValidity: 9,
+        attempts: 0,
+        configId: 'primary',
+        remoteMailbox: 'Inbox'
+      }
+    ],
+    [],
+    []
+  ]
+
+  assert.equal(await backfillMailAuthenticationFromWorker(), 1)
+  assert.ok(
+    state.calls.some(
+      (call) =>
+        call.operation === 'update' &&
+        (call.set as { spfStatus?: string | null } | undefined)?.spfStatus === null
+    )
+  )
+})
+
+const reconcileScope = { mailboxes: new Map([['primary', new Set(['Inbox'])]]) }
+
+const reconcileSyncConnections = (reconcileConnection: Record<string, unknown>) => {
+  const syncLock = { release: vi.fn() }
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    status: vi.fn(async () => ({ uidNext: 1, uidValidity: 9n, highestModseq: 12n })),
+    getMailboxLock: vi.fn(async () => syncLock),
+    mailbox: { uidValidity: 9n, uidNext: 1, highestModseq: 12n, usable: true },
+    noop: vi.fn(async () => undefined)
+  }
+  state.connections = [listConnection, syncConnection, reconcileConnection]
+  return { syncLock }
+}
+
+const reconcileState = [
+  [],
+  [],
+  [],
+  [],
+  [],
+  [],
+  [
+    {
+      lastUid: 0,
+      uidValidity: 9,
+      highestModseq: 12n,
+      historyComplete: true,
+      lastReconciledAt: new Date(),
+      lastSyncedAt: null
+    }
+  ],
+  [],
+  []
+] as unknown[]
+
+test('fails a reconciliation when the remote UID SEARCH is rejected', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const reconcileLock = { release: vi.fn() }
+  reconcileSyncConnections({
+    getMailboxLock: vi.fn(async () => reconcileLock),
+    mailbox: { uidValidity: 9n, highestModseq: 13n },
+    capabilities: new Set<string>(),
+    search: vi.fn(async () => false)
+  })
+  state.queryResults = [...reconcileState]
+
+  await assert.rejects(runMailboxSyncOnce(reconcileScope), /UID SEARCH failed for Inbox/)
+  assert.equal(reconcileLock.release.mock.calls.length, 1)
+})
+
+test('reconciles an empty remote mailbox without fetching flags or dismissing reads', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const reconcileLock = { release: vi.fn() }
+  const fetch = vi.fn()
+  reconcileSyncConnections({
+    getMailboxLock: vi.fn(async () => reconcileLock),
+    mailbox: { uidValidity: 9n, highestModseq: 13n },
+    capabilities: new Set<string>(),
+    search: vi.fn(async () => []),
+    fetch
+  })
+  state.queryResults = [...reconcileState]
+
+  assert.equal(await runMailboxSyncOnce(reconcileScope), true)
+  assert.equal(fetch.mock.calls.length, 0)
+  assert.deepEqual(state.dismissedNotifications, [])
+})
+
+test('reconciles flagless fetch responses and read jobs that stay unconfirmed', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const reconcileLock = { release: vi.fn() }
+  reconcileSyncConnections({
+    getMailboxLock: vi.fn(async () => reconcileLock),
+    mailbox: { uidValidity: 9n, highestModseq: 13n },
+    capabilities: new Set<string>(),
+    search: vi.fn(async () => [1, 2, 3]),
+    fetch: vi.fn(async function* (range: string) {
+      yield {}
+      if (range === '1:3') yield { uid: 1 }
+      if (range === '2:3') yield { uid: 2 }
+    })
+  })
+  state.queryResults = [
+    ...reconcileState,
+    [{ id: 10, uid: 1, flags: '["\\\\Seen"]', threadKey: '<thread@example.test>' }],
+    [
+      { id: 1, uid: null, type: 'mark_read', status: 'done' },
+      { id: 2, uid: 2, type: 'mark_read', status: 'done' },
+      { id: 3, uid: 3, type: 'mark_read', status: 'done' }
+    ]
+  ]
+
+  assert.equal(await runMailboxSyncOnce(reconcileScope), true)
+  assert.deepEqual(state.dismissedNotifications, [])
+  assert.ok(
+    state.calls.some(
+      (call) =>
+        call.operation === 'update' && (call.set as { flags?: string } | undefined)?.flags === '[]'
+    )
+  )
+})
+
+test('rethrows reconciliation failures that are not CONDSTORE rejections', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const reconcileLock = { release: vi.fn() }
+  reconcileSyncConnections({
+    getMailboxLock: vi.fn(async () => reconcileLock),
+    mailbox: { uidValidity: 9n, highestModseq: 13n },
+    capabilities: new Set(['CONDSTORE']),
+    search: vi.fn(async () => {
+      throw new Error('reconcile exploded')
+    })
+  })
+  state.queryResults = [...reconcileState]
+
+  await assert.rejects(runMailboxSyncOnce(reconcileScope), /reconcile exploded/)
+  assert.equal(reconcileLock.release.mock.calls.length, 1)
+})
+
+test('reconciles a remote mailbox that reports no highest modseq', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const reconcileLock = { release: vi.fn() }
+  reconcileSyncConnections({
+    getMailboxLock: vi.fn(async () => reconcileLock),
+    mailbox: { uidValidity: 9n },
+    capabilities: new Set<string>(),
+    search: vi.fn(async () => []),
+    fetch: vi.fn()
+  })
+  state.queryResults = [...reconcileState]
+
+  assert.equal(await runMailboxSyncOnce(reconcileScope), true)
+  assert.ok(
+    state.calls.some(
+      (call) =>
+        call.operation === 'insert' &&
+        (call.values as { highestModseq?: bigint | null } | undefined)?.highestModseq === null
+    )
+  )
+})
+
+test('backs off a mailbox whose initial sync recently failed', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  state.connections = [listConnection]
+  state.queryResults = [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+      {
+        lastUid: 0,
+        uidValidity: 9,
+        historyComplete: false,
+        lastError: 'initial backfill failed',
+        lastSyncedAt: new Date()
+      }
+    ]
+  ]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  assert.equal(state.connections.length, 0)
+})
+
+test('fails a sync when the locked IMAP mailbox is not selected', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const lock = { release: vi.fn() }
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    status: vi.fn(async () => ({ uidNext: 8, uidValidity: 9n, highestModseq: 12n })),
+    getMailboxLock: vi.fn(async () => lock)
+  }
+  state.connections = [listConnection, syncConnection]
+  state.queryResults = []
+
+  await assert.rejects(runMailboxSyncOnce(), /Mailbox Inbox was not selected/)
+  assert.equal(lock.release.mock.calls.length, 1)
+})
+
+test('rethrows IMAP listing failures raised before a connection is established', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  state.connections = [new Error('authentication failed')]
+  state.queryResults = []
+
+  await assert.rejects(runMailboxSyncOnce(), /authentication failed/)
+  assert.deepEqual(state.invalidated, [])
+})
+
+test('rethrows mailbox sync failures raised before a connection is established', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  state.connections = [listConnection, new Error('authentication failed')]
+  state.queryResults = []
+
+  await assert.rejects(runMailboxSyncOnce(), /authentication failed/)
+  assert.deepEqual(state.invalidated, [])
+})
+
+test('skips unusable IMAP fetch responses while ingesting an existing message', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  state.simpleParserOverride = (parsed) => ({ ...parsed, headerLines: undefined })
+  const source = Buffer.from(
+    ['Message-ID: <existing@example.test>', 'Subject: Existing', '', 'Body'].join('\r\n')
+  )
+  const lock = { release: vi.fn() }
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    status: vi.fn(async () => ({ uidNext: 8, uidValidity: 9n, highestModseq: 12n })),
+    getMailboxLock: vi.fn(async () => lock),
+    mailbox: { uidValidity: 9n, uidNext: 8, usable: true },
+    fetch: vi.fn(async function* (_range: string, query: { source?: boolean }) {
+      yield {}
+      if (query.source) {
+        yield { uid: 7 }
+        yield { uid: 99, source }
+        yield { uid: 7, source }
+      } else {
+        yield { uid: 7 }
+      }
+    }),
+    noop: vi.fn(async () => undefined)
+  }
+  state.connections = [listConnection, syncConnection]
+  state.queryResults = [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [{ lastUid: 6, uidValidity: 9, historyComplete: true, lastReconciledAt: new Date() }],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [{ id: 1 }]
+  ]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  assert.equal(lock.release.mock.calls.length, 1)
+  assert.deepEqual(state.filteredMessageIds, [])
+  assert.ok(
+    state.calls.some(
+      (call) =>
+        call.operation === 'insert' &&
+        (call.values as { messageId?: string } | undefined)?.messageId === 'synthetic:Inbox:7'
+    )
+  )
+})
+
+test('stores an oversized IMAP source without persisting its raw bytes', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const source = Buffer.alloc(25 * 1024 * 1024 + 1, ' ')
+  source.write('Message-ID: <huge@example.test>\r\nSubject: Huge\r\n\r\n')
+  const lock = { release: vi.fn() }
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    status: vi.fn(async () => ({ uidNext: 8, uidValidity: 9n, highestModseq: 12n })),
+    getMailboxLock: vi.fn(async () => lock),
+    mailbox: { uidValidity: 9n, uidNext: 8, highestModseq: 12n, usable: true },
+    fetch: vi.fn(async function* (_range: string, query: { source?: boolean }) {
+      if (query.source) yield { uid: 7, source }
+      else
+        yield { uid: 7, envelope: { messageId: '<huge@example.test>' }, flags: new Set<string>() }
+    }),
+    noop: vi.fn(async () => undefined)
+  }
+  state.connections = [listConnection, syncConnection]
+  state.queryResults = [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [{ lastUid: 6, uidValidity: 9, historyComplete: true, lastReconciledAt: new Date() }],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [{ id: 1 }]
+  ]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  const entry = state.calls.find(
+    (call) =>
+      call.operation === 'insert' &&
+      (call.values as { messageId?: string; uid?: number } | undefined)?.messageId ===
+        '<huge@example.test>' &&
+      (call.values as { uid?: number } | undefined)?.uid === 7
+  )
+  assert.equal((entry!.values as { rawSource: Buffer | null }).rawSource, null)
+})
+
+test('stores new messages without pushing when a mailbox opts out of notifications', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  state.shouldNotifyMailbox = false
+  const source = Buffer.from(
+    ['Message-ID: <quiet@example.test>', 'Subject: Quiet', '', 'Body'].join('\r\n')
+  )
+  const lock = { release: vi.fn() }
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    status: vi.fn(async () => ({ uidNext: 8, uidValidity: 9n, highestModseq: 12n })),
+    getMailboxLock: vi.fn(async () => lock),
+    mailbox: { uidValidity: 9n, uidNext: 8, highestModseq: 12n, usable: true },
+    fetch: vi.fn(async function* (_range: string, query: { source?: boolean }) {
+      if (query.source) yield { uid: 7, source }
+      else
+        yield { uid: 7, envelope: { messageId: '<quiet@example.test>' }, flags: new Set<string>() }
+    }),
+    noop: vi.fn(async () => undefined)
+  }
+  state.connections = [listConnection, syncConnection]
+  state.queryResults = [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [{ lastUid: 6, uidValidity: 9, historyComplete: true, lastReconciledAt: new Date() }],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [{ id: 1 }]
+  ]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  assert.deepEqual(state.filteredMessageIds, [['<quiet@example.test>']])
+  assert.deepEqual(state.sentPushes, [])
+})
+
+test('names the push sender from a display name when one is present', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const source = Buffer.from(
+    ['Message-ID: <loud@example.test>', 'Subject: Loud', '', 'Body'].join('\r\n')
+  )
+  const lock = { release: vi.fn() }
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    status: vi.fn(async () => ({ uidNext: 8, uidValidity: 9n, highestModseq: 12n })),
+    getMailboxLock: vi.fn(async () => lock),
+    mailbox: { uidValidity: 9n, uidNext: 8, highestModseq: 12n, usable: true },
+    fetch: vi.fn(async function* (_range: string, query: { source?: boolean }) {
+      if (query.source) yield { uid: 7, source }
+      else
+        yield { uid: 7, envelope: { messageId: '<loud@example.test>' }, flags: new Set<string>() }
+    }),
+    noop: vi.fn(async () => undefined)
+  }
+  state.connections = [listConnection, syncConnection]
+  state.queryResults = [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [{ lastUid: 6, uidValidity: 9, historyComplete: true, lastReconciledAt: new Date() }],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [{ id: 1 }],
+    [],
+    [],
+    [],
+    [],
+    [{ id: 5, subject: 'Loud', from: 'Ada Lovelace <ada@example.test>' }],
+    [{ count: 3 }]
+  ]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  assert.deepEqual(
+    state.sentPushes.map(({ title, body, unreadCount }) => ({ title, body, unreadCount })),
+    [{ title: 'Loud', body: 'From: Ada Lovelace', unreadCount: 3 }]
+  )
+})
+
+test('skips the sync keep-alive ping while the IMAP session is unusable', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const setIntervalSpy = vi.spyOn(global, 'setInterval').mockImplementation((callback) => {
+    ;(callback as () => void)()
+    return 1 as unknown as NodeJS.Timeout
+  })
+  const source = Buffer.from(
+    ['Message-ID: <stale@example.test>', 'Subject: Stale', '', 'Body'].join('\r\n')
+  )
+  const lock = { release: vi.fn() }
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    usable: false,
+    status: vi.fn(async () => ({ uidNext: 8, uidValidity: 9n, highestModseq: 12n })),
+    getMailboxLock: vi.fn(async () => lock),
+    mailbox: { uidValidity: 9n, uidNext: 8, highestModseq: 12n },
+    fetch: vi.fn(async function* (_range: string, query: { source?: boolean }) {
+      if (query.source) yield { uid: 7, source }
+      else
+        yield { uid: 7, envelope: { messageId: '<stale@example.test>' }, flags: new Set<string>() }
+    }),
+    noop: vi.fn(async () => undefined)
+  }
+  state.connections = [listConnection, syncConnection]
+  state.queryResults = [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [{ lastUid: 6, uidValidity: 9, historyComplete: true, lastReconciledAt: new Date() }],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [{ id: 1 }]
+  ]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  assert.equal(syncConnection.noop.mock.calls.length, 0)
+  setIntervalSpy.mockRestore()
 })

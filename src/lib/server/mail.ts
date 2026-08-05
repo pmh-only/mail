@@ -1059,8 +1059,8 @@ async function storeMailboxEntry(
   uid: number,
   uidValidity: number | null,
   flags: string[],
-  receivedAt?: Date | null,
-  security?: {
+  receivedAt: Date | null | undefined,
+  security: {
     rawSource: Buffer | null
     spfStatus: string | null
     dkimStatus: string | null
@@ -1072,24 +1072,22 @@ async function storeMailboxEntry(
   const startedAt = Date.now()
   const sanitizedMessageId = sanitizePgText(effectiveMessageId)
   const sanitizedMailbox = sanitizePgText(mailbox)
-  const securityValues = security
-    ? {
-        rawSource: security.rawSource,
-        spfStatus: security.spfStatus,
-        dkimStatus: security.dkimStatus,
-        dmarcStatus: security.dmarcStatus,
-        authservId: security.authservId,
-        openPgpSigned: security.openPgp?.signed ?? false,
-        openPgpSignatureStatus: security.openPgp?.signatureStatus ?? null,
-        openPgpSigner: security.openPgp?.signer ?? null,
-        openPgpFingerprint: security.openPgp?.fingerprint ?? null,
-        openPgpEncrypted: security.openPgp?.encrypted ?? false,
-        openPgpDecrypted: security.openPgp?.decrypted ?? false,
-        openPgpError: security.openPgp?.error ?? null,
-        openPgpProcessedAt: new Date(),
-        rawSourceCheckedAt: new Date()
-      }
-    : {}
+  const securityValues = {
+    rawSource: security.rawSource,
+    spfStatus: security.spfStatus,
+    dkimStatus: security.dkimStatus,
+    dmarcStatus: security.dmarcStatus,
+    authservId: security.authservId,
+    openPgpSigned: security.openPgp?.signed ?? false,
+    openPgpSignatureStatus: security.openPgp?.signatureStatus ?? null,
+    openPgpSigner: security.openPgp?.signer ?? null,
+    openPgpFingerprint: security.openPgp?.fingerprint ?? null,
+    openPgpEncrypted: security.openPgp?.encrypted ?? false,
+    openPgpDecrypted: security.openPgp?.decrypted ?? false,
+    openPgpError: security.openPgp?.error ?? null,
+    openPgpProcessedAt: new Date(),
+    rawSourceCheckedAt: new Date()
+  }
   await db
     .insert(mailMessageMailbox)
     .values({
