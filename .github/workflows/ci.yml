@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  code-quality: write
-  pull-requests: read
 
 jobs:
   validate:
@@ -39,13 +37,6 @@ jobs:
 
       - name: Test with coverage
         run: pnpm test:coverage
-
-      - name: Upload coverage report
-        uses: actions/upload-code-coverage@v1
-        with:
-          file: coverage/cobertura-coverage.xml
-          language: TypeScript
-          label: code-coverage/vitest
 
       - name: Build
         run: pnpm build
