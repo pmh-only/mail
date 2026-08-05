@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/pmh-only/mail/compare/v1.1.0...v1.1.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* **ci:** use PAT token ([1eed75c](https://github.com/pmh-only/mail/commit/1eed75cadca4e725a39dbc6a93010286e0697cff))
+
 ## [1.1.0](https://github.com/pmh-only/mail/compare/v1.0.0...v1.1.0) (2026-08-05)
 
 
