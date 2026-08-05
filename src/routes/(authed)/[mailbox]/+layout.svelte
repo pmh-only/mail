@@ -149,7 +149,7 @@
     return typeof performance !== 'undefined' ? performance.now() : Date.now()
   }
 
-  function logPerf(message: string, details?: Record<string, unknown>) {
+  function logPerf(message: string, details: Record<string, unknown> | undefined = undefined) {
     if (!dev) return
 
     if (details) {
@@ -782,7 +782,7 @@
     return relativeFormatter.format(Math.round(diffMs / minute), 'minute')
   }
 
-  function isUnread(flags: string[] = [], hasUnread?: boolean) {
+  function isUnread(flags: string[] = [], hasUnread: boolean | undefined = undefined) {
     return hasUnread !== undefined ? hasUnread : !flags.includes('\\Seen')
   }
 

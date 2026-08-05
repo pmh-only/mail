@@ -379,7 +379,7 @@
     }
   })
 
-  function isActive(name: string, attrs?: Record<string, unknown>) {
+  function isActive(name: string, attrs: Record<string, unknown> | undefined = undefined) {
     if (editorTick < 0) return false
     return editor?.isActive(name, attrs) ?? false
   }
@@ -599,7 +599,7 @@
     aiPreviewQuotedHtml = ''
   }
 
-  async function composeWithAi(rewriteMode?: RewriteMode) {
+  async function composeWithAi(rewriteMode: RewriteMode | undefined = undefined) {
     if (!editor || composingAi) return
 
     composingAi = true

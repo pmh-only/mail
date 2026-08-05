@@ -122,7 +122,7 @@
     return typeof performance !== 'undefined' ? performance.now() : Date.now()
   }
 
-  function logPerf(message: string, details?: Record<string, unknown>) {
+  function logPerf(message: string, details: Record<string, unknown> | undefined = undefined) {
     if (!dev) return
 
     if (details) {
