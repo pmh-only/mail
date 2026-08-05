@@ -11,6 +11,7 @@
     "yarn.lock",
     "bun.lock",
     "bun.lockb",
+    "CHANGELOG.md",
     "static/**",
     "drizzle/**"
   ]
