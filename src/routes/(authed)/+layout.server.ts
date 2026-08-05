@@ -29,7 +29,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
       translationTargetLanguage: preferences.translationTargetLanguage,
       sidebarWidth: preferences.sidebarWidth,
       savedSearches: [],
-      hasOpenAiKey: false
+      hasOpenAiKey: true
     }
   }
 

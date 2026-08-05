@@ -1945,7 +1945,7 @@
           />
         {/if}
         {#if page.data.hasOpenAiKey}
-          <div class="relative">
+          <div class:hidden={!isAdvancedLayout} class="relative">
             <button
               type="button"
               onclick={() => (showAiMenu = !showAiMenu)}

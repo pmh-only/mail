@@ -2021,6 +2021,7 @@
         openai.apiKey = ''
         clearOpenAIApiKey = false
         lastSavedSettingsSnapshot = settingsSnapshot()
+        void invalidateAll()
       }
       invalidateSignatureCache()
       if (options.manual) saveSuccess = true
