@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from '$app/state'
   import { Sparkles } from 'lucide-svelte'
   import { readErrorMessage } from '$lib/http'
 
@@ -68,7 +69,9 @@
     }
   }
 
-  const supported = $derived(isTextLike(attachment.contentType, attachment.filename))
+  const supported = $derived(
+    Boolean(page.data.hasOpenAiKey) && isTextLike(attachment.contentType, attachment.filename)
+  )
 </script>
 
 {#if supported}

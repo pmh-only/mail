@@ -543,7 +543,7 @@
       searchTimer = null
     }
 
-    if (hasExplicitSearchFilter(query)) {
+    if (!page.data.hasOpenAiKey || hasExplicitSearchFilter(query)) {
       void fetchSearchResults(query)
       return
     }
@@ -2496,19 +2496,21 @@
             >
               <RefreshCw size={15} />
             </button>
-            <button
-              type="button"
-              onclick={() => void summarizeRecentMail()}
-              disabled={summarizing}
-              class={[
-                'transition disabled:cursor-not-allowed disabled:opacity-40',
-                recentSummary || summarizing ? 'text-sky-300' : 'text-zinc-600 hover:text-zinc-400'
-              ]}
-              title="Summarize recent mail"
-              aria-label="Summarize recent mail"
-            >
-              <Sparkles size={15} />
-            </button>
+            {#if page.data.hasOpenAiKey}
+              <button
+                type="button"
+                onclick={() => void summarizeRecentMail()}
+                disabled={summarizing}
+                class={[
+                  'transition disabled:cursor-not-allowed disabled:opacity-40',
+                  recentSummary || summarizing ? 'text-sky-300' : 'text-zinc-600 hover:text-zinc-400'
+                ]}
+                title="Summarize recent mail"
+                aria-label="Summarize recent mail"
+              >
+                <Sparkles size={15} />
+              </button>
+            {/if}
             <div
               class="inline-flex shrink-0 items-center rounded-xl border border-transparent bg-white/3 p-1 text-xs md:border-white/8 md:text-sm"
             >
@@ -2957,21 +2959,23 @@
               >
                 <RefreshCw size={15} />
               </button>
-              <button
-                type="button"
-                onclick={() => void summarizeRecentMail()}
-                disabled={summarizing}
-                class={[
-                  'transition disabled:cursor-not-allowed disabled:opacity-40',
-                  recentSummary || summarizing
-                    ? 'text-sky-300'
-                    : 'text-zinc-600 hover:text-zinc-400'
-                ]}
-                title="Summarize recent mail"
-                aria-label="Summarize recent mail"
-              >
-                <Sparkles size={15} />
-              </button>
+              {#if page.data.hasOpenAiKey}
+                <button
+                  type="button"
+                  onclick={() => void summarizeRecentMail()}
+                  disabled={summarizing}
+                  class={[
+                    'transition disabled:cursor-not-allowed disabled:opacity-40',
+                    recentSummary || summarizing
+                      ? 'text-sky-300'
+                      : 'text-zinc-600 hover:text-zinc-400'
+                  ]}
+                  title="Summarize recent mail"
+                  aria-label="Summarize recent mail"
+                >
+                  <Sparkles size={15} />
+                </button>
+              {/if}
               <div
                 class="inline-flex shrink-0 items-center rounded-xl border border-transparent bg-white/3 p-1 text-xs md:border-white/8 md:text-sm"
               >

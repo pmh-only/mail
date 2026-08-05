@@ -1192,20 +1192,22 @@
           </button>
           <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Reply all </span>
         </div>
-        <div class="group relative inline-flex md:hidden">
-          <button
-            type="button"
-            aria-label="Draft reply with AI"
-            disabled={draftingReply}
-            onclick={() => void generateReplyDraft()}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60"
-          >
-            <Sparkles size={16} class={draftingReply ? 'animate-pulse' : ''} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
-            AI reply draft
-          </span>
-        </div>
+        {#if page.data.hasOpenAiKey}
+          <div class="group relative inline-flex md:hidden">
+            <button
+              type="button"
+              aria-label="Draft reply with AI"
+              disabled={draftingReply}
+              onclick={() => void generateReplyDraft()}
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60"
+            >
+              <Sparkles size={16} class={draftingReply ? 'animate-pulse' : ''} />
+            </button>
+            <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
+              AI reply draft
+            </span>
+          </div>
+        {/if}
         <div class="group relative inline-flex md:hidden">
           <button
             type="button"
@@ -1242,18 +1244,22 @@
             {message.rawSourceAvailable ? 'View raw' : 'Raw unavailable'}
           </span>
         </div>
-        <div class="group relative inline-flex md:hidden">
-          <button
-            type="button"
-            aria-label="Translate"
-            disabled={translating}
-            onclick={() => void translateMessage()}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Languages size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Translate </span>
-        </div>
+        {#if page.data.hasOpenAiKey}
+          <div class="group relative inline-flex md:hidden">
+            <button
+              type="button"
+              aria-label="Translate message"
+              disabled={translating}
+              onclick={() => void translateMessage()}
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60"
+            >
+              <Languages size={16} class={translating ? 'animate-pulse' : ''} />
+            </button>
+            <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
+              Translate message
+            </span>
+          </div>
+        {/if}
         {#if role !== 'archive' && role !== 'trash' && role !== 'spam'}
           <div class="group relative inline-flex">
             <button
@@ -1342,20 +1348,22 @@
           </button>
           <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Reply all </span>
         </div>
-        <div class="group relative">
-          <button
-            type="button"
-            aria-label="Draft reply with AI"
-            disabled={draftingReply}
-            onclick={() => void generateReplyDraft()}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
-          >
-            <Sparkles size={16} class={draftingReply ? 'animate-pulse' : ''} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
-            AI reply draft
-          </span>
-        </div>
+        {#if page.data.hasOpenAiKey}
+          <div class="group relative">
+            <button
+              type="button"
+              aria-label="Draft reply with AI"
+              disabled={draftingReply}
+              onclick={() => void generateReplyDraft()}
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
+            >
+              <Sparkles size={16} class={draftingReply ? 'animate-pulse' : ''} />
+            </button>
+            <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
+              AI reply draft
+            </span>
+          </div>
+        {/if}
         <div class="group relative">
           <button
             type="button"
@@ -1392,20 +1400,22 @@
             {message.rawSourceAvailable ? 'View raw' : 'Raw unavailable'}
           </span>
         </div>
-        <div class="group relative">
-          <button
-            type="button"
-            aria-label="Translate"
-            disabled={translating}
-            onclick={() => void translateMessage()}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
-          >
-            <Languages size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-right">
-            Translate
-          </span>
-        </div>
+        {#if page.data.hasOpenAiKey}
+          <div class="group relative">
+            <button
+              type="button"
+              aria-label="Translate"
+              disabled={translating}
+              onclick={() => void translateMessage()}
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
+            >
+              <Languages size={16} />
+            </button>
+            <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-right">
+              Translate
+            </span>
+          </div>
+        {/if}
       </div>
     </div>
   </div>

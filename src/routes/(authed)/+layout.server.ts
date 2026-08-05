@@ -6,7 +6,7 @@ import { isAlwaysReadMailbox } from '$lib/mailbox'
 import { applyMailboxPreferences, getStoredPreferences } from '$lib/server/preferences'
 import { asc, eq, notLike, sql } from 'drizzle-orm'
 import { getDemoUnreadCounts, isDemoModeEnabled } from '$lib/server/demo'
-import { getImapConfigs } from '$lib/server/config'
+import { getImapConfigs, getOpenAIConfig } from '$lib/server/config'
 import {
   getComposedMailboxUnreadCounts,
   listComposedMailboxes
@@ -28,12 +28,14 @@ export const load: LayoutServerLoad = async ({ locals }) => {
       simplifiedView: preferences.simplifiedView,
       translationTargetLanguage: preferences.translationTargetLanguage,
       sidebarWidth: preferences.sidebarWidth,
-      savedSearches: []
+      savedSearches: [],
+      hasOpenAiKey: false
     }
   }
 
-  const [imapConfigs, [imapMailboxes, unreadRows, savedSearchRows, composedMailboxes]] =
+  const [openaiConfig, imapConfigs, [imapMailboxes, unreadRows, savedSearchRows, composedMailboxes]] =
     await Promise.all([
+      getOpenAIConfig(),
       getImapConfigs(),
       Promise.all([
         getImapMailboxes(),
@@ -74,6 +76,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
     simplifiedView: preferences.simplifiedView,
     translationTargetLanguage: preferences.translationTargetLanguage,
     sidebarWidth: preferences.sidebarWidth,
-    savedSearches: savedSearchRows
+    savedSearches: savedSearchRows,
+    hasOpenAiKey: Boolean(openaiConfig.apiKey)
   }
 }

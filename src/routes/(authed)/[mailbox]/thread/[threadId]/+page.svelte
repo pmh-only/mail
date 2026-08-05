@@ -1059,16 +1059,18 @@
         >
           <Pin size={16} fill={threadMetadata.pinned ? 'currentColor' : 'none'} />
         </button>
-        <button
-          type="button"
-          aria-label="Summarize thread"
-          title="Summarize thread"
-          disabled={summarizingThread}
-          onclick={() => summarizeThread()}
-          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
-        >
-          <Sparkles size={16} class={summarizingThread ? 'animate-pulse' : ''} />
-        </button>
+        {#if page.data.hasOpenAiKey}
+          <button
+            type="button"
+            aria-label="Summarize thread"
+            title="Summarize thread"
+            disabled={summarizingThread}
+            onclick={() => summarizeThread()}
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
+          >
+            <Sparkles size={16} class={summarizingThread ? 'animate-pulse' : ''} />
+          </button>
+        {/if}
         <button
           type="button"
           aria-label="Snooze thread"
@@ -1079,16 +1081,18 @@
         >
           <Clock size={16} />
         </button>
-        <button
-          type="button"
-          aria-label="Extract thread actions"
-          title="Extract thread actions"
-          disabled={extractingThreadActions}
-          onclick={() => extractThreadActions()}
-          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-emerald-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
-        >
-          <ListChecks size={16} class={extractingThreadActions ? 'animate-pulse' : ''} />
-        </button>
+        {#if page.data.hasOpenAiKey}
+          <button
+            type="button"
+            aria-label="Extract thread actions"
+            title="Extract thread actions"
+            disabled={extractingThreadActions}
+            onclick={() => extractThreadActions()}
+            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-emerald-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
+          >
+            <ListChecks size={16} class={extractingThreadActions ? 'animate-pulse' : ''} />
+          </button>
+        {/if}
         <button
           type="button"
           aria-label="Share thread"
@@ -1127,18 +1131,20 @@
           >
             <ReplyAll size={16} />
           </button>
-          <button
-            type="button"
-            aria-label="Draft reply with AI"
-            disabled={draftingReplyMessageId !== null}
-            onclick={() => void generateReplyDraft(lastMessage)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:hidden"
-          >
-            <Sparkles
-              size={16}
-              class={draftingReplyMessageId === lastMessage.id ? 'animate-pulse' : ''}
-            />
-          </button>
+          {#if page.data.hasOpenAiKey}
+            <button
+              type="button"
+              aria-label="Draft reply with AI"
+              disabled={draftingReplyMessageId !== null}
+              onclick={() => void generateReplyDraft(lastMessage)}
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:hidden"
+            >
+              <Sparkles
+                size={16}
+                class={draftingReplyMessageId === lastMessage.id ? 'animate-pulse' : ''}
+              />
+            </button>
+          {/if}
         {/if}
       </div>
 
@@ -1160,18 +1166,20 @@
           >
             <ReplyAll size={16} />
           </button>
-          <button
-            type="button"
-            aria-label="Draft reply with AI"
-            disabled={draftingReplyMessageId !== null}
-            onclick={() => void generateReplyDraft(lastMessage)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
-          >
-            <Sparkles
-              size={16}
-              class={draftingReplyMessageId === lastMessage.id ? 'animate-pulse' : ''}
-            />
-          </button>
+          {#if page.data.hasOpenAiKey}
+            <button
+              type="button"
+              aria-label="Draft reply with AI"
+              disabled={draftingReplyMessageId !== null}
+              onclick={() => void generateReplyDraft(lastMessage)}
+              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
+            >
+              <Sparkles
+                size={16}
+                class={draftingReplyMessageId === lastMessage.id ? 'animate-pulse' : ''}
+              />
+            </button>
+          {/if}
         {/if}
       </div>
     </div>
@@ -1567,18 +1575,20 @@
                 >
                   <ReplyAll size={13} /> Reply all
                 </button>
-                <button
-                  type="button"
-                  disabled={draftingReplyMessageId !== null}
-                  onclick={() => void generateReplyDraft(msg)}
-                  class="flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
-                >
-                  <Sparkles
-                    size={13}
-                    class={draftingReplyMessageId === msg.id ? 'animate-pulse' : ''}
-                  />
-                  {draftingReplyMessageId === msg.id ? 'Drafting...' : 'AI draft'}
-                </button>
+                {#if page.data.hasOpenAiKey}
+                  <button
+                    type="button"
+                    disabled={draftingReplyMessageId !== null}
+                    onclick={() => void generateReplyDraft(msg)}
+                    class="flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
+                  >
+                    <Sparkles
+                      size={13}
+                      class={draftingReplyMessageId === msg.id ? 'animate-pulse' : ''}
+                    />
+                    {draftingReplyMessageId === msg.id ? 'Drafting...' : 'AI draft'}
+                  </button>
+                {/if}
               </div>
             </div>
           {/if}

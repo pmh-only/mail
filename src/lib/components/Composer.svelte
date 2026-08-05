@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { resolve } from '$app/paths'
+  import { page } from '$app/state'
   import { Editor } from '@tiptap/core'
   import StarterKit from '@tiptap/starter-kit'
   import TextAlign from '@tiptap/extension-text-align'
@@ -1943,46 +1944,47 @@
             buttonClass="px-2 py-1.5 text-sm text-zinc-300"
           />
         {/if}
-        <div class:hidden={!isAdvancedLayout} class="relative">
-          <button
-            type="button"
-            disabled={sending || composingAi}
-            onclick={() => (showAiMenu = !showAiMenu)}
-            class="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-white/10 hover:text-sky-300 disabled:cursor-wait disabled:opacity-40"
-          >
-            <Sparkles size={14} class={composingAi ? 'animate-pulse' : ''} />
-            {composingAi ? 'Writing...' : 'AI'}
-            <ChevronDown size={13} />
-          </button>
-          {#if showAiMenu}
-            <div
-              class="absolute right-0 bottom-full z-20 mb-2 w-40 rounded-xl border border-white/10 bg-zinc-950 p-1 shadow-xl shadow-black/30"
+        {#if page.data.hasOpenAiKey}
+          <div class="relative">
+            <button
+              type="button"
+              onclick={() => (showAiMenu = !showAiMenu)}
+              class="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-white/10 hover:text-sky-300 disabled:cursor-wait disabled:opacity-40"
             >
-              <button
-                type="button"
-                onclick={() => {
-                  showAiMenu = false
-                  void composeWithAi()
-                }}
-                class="block w-full rounded-lg px-3 py-2 text-left text-sm text-zinc-200 hover:bg-white/8"
+              <Sparkles size={14} class={composingAi ? 'animate-pulse' : ''} />
+              {composingAi ? 'Writing...' : 'AI'}
+              <ChevronDown size={13} />
+            </button>
+            {#if showAiMenu}
+              <div
+                class="absolute right-0 bottom-full z-20 mb-2 w-40 rounded-xl border border-white/10 bg-zinc-950 p-1 shadow-xl shadow-black/30"
               >
-                Improve
-              </button>
-              {#each rewriteModes as mode (mode)}
                 <button
                   type="button"
                   onclick={() => {
                     showAiMenu = false
-                    void composeWithAi(mode)
+                    void composeWithAi()
                   }}
                   class="block w-full rounded-lg px-3 py-2 text-left text-sm text-zinc-200 hover:bg-white/8"
                 >
-                  {rewriteModeLabel(mode)}
+                  Improve
                 </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
+                {#each rewriteModes as mode (mode)}
+                  <button
+                    type="button"
+                    onclick={() => {
+                      showAiMenu = false
+                      void composeWithAi(mode)
+                    }}
+                    class="block w-full rounded-lg px-3 py-2 text-left text-sm text-zinc-200 hover:bg-white/8"
+                  >
+                    {rewriteModeLabel(mode)}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
       <button type="button" onclick={discard} class="text-xs text-zinc-500 hover:text-zinc-300">
         Discard
