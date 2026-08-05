@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
-import { failOnBuildWarningPlugin } from './vite.warnings'
+import { failOnBuildWarningPlugin } from './vite.warnings.ts'
 
 function fromRoot(path: string) {
   return fileURLToPath(new URL(path, import.meta.url))

@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 import { sveltekit } from '@sveltejs/kit/vite'
 import { defineConfig } from 'vitest/config'
-import { failOnBuildWarningPlugin } from './vite.warnings'
+import { failOnBuildWarningPlugin } from './vite.warnings.ts'
 
 export default defineConfig({
   plugins: [tailwindcss(), sveltekit(), failOnBuildWarningPlugin()],
