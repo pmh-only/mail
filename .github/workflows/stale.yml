@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Mark and close stale items
-        uses: actions/stale@v10
+        uses: actions/stale@v11
         with:
           stale-issue-message: 'This issue has been inactive for 60 days and will close in 14 days.'
           close-issue-message: 'Closing this issue because it has been inactive for 14 days after being marked stale.'
