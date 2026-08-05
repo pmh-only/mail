@@ -37,7 +37,7 @@
     "@tiptap/extension-text-style": "^3.22.3",
     "@tiptap/pm": "^3.22.3",
     "@tiptap/starter-kit": "^3.22.3",
-    "better-auth": "1.4.22",
+    "better-auth": "1.6.22",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "html-to-text": "^10.0.0",
