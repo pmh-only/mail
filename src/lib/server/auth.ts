@@ -17,7 +17,7 @@ import { isDemoModeEnabled } from '$lib/server/demo'
 import { getAuthUserId } from '$lib/server/auth-owner'
 import { prepareOidcIssuer } from '$lib/server/oidc-access'
 
-type AuthInstance = ReturnType<typeof betterAuth>
+type AuthInstance = Awaited<ReturnType<typeof createAuth>>
 
 let _auth: AuthInstance | null = null
 let authCreatedAt = 0
@@ -31,7 +31,7 @@ function getRpId(origin: string): string {
   }
 }
 
-async function createAuth(allowSignUp = false): Promise<AuthInstance> {
+async function createAuth(allowSignUp = false) {
   if (isDemoModeEnabled()) {
     throw new Error('better-auth is disabled in demo mode')
   }
