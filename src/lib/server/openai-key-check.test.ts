@@ -1,10 +1,11 @@
-import { expect, test } from 'vitest'
+import assert from 'node:assert/strict'
+import test from 'node:test'
 import { normalizeOpenAIApiKey } from '../openai-api-key.js'
 
 test('evaluates OpenAI API key presence correctly', () => {
   const emptyKey = normalizeOpenAIApiKey('')
-  expect(Boolean(emptyKey)).toBe(false)
+  assert.strictEqual(Boolean(emptyKey), false)
 
   const validKey = normalizeOpenAIApiKey('sk-1234567890abcdef')
-  expect(Boolean(validKey)).toBe(true)
+  assert.strictEqual(Boolean(validKey), true)
 })

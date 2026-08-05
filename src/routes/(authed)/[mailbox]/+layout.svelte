@@ -466,9 +466,7 @@
   async function fetchSearchResults(query: string, requestId = ++searchRequestId) {
     isSearching = true
     try {
-      const response = await trackAppLoading(() =>
-        fetch(`/api/messages?q=${encodeURIComponent(query)}&limit=50`)
-      )
+      const response = await fetch(`/api/messages?q=${encodeURIComponent(query)}&limit=50`)
       if (!response.ok) throw new Error('Search failed')
 
       const payload = (await response.json()) as { messages: Message[]; total: number }
@@ -2717,7 +2715,7 @@
     <div
       class="flex min-h-0 flex-1 items-center justify-center overflow-x-hidden overflow-y-auto p-4 select-none sm:p-6"
     >
-      {#if isSearchMode && isSearching}
+      {#if isSearchMode && isSearching && searchResults.length === 0}
         <div class="text-center">
           <p class="text-sm text-zinc-500">Searching…</p>
         </div>
@@ -3249,7 +3247,7 @@
 
       <div {@attach registerListViewport} class="flex-1 overflow-y-auto">
         {#if isSearchMode}
-          {#if isSearching}
+          {#if isSearching && searchResults.length === 0}
             <div class="p-8 text-center">
               <p class="text-sm text-zinc-500">Searching…</p>
             </div>
@@ -3259,7 +3257,7 @@
               <p class="mt-2 text-sm text-zinc-500">No messages matched your search.</p>
             </div>
           {:else}
-            <div class={listContainerClass}>
+            <div class={[listContainerClass, isSearching ? 'opacity-70 transition-opacity duration-150' : '']}>
               {#each searchResults as message, index (message.id)}
                 <div
                   class="group relative overflow-hidden rounded-2xl md:rounded-none"
