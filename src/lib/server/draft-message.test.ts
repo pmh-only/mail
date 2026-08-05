@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'vitest'
+import nodemailer from 'nodemailer'
+import { test, vi } from 'vitest'
 import { buildDraftMessage } from './draft-message.ts'
 
 test('builds a complete draft MIME message with stable headers and attachments', async () => {
@@ -61,4 +62,35 @@ test('does not embed public-link attachment content in the IMAP draft', async ()
   )
 
   assert.doesNotMatch(message.toString(), /one-gib\.bin/)
+})
+
+test('passes optional fields through and requires a buffered transport result', async () => {
+  const sendMail = vi.fn().mockResolvedValue({ message: 'not a buffer' })
+  const transport = vi.spyOn(nodemailer, 'createTransport').mockReturnValue({ sendMail } as never)
+  try {
+    await assert.rejects(
+      buildDraftMessage(
+        {
+          id: 1,
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          toAddr: '',
+          cc: 'cc@example.com',
+          bcc: 'bcc@example.com',
+          subject: 'Subject',
+          html: '<p>body</p>',
+          inReplyTo: '<parent>',
+          openPgpSigning: 'cleartext',
+          openPgpEncrypt: true,
+          attachPublicKey: true
+        },
+        'from@example.com',
+        []
+      ),
+      /Failed to build/
+    )
+    assert.equal(sendMail.mock.calls[0]?.[0].to, undefined)
+    assert.equal(sendMail.mock.calls[0]?.[0].headers['X-Pmail-OpenPGP-Signing'], 'cleartext')
+  } finally {
+    transport.mockRestore()
+  }
 })

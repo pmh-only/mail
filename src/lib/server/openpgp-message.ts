@@ -95,12 +95,7 @@ function multipartParts(body: string, boundary: string) {
   for (let index = 0; index < starts.length - 1; index += 1) {
     const current = starts[index]!
     const next = starts[index + 1]!
-    if (current.closing) break
-    const end =
-      next.index >= 2 && body.slice(next.index - 2, next.index) === '\r\n'
-        ? next.index - 2
-        : next.index
-    parts.push(body.slice(current.contentStart, end))
+    parts.push(body.slice(current.contentStart, next.index - 2))
   }
   return parts
 }

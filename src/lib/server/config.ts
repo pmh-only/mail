@@ -130,7 +130,7 @@ function decryptMaybe(value: unknown): string {
 }
 
 function withServerIdentity(index: number, value: Record<string, unknown>) {
-  const id = asString(value.id) || (index === 0 ? 'primary' : `server-${index + 1}`)
+  const id = asString(value.id) || `server-${index + 1}`
   return {
     id,
     name: asString(value.name) || (id === 'primary' ? 'Primary' : id)
@@ -230,11 +230,11 @@ export function normalizeSmtpServers(row: MailConfigRow | null): SmtpConfig[] {
 }
 
 function maskImap(config: ImapConfig, source: string) {
-  return { ...config, password: config.password ? '••••••••' : '', source }
+  return { ...config, password: '••••••••', source }
 }
 
 function maskSmtp(config: SmtpConfig, source: string) {
-  return { ...config, password: config.password ? '••••••••' : '', source }
+  return { ...config, password: '••••••••', source }
 }
 
 function parseUndoSendSeconds(value: unknown): number {
@@ -311,24 +311,7 @@ export async function getImapConfig(): Promise<ImapConfig | { missing: string[] 
   if (!host) missing.push('IMAP Host')
   if (!user) missing.push('IMAP User')
   if (!password) missing.push('IMAP Password')
-  if (missing.length > 0) return { missing }
-
-  const portRaw = row?.imapPort ?? parseNumber(env.IMAP_PORT, 993)
-  const secureRaw = row?.imapSecure ?? parseBoolean(env.IMAP_SECURE, true)
-
-  return {
-    id: 'primary',
-    name: 'Primary',
-    host,
-    port: portRaw,
-    secure: secureRaw,
-    allowInvalidCertificate:
-      row?.imapAllowInvalidCertificate ?? parseBoolean(env.IMAP_ALLOW_INVALID_CERTIFICATE, false),
-    user,
-    password,
-    mailbox: row?.imapMailbox || env.IMAP_MAILBOX || 'INBOX',
-    pollSeconds: row?.imapPollSeconds ?? parseNumber(env.IMAP_POLL_SECONDS, 15)
-  }
+  return { missing }
 }
 
 export async function getSmtpConfig(): Promise<SmtpConfig | { missing: string[] }> {
@@ -345,34 +328,16 @@ export async function getSmtpConfig(): Promise<SmtpConfig | { missing: string[] 
   if (!host) missing.push('SMTP Host')
   if (!user) missing.push('SMTP User')
   if (!password) missing.push('SMTP Password')
-  if (missing.length > 0) return { missing }
-
-  const portRaw = row?.smtpPort ?? parseNumber(env.SMTP_PORT, 587)
-  const secureRaw = row?.smtpSecure ?? parseBoolean(env.SMTP_SECURE, false)
-
-  return {
-    id: 'primary',
-    name: 'Primary',
-    host,
-    port: portRaw,
-    secure: secureRaw,
-    allowInvalidCertificate:
-      row?.smtpAllowInvalidCertificate ?? parseBoolean(env.SMTP_ALLOW_INVALID_CERTIFICATE, false),
-    user,
-    password,
-    from: row?.smtpFrom || env.SMTP_FROM || user
-  }
+  return { missing }
 }
 
 export async function getImapConfigs(): Promise<ImapConfig[]> {
-  const config = await getImapConfig()
-  if (isDemoModeEnabled()) return 'missing' in config ? [] : [config]
+  if (isDemoModeEnabled()) return [getDemoImapConfig()]
   return normalizeImapServers(await getRow())
 }
 
 export async function getSmtpConfigs(): Promise<SmtpConfig[]> {
-  const config = await getSmtpConfig()
-  if (isDemoModeEnabled()) return 'missing' in config ? [] : [config]
+  if (isDemoModeEnabled()) return [getDemoSmtpConfig()]
   return normalizeSmtpServers(await getRow())
 }
 

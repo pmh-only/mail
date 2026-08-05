@@ -31,3 +31,30 @@ test('merges a collapse update without replacing other mailbox preferences', () 
     }
   )
 })
+
+test('normalizes invalid preference payloads and ignores invalid merge patches', () => {
+  assert.deepEqual(normalizeMailboxPreferences(null), {
+    order: [],
+    hidden: [],
+    collapsedAccounts: []
+  })
+  assert.deepEqual(
+    mergeMailboxPreferences(
+      { order: ['Inbox'], hidden: ['Spam'], collapsedAccounts: ['Primary'] },
+      null
+    ),
+    { order: ['Inbox'], hidden: ['Spam'], collapsedAccounts: ['Primary'] }
+  )
+  assert.deepEqual(normalizeMailboxPreferences('legacy'), {
+    order: [],
+    hidden: [],
+    collapsedAccounts: []
+  })
+  assert.deepEqual(
+    mergeMailboxPreferences(
+      { order: ['Inbox'], hidden: [], collapsedAccounts: [] },
+      { order: 'not-an-array' }
+    ),
+    { order: [], hidden: [], collapsedAccounts: [] }
+  )
+})

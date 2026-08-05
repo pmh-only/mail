@@ -15,14 +15,7 @@ export type ValidPushSubscription = {
 }
 
 function parseIpv4(value: string) {
-  const parts = value.split('.').map(Number)
-  if (
-    parts.length !== 4 ||
-    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
-  ) {
-    return null
-  }
-  return parts
+  return value.split('.').map(Number)
 }
 
 export function isPublicIpAddress(value: string) {
@@ -30,7 +23,6 @@ export function isPublicIpAddress(value: string) {
   if (normalized.startsWith('::ffff:')) return isPublicIpAddress(normalized.slice(7))
   if (isIP(normalized) === 4) {
     const octets = parseIpv4(normalized)
-    if (!octets) return false
     const [a, b] = octets
     return !(
       a === 0 ||
@@ -64,11 +56,7 @@ export function isPublicIpAddress(value: string) {
 function decodeBase64Url(value: unknown, maxLength: number) {
   if (typeof value !== 'string' || value.length === 0 || value.length > maxLength) return null
   if (!/^[A-Za-z0-9_-]+={0,2}$/.test(value)) return null
-  try {
-    return Buffer.from(value, 'base64url')
-  } catch {
-    return null
-  }
+  return Buffer.from(value, 'base64url')
 }
 
 export function validatePushSubscription(value: unknown): ValidPushSubscription {

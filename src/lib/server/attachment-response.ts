@@ -7,13 +7,16 @@ import { attachmentContentDisposition } from '$lib/public-attachments'
  * attachments (e.g. text/html or image/svg+xml served inline from the app
  * origin).
  */
-const INLINE_SAFE_CONTENT_TYPE_PREFIXES = [
+const INLINE_SAFE_CONTENT_TYPES = new Set([
   'image/gif',
   'image/jpeg',
   'image/png',
   'image/webp',
   'image/avif',
-  'application/pdf',
+  'application/pdf'
+])
+
+const INLINE_SAFE_CONTENT_TYPE_PREFIXES = [
   // Browsers render common video containers via <video> without executing
   // active content, so previews keep working. SVG/HTML are intentionally
   // excluded even though they share an `image/` or other prefix.
@@ -39,9 +42,14 @@ const NEVER_INLINE_CONTENT_TYPES = new Set([
  * considered inline-safe and are always served as downloads.
  */
 export function isInlineSafeContentType(contentType: string): boolean {
-  const normalized = contentType.trim().toLowerCase().split(';')[0]?.trim() ?? ''
+  const normalized = contentType.trim().toLowerCase().split(';')[0].trim()
   if (NEVER_INLINE_CONTENT_TYPES.has(normalized)) return false
-  return INLINE_SAFE_CONTENT_TYPE_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+  return (
+    INLINE_SAFE_CONTENT_TYPES.has(normalized) ||
+    INLINE_SAFE_CONTENT_TYPE_PREFIXES.some(
+      (prefix) => normalized.startsWith(prefix) && normalized.length > prefix.length
+    )
+  )
 }
 
 /**

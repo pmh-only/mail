@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { assignThreadKeys, orderThread } from './threading.ts'
+import { assignThreadKeys, baseSubject, orderThread, referenceCandidates } from './threading.ts'
 
 const message = (
   messageId: string,
@@ -49,5 +49,59 @@ test('orders branches as a chronological parent-child tree', () => {
       ['nested', 2],
       ['second-branch', 1]
     ]
+  )
+})
+
+test('normalizes repeated reply prefixes and filters self references', () => {
+  assert.deepEqual(baseSubject(' [List] Re[2]: Fwd: Topic (fwd) '), {
+    value: 'topic',
+    isReply: true
+  })
+  assert.deepEqual(baseSubject('  Topic  '), { value: 'topic', isReply: false })
+  assert.deepEqual(referenceCandidates(message('self', 'Topic', ' self  parent ', null)), [
+    'parent'
+  ])
+  assert.deepEqual(referenceCandidates(message('child', 'Topic', null, 'parent')), ['parent'])
+})
+
+test('uses missing ancestors and handles circular reference chains deterministically', () => {
+  const keys = assignThreadKeys([
+    message('orphan', 'Re: Topic', 'missing'),
+    message('a', 'Topic', 'b'),
+    message('b', 'Topic', 'a')
+  ])
+  assert.equal(keys.get('orphan'), 'missing')
+  assert.equal(keys.get('a'), 'a')
+  assert.equal(keys.get('b'), 'a')
+})
+
+test('keeps unmatched reply subjects separate and orders disconnected cycles once', () => {
+  const keys = assignThreadKeys([message('reply', 'Re: New topic')])
+  assert.equal(keys.get('reply'), 'reply')
+
+  const ordered = orderThread([
+    message('b', 'Re: Topic', 'a', 'a', new Date('2026-01-02')),
+    message('a', 'Topic', 'b', 'b', new Date('2026-01-01')),
+    message('orphan', 'Topic', 'missing', null, new Date('2026-01-03'))
+  ])
+  assert.deepEqual(
+    ordered.map(({ messageId, threadDepth }) => [messageId, threadDepth]),
+    [
+      ['orphan', 0],
+      ['a', 0],
+      ['b', 1]
+    ]
+  )
+})
+
+test('uses deterministic IDs when timestamps are absent and references fall back to known ancestors', () => {
+  const messages = [
+    { ...message('z', 'Topic'), receivedAt: null },
+    { ...message('a', 'Re: Topic', 'missing z'), inReplyTo: 'missing', receivedAt: null }
+  ]
+  assert.equal(assignThreadKeys(messages).get('a'), 'missing')
+  assert.deepEqual(
+    orderThread(messages).map(({ messageId }) => messageId),
+    ['z', 'a']
   )
 })

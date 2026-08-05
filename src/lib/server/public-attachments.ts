@@ -102,7 +102,7 @@ export async function storePublicAttachments(
   try {
     for (const attachment of attachments) {
       const token = attachment.token ?? (await storeLegacyPublicAttachment(attachment))
-      if (!attachment.token) createdTokens.push(token)
+      createdTokens.push(...(attachment.token ? [] : [token]))
       const stored = await getPublicAttachmentMetadata(token)
       if (
         !stored ||

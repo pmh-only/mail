@@ -64,7 +64,6 @@ function getFieldValue(
 
 function filterFlag(filter: Filter): string | null {
   if (filter.action === 'star') return '\\Flagged'
-  if (filter.action !== 'label') return null
 
   const label = filter.target?.trim()
   if (!label) return null

@@ -1,12 +1,36 @@
 import assert from 'node:assert/strict'
-import { test } from 'vitest'
+import { beforeEach, test, vi } from 'vitest'
 import type { SmtpConfig } from './config'
+
+const state = vi.hoisted(() => ({
+  outgoingMessageBody: vi.fn(),
+  outgoingSenderAddress: vi.fn(),
+  sendStatusFromJobStatus: vi.fn()
+}))
+
+vi.mock('./outgoing-message.ts', () => ({
+  outgoingMessageBody: state.outgoingMessageBody,
+  outgoingSenderAddress: state.outgoingSenderAddress
+}))
+vi.mock('../send-status.ts', () => ({ sendStatusFromJobStatus: state.sendStatusFromJobStatus }))
 import {
   createSentPlaceholder,
   sentPlaceholderDetail,
   sentPlaceholderId,
   smtpJobIdFromPlaceholder
 } from './sent-placeholder.ts'
+
+beforeEach(() => {
+  state.outgoingMessageBody.mockReset().mockReturnValue({ text: 'Converted message' })
+  state.outgoingSenderAddress.mockReset().mockReturnValue('sender@example.com')
+  state.sendStatusFromJobStatus
+    .mockReset()
+    .mockImplementation((status: string, deliveredAt?: Date) => {
+      if (deliveredAt || status === 'done') return 'sent'
+      if (status === 'failed') return 'failed'
+      return status === 'pending' || status === 'running' ? 'sending' : null
+    })
+})
 
 const smtpConfig: SmtpConfig = {
   id: 'primary',
@@ -41,12 +65,65 @@ test('builds a Sent placeholder with a UI-only ID and live sending status', () =
   assert.equal(placeholder.id, -42)
   assert.equal(placeholder.sendStatus, 'sending')
   assert.equal(placeholder.from, 'Custom Sender <sender@example.com>')
-  assert.equal(placeholder.preview, 'Hello there')
+  assert.equal(placeholder.preview, 'Converted message')
   assert.equal(placeholder.flags, '["\\\\Seen"]')
 
   const detail = sentPlaceholderDetail(placeholder, job)
-  assert.equal(detail.textContent, 'Hello there')
+  assert.equal(detail.textContent, 'Converted message')
   assert.equal(detail.htmlContent, '<p>Hello <strong>there</strong></p>')
+})
+
+test('selects a configured SMTP server and validates placeholder input', async () => {
+  const { parseSentPlaceholderPayload, smtpConfigForPlaceholder } =
+    await import('./sent-placeholder.ts')
+  assert.deepEqual(
+    parseSentPlaceholderPayload({
+      id: 1,
+      payload: 'null',
+      status: 'pending',
+      messageId: null,
+      createdAt: new Date()
+    }),
+    null
+  )
+  assert.deepEqual(
+    parseSentPlaceholderPayload({
+      id: 1,
+      payload: '[]',
+      status: 'pending',
+      messageId: null,
+      createdAt: new Date()
+    }),
+    []
+  )
+  assert.equal(smtpConfigForPlaceholder({ smtpServerId: 'primary' }, [smtpConfig]), smtpConfig)
+  assert.equal(smtpConfigForPlaceholder({}, [smtpConfig]), smtpConfig)
+  assert.equal(smtpConfigForPlaceholder({ smtpServerId: 'missing' }, [smtpConfig]), null)
+  assert.equal(smtpConfigForPlaceholder({}, []), null)
+})
+
+test('falls back to subject and default sender for incomplete payload fields', () => {
+  state.outgoingMessageBody.mockReturnValue({})
+  const job = {
+    id: 8,
+    payload: JSON.stringify({ subject: 1, html: 2, to: 3, cc: 4, fromName: '  Name  ' }),
+    status: 'pending',
+    messageId: '<id>',
+    createdAt: new Date(),
+    openedAt: undefined
+  }
+  const placeholder = createSentPlaceholder(job, 'Sent', null)
+  assert.ok(placeholder)
+  assert.equal(placeholder.subject, '')
+  assert.equal(placeholder.preview, '')
+  assert.equal(placeholder.from, 'Me')
+  assert.equal(placeholder.to, '')
+  assert.equal(placeholder.cc, '')
+  assert.equal(placeholder.openedAt, null)
+  assert.equal(
+    sentPlaceholderDetail({ ...placeholder, subject: 'Fallback' }, job).textContent,
+    'Fallback'
+  )
 })
 
 test('maps terminal job states and ignores canceled or malformed jobs', () => {
@@ -82,4 +159,5 @@ test('round-trips SMTP job IDs through negative placeholder IDs', () => {
   assert.equal(smtpJobIdFromPlaceholder(-91), 91)
   assert.equal(smtpJobIdFromPlaceholder(91), null)
   assert.equal(smtpJobIdFromPlaceholder(-1.5), null)
+  assert.equal(smtpJobIdFromPlaceholder(0), null)
 })

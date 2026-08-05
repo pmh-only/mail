@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
-import { changedReadStateCopies, unreadMessageRows } from './read-state.ts'
+import { changedReadStateCopies, isSeenFlags, unreadMessageRows } from './read-state.ts'
 
 test('finds every unread message in a thread', () => {
   const rows = [
@@ -28,4 +28,21 @@ test('updates every mailbox copy selected by Message-ID', () => {
     changed.map((row) => [row.messageId, row.mailbox, row.flags]),
     [['same', 'Inbox/Other', '["\\\\Seen"]']]
   )
+})
+
+test('marks unread selected copies seen and preserves sent and draft copies as read', () => {
+  const rows = [
+    { messageId: 'one', mailbox: 'Inbox', flags: '[]', extra: true },
+    { messageId: 'two', mailbox: 'Sent', flags: '["\\\\Seen"]' },
+    { messageId: 'three', mailbox: 'Drafts', flags: '["\\\\Seen"]' },
+    { messageId: 'four', mailbox: 'Inbox', flags: '["\\\\Seen"]' }
+  ]
+
+  assert.equal(isSeenFlags('["\\\\Seen"]'), true)
+  assert.deepEqual(changedReadStateCopies(rows, new Set(['one', 'two', 'three', 'four']), true), [
+    { messageId: 'one', mailbox: 'Inbox', flags: '["\\\\Seen"]', extra: true }
+  ])
+  assert.deepEqual(changedReadStateCopies(rows, new Set(['one', 'two', 'three', 'four']), false), [
+    { messageId: 'four', mailbox: 'Inbox', flags: '[]' }
+  ])
 })

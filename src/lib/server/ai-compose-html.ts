@@ -41,11 +41,13 @@ function safeHref(value: string | undefined) {
 }
 
 function renderNode(node: HtmlNode): string {
-  if (node.type === 'text') return escapeText(node.data ?? '')
-  const tag = (node.name ?? '').toLowerCase()
-  if (DROP_CONTENT_TAGS.has(tag) || node.type === 'script' || node.type === 'style') return ''
+  if (node.type === 'text') return escapeText(node.data!)
+  if (node.type === 'script' || node.type === 'style') return ''
   const content = (node.children ?? []).map(renderNode).join('')
-  if (node.type !== 'tag' || !ALLOWED_TAGS.has(tag)) return content
+  if (node.type !== 'tag') return content
+  const tag = node.name!.toLowerCase()
+  if (DROP_CONTENT_TAGS.has(tag)) return ''
+  if (!ALLOWED_TAGS.has(tag)) return content
   if (tag === 'br') return '<br>'
   if (tag === 'a') {
     const href = safeHref(node.attribs?.href)
@@ -61,9 +63,10 @@ export function sanitizeAiComposeHtml(value: string) {
 export function aiComposePreviewText(html: string) {
   const document = parseDocument(html)
   const readText = (node: HtmlNode): string => {
-    if (node.type === 'text') return node.data ?? ''
-    const separator = node.type === 'tag' && ['p', 'li', 'br'].includes(node.name ?? '') ? '\n' : ''
-    return `${(node.children ?? []).map(readText).join('')}${separator}`
+    if (node.type === 'text') return node.data!
+    const content = (node.children ?? []).map(readText).join('')
+    if (node.type !== 'tag') return content
+    return `${content}${['p', 'li', 'br'].includes(node.name!) ? '\n' : ''}`
   }
   return (document.children as unknown as HtmlNode[])
     .map(readText)

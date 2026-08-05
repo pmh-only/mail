@@ -499,28 +499,7 @@ async function readSyncRuntime() {
 }
 
 async function saveSyncRuntime(values: Partial<typeof syncRuntime.$inferInsert>) {
-  const current = await readSyncRuntime()
-  const nextValues = { ...current, ...values }
-
-  if (
-    current &&
-    current.isSyncing === nextValues.isSyncing &&
-    current.activeMailbox === nextValues.activeMailbox &&
-    current.activeStored === nextValues.activeStored &&
-    current.activeTotal === nextValues.activeTotal &&
-    (current.lastRunStartedAt?.getTime() ?? null) ===
-      (nextValues.lastRunStartedAt instanceof Date
-        ? nextValues.lastRunStartedAt.getTime()
-        : null) &&
-    (current.lastRunFinishedAt?.getTime() ?? null) ===
-      (nextValues.lastRunFinishedAt instanceof Date
-        ? nextValues.lastRunFinishedAt.getTime()
-        : null) &&
-    current.lastError === nextValues.lastError &&
-    !values.workerHeartbeatAt
-  ) {
-    return
-  }
+  await readSyncRuntime()
 
   const startedAt = Date.now()
   await db
@@ -3293,7 +3272,7 @@ export async function countSearchMessages(query: string) {
 }
 
 function buildSearchWhere(query: string) {
-  const terms = query.match(/(?:[^\s"]+|"[^"]*")+/g) ?? []
+  const terms = query.match(/(?:[^\s"]+|"[^"]*")+/g)!
   const freeText: string[] = []
   const conditions = []
 

@@ -3,8 +3,8 @@ import { DomUtils, parseDocument } from 'htmlparser2'
 type HtmlNode = {
   type: string
   name?: string
-  attribs?: Record<string, string>
-  children?: HtmlNode[]
+  attribs: Record<string, string>
+  children: HtmlNode[]
 }
 
 export type RemoteContentSettings = {
@@ -65,7 +65,7 @@ export function sanitizeRemoteContent(html: string): RemoteContentResult {
       return
     }
     if (node.type !== 'tag') return
-    const attributes = node.attribs ?? {}
+    const attributes = node.attribs
     if (tagName === 'meta' && attributes['http-equiv']?.toLowerCase() === 'refresh') {
       blockedCount += 1
       DomUtils.removeElement(node as Parameters<typeof DomUtils.removeElement>[0])
@@ -86,7 +86,7 @@ export function sanitizeRemoteContent(html: string): RemoteContentResult {
         attributes[`data-remote-content-blocked-${name.replace(':', '-')}`] = value
       }
     }
-    for (const child of [...(node.children ?? [])]) visit(child)
+    for (const child of [...node.children]) visit(child)
   }
 
   for (const child of [...(document.children as unknown as HtmlNode[])]) visit(child)

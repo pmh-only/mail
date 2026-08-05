@@ -148,8 +148,8 @@ export async function lookupOpenPgpKeysByEmail(
     lookupCache.delete(cacheKey)
     lookupCache.set(cacheKey, { expiresAt: Number.POSITIVE_INFINITY, value: lookup })
     while (lookupCache.size > MAX_CACHE_ENTRIES) {
-      const oldestKey = lookupCache.keys().next().value
-      if (oldestKey === undefined) break
+      // A map larger than its maximum always has a first key.
+      const oldestKey = lookupCache.keys().next().value!
       lookupCache.delete(oldestKey)
     }
     void lookup.then((keys) => {

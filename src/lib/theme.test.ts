@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'vitest'
 import {
   DEFAULT_THEME_STYLE,
+  applyThemeStyle,
   getThemeGradient,
   isValidThemeStyle,
   MAX_THEME_COLORS,
@@ -53,4 +54,35 @@ test('validates persisted theme style input', () => {
     isValidThemeStyle({ preset: 'custom', colors: ['#123456', '#abcdef'], angle: 900 }),
     false
   )
+  assert.equal(isValidThemeStyle(null), false)
+  assert.equal(
+    isValidThemeStyle({ preset: 'invalid', colors: ['#123456', '#abcdef'], angle: 90 }),
+    false
+  )
+  assert.equal(isValidThemeStyle({ preset: 'custom', colors: ['#123456'], angle: 90 }), false)
+  assert.equal(
+    isValidThemeStyle({ preset: 'custom', colors: ['#123456', '#abcdef'], angle: Infinity }),
+    false
+  )
+})
+
+test('normalizes non-object, invalid colors, and applies a custom theme', () => {
+  assert.deepEqual(normalizeThemeStyle(null), DEFAULT_THEME_STYLE)
+  assert.deepEqual(
+    normalizeThemeStyle({ colors: [' #ABCDEF ', 5, '#123456'], angle: Number.NaN }),
+    {
+      ...DEFAULT_THEME_STYLE,
+      colors: ['#abcdef', '#123456']
+    }
+  )
+  const properties = new Map<string, string>()
+  const root = {
+    dataset: {} as DOMStringMap,
+    style: { setProperty: (name: string, value: string) => properties.set(name, value) }
+  } as unknown as HTMLElement
+
+  applyThemeStyle({ preset: 'custom', colors: ['#000000', '#ffffff'], angle: 30 }, root)
+
+  assert.equal(root.dataset.themePreset, 'custom')
+  assert.equal(properties.get('--app-theme-gradient'), 'linear-gradient(30deg, #000000, #ffffff)')
 })

@@ -37,7 +37,7 @@ export function normalizeQuietHoursTimezone(
 }
 
 function minutesFromTime(value: string) {
-  const [, hour, minute] = value.match(TIME_PATTERN) ?? []
+  const [, hour, minute] = value.match(TIME_PATTERN)!
   return Number(hour) * 60 + Number(minute)
 }
 

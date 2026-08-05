@@ -28,6 +28,8 @@ test('allows links handled by external applications', () => {
 })
 
 test('rejects fragments, unsafe protocols, and invalid URLs', () => {
+  assert.equal(resolveMailContentUrl(undefined, 'https://mail.example/inbox/1'), null)
+  assert.equal(resolveMailContentUrl('   ', 'https://mail.example/inbox/1'), null)
   assert.equal(resolveMailContentUrl('#details', 'https://mail.example/inbox/1'), null)
   assert.equal(resolveMailContentUrl('javascript:alert(1)', 'https://mail.example/inbox/1'), null)
   assert.equal(resolveMailContentUrl('data:text/html,unsafe', 'https://mail.example/inbox/1'), null)
@@ -83,5 +85,41 @@ test('blocks unsafe mail content links without opening the warning screen', () =
   } as unknown as MouseEvent)
 
   assert.equal(interceptedUrl, null)
+  assert.equal(prevented, true)
+})
+
+test('ignores non-links, fragments, and resolves links from a target parent', () => {
+  let clickHandler: ((event: MouseEvent) => void) | undefined
+  let calls = 0
+  let prevented = false
+  const doc = {
+    addEventListener: (_type: string, handler: (event: MouseEvent) => void) => {
+      clickHandler = handler
+    }
+  }
+  interceptMailContentLinks(doc as unknown as Document, () => calls++)
+
+  clickHandler?.({ target: null } as unknown as MouseEvent)
+  clickHandler?.({ target: 'text' } as unknown as MouseEvent)
+  clickHandler?.({ target: {} } as unknown as MouseEvent)
+  clickHandler?.({
+    target: { parentElement: { closest: () => ({ getAttribute: () => '#section' }) } },
+    preventDefault: () => (prevented = true)
+  } as unknown as MouseEvent)
+  clickHandler?.({
+    target: {
+      closest: () => null,
+      parentElement: {
+        closest: () => ({
+          getAttribute: () => '/help',
+          ownerDocument: { baseURI: 'https://mail.example/inbox/1' }
+        })
+      }
+    },
+    preventDefault: () => (prevented = true),
+    stopPropagation: () => {}
+  } as unknown as MouseEvent)
+
+  assert.equal(calls, 1)
   assert.equal(prevented, true)
 })

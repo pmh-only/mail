@@ -310,8 +310,6 @@ export async function upsertContacts(inputs: ContactInput[]) {
   const contacts = [...normalized.values()]
   for (let index = 0; index < contacts.length; index += 200) {
     const batch = contacts.slice(index, index + 200)
-    if (batch.length === 0) continue
-
     await db
       .insert(mailContact)
       .values(

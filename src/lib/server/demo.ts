@@ -115,13 +115,7 @@ function isUnreadDemoMessage(message: Pick<DemoMailRow, 'mailbox' | 'flags'>) {
 }
 
 function normalizeDemoMailRowFlags<T extends DemoMailRow>(message: T): T {
-  if (!isAlwaysReadMailbox(message.mailbox)) return message
-
-  const flags = JSON.parse(message.flags) as string[]
-  const normalizedFlags = ensureSeenFlag(flags)
-  if (normalizedFlags === flags) return message
-
-  return { ...message, flags: JSON.stringify(normalizedFlags) } as T
+  return message
 }
 
 function isActiveDemoMessage(message: Pick<DemoMailRow, 'snoozedUntil'>) {
@@ -657,7 +651,7 @@ const initialDemoConfig = {
 }
 const initialDemoMessages = demoMessages.map((message) => ({
   ...message,
-  receivedAt: message.receivedAt ? new Date(message.receivedAt) : null
+  receivedAt: new Date(message.receivedAt!)
 }))
 const initialDemoAttachments = demoAttachments.map((attachment) => ({
   ...attachment,
@@ -665,13 +659,8 @@ const initialDemoAttachments = demoAttachments.map((attachment) => ({
 }))
 const initialDemoContacts = demoContacts.map((contact) => ({
   ...contact,
-  lastUsedAt: contact.lastUsedAt ? new Date(contact.lastUsedAt) : null,
+  lastUsedAt: new Date(contact.lastUsedAt!),
   updatedAt: new Date(contact.updatedAt)
-}))
-const initialDemoContactGroups = demoContactGroups.map((group) => ({
-  ...group,
-  contactIds: [...group.contactIds],
-  updatedAt: new Date(group.updatedAt)
 }))
 const initialDemoDrafts = demoDrafts.map((draft) => ({
   ...draft,
@@ -684,7 +673,6 @@ const initialDemoMessageTemplates = demoMessageTemplates.map((template) => ({
   createdAt: new Date(template.createdAt),
   updatedAt: new Date(template.updatedAt)
 }))
-const initialDemoSenderRules = demoSenderRules.map((rule) => ({ ...rule }))
 const initialNextMessageId = nextMessageId
 const initialNextAttachmentId = nextAttachmentId
 const initialNextContactId = nextContactId
@@ -706,7 +694,7 @@ export function resetDemoState() {
 
   demoMessages = initialDemoMessages.map((message) => ({
     ...message,
-    receivedAt: message.receivedAt ? new Date(message.receivedAt) : null
+    receivedAt: new Date(message.receivedAt!)
   }))
   demoAttachments.length = 0
   demoAttachments.push(
@@ -717,14 +705,10 @@ export function resetDemoState() {
   )
   demoContacts = initialDemoContacts.map((contact) => ({
     ...contact,
-    lastUsedAt: contact.lastUsedAt ? new Date(contact.lastUsedAt) : null,
+    lastUsedAt: new Date(contact.lastUsedAt!),
     updatedAt: new Date(contact.updatedAt)
   }))
-  demoContactGroups = initialDemoContactGroups.map((group) => ({
-    ...group,
-    contactIds: [...group.contactIds],
-    updatedAt: new Date(group.updatedAt)
-  }))
+  demoContactGroups = []
   demoDrafts = initialDemoDrafts.map((draft) => ({
     ...draft,
     createdAt: new Date(draft.createdAt),
@@ -736,7 +720,7 @@ export function resetDemoState() {
     createdAt: new Date(template.createdAt),
     updatedAt: new Date(template.updatedAt)
   }))
-  demoSenderRules = initialDemoSenderRules.map((rule) => ({ ...rule }))
+  demoSenderRules = []
   demoShares.clear()
 
   nextMessageId = initialNextMessageId
@@ -750,7 +734,7 @@ export function resetDemoState() {
 
 if (isDemoModeEnabled()) {
   const timer = setInterval(resetDemoState, DEMO_RESET_MS)
-  timer.unref?.()
+  timer.unref()
 }
 
 const demoUser: DemoUser = {
@@ -793,8 +777,8 @@ function textPreview(value: string, fallback: string) {
 
 function sortedMessages(rows: DemoMailRow[]) {
   return [...rows].sort((left, right) => {
-    const leftTime = left.receivedAt?.getTime() ?? 0
-    const rightTime = right.receivedAt?.getTime() ?? 0
+    const leftTime = left.receivedAt!.getTime()
+    const rightTime = right.receivedAt!.getTime()
     if (rightTime !== leftTime) return rightTime - leftTime
     return right.uid - left.uid
   })
@@ -840,9 +824,9 @@ export function getDemoDisplayConfig() {
     signature: demoConfig.signature,
     signatureProfiles: demoConfig.signatureProfiles.map((signature) => ({ ...signature })),
     imap,
-    imapServers: [imap],
+    imapServers: demoConfig.imapServers.map((server) => ({ ...server, password: '••••••••' })),
     smtp,
-    smtpServers: [smtp],
+    smtpServers: demoConfig.smtpServers.map((server) => ({ ...server, password: '••••••••' })),
     github: { ...demoConfig.github },
     discord: { ...demoConfig.discord },
     oidc: { ...demoConfig.oidc, clientSecret: '••••••••' },
@@ -1091,7 +1075,7 @@ export function listDemoStoredThreads(
   )
   const byThread = new Map<string, DemoMailRow[]>()
   for (const message of mailboxMessages) {
-    const key = message.threadId ?? message.messageId
+    const key = message.threadId!
     const bucket = byThread.get(key) ?? []
     bucket.push(message)
     byThread.set(key, bucket)
@@ -1101,10 +1085,10 @@ export function listDemoStoredThreads(
     [...byThread.values()].map((messages) => sortedMessages(messages)[0])
   ).map((message) => ({
     ...normalizeDemoMailRowFlags(message),
-    threadCount: byThread.get(message.threadId ?? message.messageId)?.length ?? 1,
+    threadCount: byThread.get(message.threadId!)!.length,
     hasUnread: alwaysReadMailbox
       ? false
-      : (byThread.get(message.threadId ?? message.messageId) ?? [message]).some(isUnreadDemoMessage)
+      : byThread.get(message.threadId!)!.some(isUnreadDemoMessage)
   }))
 
   const filtered = unreadOnly ? rows.filter((r) => r.hasUnread) : rows
@@ -1116,13 +1100,13 @@ export function countDemoStoredThreads(mailboxPath: string, unreadOnly = false) 
     (message) => message.mailbox === mailboxPath && isActiveDemoMessage(message)
   )
   if (!unreadOnly) {
-    return new Set(mailboxMessages.map((message) => message.threadId ?? message.messageId)).size
+    return new Set(mailboxMessages.map((message) => message.threadId!)).size
   }
   if (isAlwaysReadMailbox(mailboxPath)) return 0
 
   const byThread = new Map<string, typeof mailboxMessages>()
   for (const message of mailboxMessages) {
-    const key = message.threadId ?? message.messageId
+    const key = message.threadId!
     const bucket = byThread.get(key) ?? []
     bucket.push(message)
     byThread.set(key, bucket)
@@ -1135,13 +1119,11 @@ export function countDemoStoredThreads(mailboxPath: string, unreadOnly = false) 
 }
 
 export function getDemoMessagesInThread(threadKey: string, mailboxPath: string) {
-  const threadMessages = demoMessages.filter(
-    (message) => (message.threadId ?? message.messageId) === threadKey
-  )
+  const threadMessages = demoMessages.filter((message) => message.threadId === threadKey)
   return [...threadMessages]
     .sort((left, right) => {
-      const leftTime = left.receivedAt?.getTime() ?? 0
-      const rightTime = right.receivedAt?.getTime() ?? 0
+      const leftTime = left.receivedAt!.getTime()
+      const rightTime = right.receivedAt!.getTime()
       if (leftTime !== rightTime) return leftTime - rightTime
       if (left.mailbox === mailboxPath && right.mailbox !== mailboxPath) return -1
       if (right.mailbox === mailboxPath && left.mailbox !== mailboxPath) return 1
@@ -1161,7 +1143,6 @@ export function splitDemoThreadFromMessage(
   const splitIndex = current.findIndex((message) => message.id === mailboxEntryId)
   if (splitIndex <= 0) return null
   const splitMessages = current.slice(splitIndex)
-  if (splitMessages.length === 0 || splitMessages.length === current.length) return null
 
   const newThreadKey = `${splitMessages[0].messageId}#split-${randomUUID()}`
   const splitIds = new Set(splitMessages.map((message) => message.messageId))
@@ -1468,7 +1449,7 @@ export function listDemoMessagesForContact(email: string, limit = 20) {
       to: message.to,
       cc: message.cc,
       preview: message.preview,
-      receivedAt: message.receivedAt?.toISOString() ?? null,
+      receivedAt: message.receivedAt!.toISOString(),
       threadId: message.threadId
     }))
 }
@@ -1940,7 +1921,7 @@ export function generateDemoRecentSummary(
   if (looksKorean(targetLanguage)) {
     return [
       `데모 요약: 최근 ${messages.length}개의 메일을 기반으로 생성된 미리 준비된 결과입니다.`,
-      `- 우선순위 높음: ${messages[0]?.subject ?? '새 메일'} 확인 필요`,
+      `- 우선순위 높음: ${messages[0].subject} 확인 필요`,
       `- 진행 중인 대화: ${messages
         .slice(0, 3)
         .map((message) => message.subject)
@@ -1951,7 +1932,7 @@ export function generateDemoRecentSummary(
 
   return [
     `Demo summary: pre-generated from the latest ${messages.length} messages.`,
-    `- Highest priority: review "${messages[0]?.subject ?? 'new mail'}"`,
+    `- Highest priority: review "${messages[0].subject}"`,
     `- Active conversations: ${messages
       .slice(0, 3)
       .map((message) => message.subject)
@@ -1997,10 +1978,8 @@ export function generateDemoThreadActions(mailboxPath: string, threadId: string)
   const latest = messages[messages.length - 1]
   return [
     {
-      title: `Follow up on ${latest.subject || 'this thread'}`,
-      description:
-        latest.preview ||
-        'Review the latest message and decide whether a response or next step is needed.',
+      title: `Follow up on ${latest.subject}`,
+      description: latest.preview,
       owner: 'You',
       dueDate: null,
       priority: 'medium' as const,

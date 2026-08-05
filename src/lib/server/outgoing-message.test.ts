@@ -24,6 +24,9 @@ test('creates a mailto List-Unsubscribe header for the sender address', async ()
   assert.deepEqual(outgoingListHeaders('user?tag@example.com'), {
     'List-Unsubscribe': '<mailto:user%3Ftag@example.com>'
   })
+  assert.deepEqual(outgoingListHeaders('sender@[127.0.0.1]'), {
+    'List-Unsubscribe': '<mailto:sender@%5B127.0.0.1%5D>'
+  })
   for (const invalid of ['invalid-sender', 'a@@example.com', 'a@example..com', 'a@-example.com']) {
     assert.throws(() => outgoingListHeaders(invalid), /invalid sender address/)
   }
@@ -66,6 +69,7 @@ test('does not mistake comments or script content for an HTML document element',
 
 test('keeps a plain-text MIME alternative for HTML without visible text', () => {
   assert.equal(outgoingMessageBody('<div></div>').text, ' ')
+  assert.deepEqual(outgoingMessageBody(undefined), {})
 })
 
 test('includes a tracking image in the delivered HTML MIME content', async () => {

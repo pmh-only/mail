@@ -48,3 +48,32 @@ test('ignores unknown tokens and clears all share state', () => {
   assert.equal(shares.getMessageId('first-token'), null)
   assert.equal(shares.count('first-message'), 0)
 })
+
+test('reuses only links with the same message and thread membership', () => {
+  const shares = new SharedMessageReads()
+  shares.add('single', 'root')
+  shares.add('empty-thread', 'root', [])
+  shares.add('single-thread', 'root', ['root'])
+  shares.add('thread', 'root', ['root', 'reply'])
+
+  assert.deepEqual(shares.getMessageIds('thread'), ['root', 'reply'])
+  assert.equal(shares.getMessageIds('missing'), null)
+  assert.equal(shares.findExistingToken('root'), 'single')
+  assert.equal(shares.findExistingToken('root', []), null)
+  assert.equal(shares.findExistingToken('root', ['root']), 'single-thread')
+  assert.equal(shares.findExistingToken('root', ['root', 'reply']), 'thread')
+  assert.equal(shares.findExistingToken('root', ['reply', 'root']), null)
+  assert.equal(shares.findExistingToken('other'), null)
+
+  shares.markRead('thread')
+  assert.equal(shares.count('reply'), 1)
+})
+
+test('does not reuse a multi-message thread for a single-message share', () => {
+  const shares = new SharedMessageReads()
+  shares.add('thread', 'root', ['root', 'reply'])
+  shares.add('different-single', 'other-root', ['other-reply'])
+
+  assert.equal(shares.findExistingToken('root'), null)
+  assert.equal(shares.findExistingToken('other-root'), null)
+})

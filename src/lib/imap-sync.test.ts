@@ -123,9 +123,11 @@ test('uses STATUS as a fast path only with matching identity, UIDNEXT and MODSEQ
 
 test('falls back to full metadata when CONDSTORE is missing or rejected', () => {
   assert.equal(condstoreChangedSince(true, false, 20n), 20n)
+  assert.equal(condstoreChangedSince(true, false, null), undefined)
   assert.equal(condstoreChangedSince(false, false, 20n), undefined)
   assert.equal(condstoreChangedSince(true, true, 20n), undefined)
   assert.equal(isCondstoreRejection(new Error('BAD CHANGEDSINCE is not supported')), true)
+  assert.equal(isCondstoreRejection('NO condstore support'), true)
   assert.equal(isCondstoreRejection(new Error('database connection failed')), false)
 })
 
@@ -144,4 +146,15 @@ test('reconciles remote flags and deletes while protecting local intents', () =>
     { row: { uid: 1, flags: '[]' }, action: 'flags', flags: '["\\\\Seen"]' },
     { row: { uid: 2, flags: '[]' }, action: 'delete' }
   ])
+})
+
+test('does not reconcile rows whose remote state already matches', () => {
+  assert.deepEqual(
+    reconcileMailboxRows([{ uid: 1, flags: '[]' }], new Set([1]), new Map([[1, '[]']]), new Set()),
+    []
+  )
+  assert.deepEqual(
+    reconcileMailboxRows([{ uid: 1, flags: '[]' }], new Set([1]), new Map(), new Set()),
+    []
+  )
 })

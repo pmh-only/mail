@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'vitest'
+import { test, vi } from 'vitest'
 import type { ImapConfig, SmtpConfig } from './config'
 import {
   findSentMailbox,
@@ -55,6 +55,15 @@ test('selects the matching IMAP account for a sent message', () => {
     null,
     'does not save to the wrong account when no multi-account match exists'
   )
+  const other = imapConfig('other', 'other@example.com')
+  assert.equal(
+    selectSentImapConfig({ ...smtpConfig, id: 'unknown', from: 'Other <OTHER@example.com>' }, [
+      other
+    ]),
+    other,
+    'uses the SMTP login when the From address differs'
+  )
+  assert.equal(selectSentImapConfig(smtpConfig, [primary]), primary)
 })
 
 test('prefers the IMAP special-use Sent mailbox and supports common fallbacks', () => {
@@ -63,6 +72,10 @@ test('prefers the IMAP special-use Sent mailbox and supports common fallbacks', 
     '[Gmail]/Sent Mail'
   )
   assert.equal(findSentMailbox([{ path: 'INBOX' }, { path: 'Sent Items' }]), 'Sent Items')
+  assert.equal(
+    findSentMailbox([{ path: 'INBOX' }, { path: 'Archive', flags: new Set(['\\Sent']) }]),
+    'Archive'
+  )
   assert.equal(findSentMailbox([{ path: 'INBOX' }]), null)
 })
 
@@ -73,6 +86,7 @@ test('does not fall back to another account Sent mailbox', () => {
   ]
   assert.equal(findSentMailboxForAccount(mailboxes, 'primary', 2), null)
   assert.equal(findSentMailboxForAccount(mailboxes, 'work', 2), 'work/Sent')
+  assert.equal(findSentMailboxForAccount([{ path: 'Sent' }], 'primary', 1), 'Sent')
 })
 
 test('removes Bcc headers from SMTP delivery without changing the stored message body', () => {
@@ -86,6 +100,13 @@ test('removes Bcc headers from SMTP delivery without changing the stored message
   )
 })
 
+test('retains folded non-Bcc headers', () => {
+  assert.equal(
+    withoutBccHeader(Buffer.from('Subject: first\r\n second\r\n\r\nBody')).toString(),
+    'Subject: first\r\n second\r\n\r\nBody'
+  )
+})
+
 test('recovers a Message-ID from a previously built SMTP message', () => {
   assert.equal(
     messageIdFromRawMessage(
@@ -94,6 +115,20 @@ test('recovers a Message-ID from a previously built SMTP message', () => {
     '<queued@mail.local>'
   )
   assert.equal(messageIdFromRawMessage(Buffer.from('Subject: Missing\r\n\r\nBody')), null)
+  assert.equal(
+    messageIdFromRawMessage(Buffer.from('Message-ID: <first\r\n second>\r\n\r\nBody')),
+    '<first second>'
+  )
+  assert.equal(messageIdFromRawMessage(Buffer.from('Message-ID: <header-only>')), '<header-only>')
+})
+
+test('supports LF messages and leaves headerless messages unchanged when removing Bcc', () => {
+  assert.equal(
+    withoutBccHeader(Buffer.from('Bcc: hidden@example.com\nSubject: Test\n\nBody')).toString(),
+    'Subject: Test\n\nBody'
+  )
+  const raw = Buffer.from('Bcc: hidden@example.com')
+  assert.equal(withoutBccHeader(raw), raw)
 })
 
 test('appends a seen Sent copy once and recognizes it on retry', async () => {
@@ -129,4 +164,50 @@ test('appends a seen Sent copy once and recognizes it on retry', async () => {
   assert.equal(await storeSentMessage(client as never, rawMessage, 42, deliveredAt), 'Sent')
   assert.equal(appendCount, 1)
   assert.equal(releaseCount, 2)
+})
+
+test('releases the mailbox lock when searching or appending fails', async () => {
+  const release = vi.fn()
+  const client = {
+    list: vi.fn().mockResolvedValue([{ path: 'Sent', specialUse: '\\Sent' }]),
+    getMailboxLock: vi.fn().mockResolvedValue({ release }),
+    search: vi.fn().mockRejectedValue(new Error('network failure')),
+    append: vi.fn()
+  }
+
+  await assert.rejects(
+    storeSentMessage(client as never, Buffer.from(''), 4, new Date()),
+    /network failure/
+  )
+  assert.equal(release.mock.calls.length, 1)
+  assert.equal(client.append.mock.calls.length, 0)
+})
+
+test('reports unavailable Sent mailboxes and failed persistence', async () => {
+  const noMailbox = { list: vi.fn().mockResolvedValue([]) }
+  await assert.rejects(
+    storeSentMessage(noMailbox as never, Buffer.from(''), 4, new Date()),
+    /Sent mailbox not found/
+  )
+
+  const release = vi.fn()
+  const client = {
+    list: vi.fn().mockResolvedValue([{ path: 'Sent', specialUse: '\\Sent' }]),
+    getMailboxLock: vi.fn().mockResolvedValue({ release }),
+    search: vi.fn().mockResolvedValue(false),
+    append: vi.fn()
+  }
+  await assert.rejects(
+    storeSentMessage(client as never, Buffer.from(''), 5, new Date()),
+    /Failed to search/
+  )
+  assert.equal(release.mock.calls.length, 1)
+
+  client.search.mockResolvedValue([])
+  client.append.mockResolvedValue(false)
+  await assert.rejects(
+    storeSentMessage(client as never, Buffer.from(''), 6, new Date()),
+    /Failed to persist/
+  )
+  assert.equal(release.mock.calls.length, 2)
 })

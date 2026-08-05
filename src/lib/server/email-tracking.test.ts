@@ -92,3 +92,18 @@ test('backs off notification retries with a five-minute cap', () => {
   assert.equal(emailReadNotificationRetryDelay(8), 256_000)
   assert.equal(emailReadNotificationRetryDelay(20), 300_000)
 })
+
+test('handles malformed origins, body-less HTML, and empty notification subjects', () => {
+  assert.equal(emailTrackingPixelUrl('not an origin', 'token'), null)
+  assert.equal(emailTrackingPixelUrl('ftp://mail.example.com', 'token'), null)
+  assert.match(addEmailTrackingPixel('<p>Hello</p>', 'https://example.com/a"&b'), /&quot;&amp;/)
+  assert.equal(
+    emailReadNotification(JSON.stringify({ subject: '   ' }), '/', 1).body,
+    'A recipient read "(no subject)".'
+  )
+  assert.equal(emailReadNotificationRetryDelay(0), 1_000)
+  assert.equal(
+    shouldRecordEmailOpen(new Request('https://mail.example.com/email-open/token/pixel.gif')),
+    true
+  )
+})

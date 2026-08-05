@@ -13,11 +13,23 @@ test('detects explicit mail search filters', () => {
   assert.equal(hasExplicitSearchFilter('discuss from someone'), false)
   assert.equal(hasExplicitSearchFilter('subject:"two words"'), true)
   assert.equal(hasExplicitSearchFilter('"from:billing@example.com"'), true)
+  assert.equal(hasExplicitSearchFilter('FROM:billing@example.com'), true)
+  assert.equal(hasExplicitSearchFilter('has:ATTACHMENT'), true)
+  assert.equal(hasExplicitSearchFilter('has:image'), false)
+  assert.equal(hasExplicitSearchFilter('from:'), false)
+  assert.equal(hasExplicitSearchFilter('label:work'), false)
+  assert.equal(hasExplicitSearchFilter(''), false)
 })
 
 test('rejects unsafe or oversized regular expressions', () => {
-  assert.equal(validateMailSearchRegex('invoice|billing|payment'), 'invoice|billing|payment')
+  assert.equal(validateMailSearchRegex(' invoice|billing|payment '), 'invoice|billing|payment')
+  assert.throws(() => validateMailSearchRegex(null), /must be a string/)
+  assert.throws(() => validateMailSearchRegex('   '), /between 1 and 160/)
+  assert.throws(() => validateMailSearchRegex('line\nbreak'), /control characters/)
+  assert.throws(() => validateMailSearchRegex('line\u007fbreak'), /control characters/)
   assert.throws(() => validateMailSearchRegex('(?=invoice)'), /unsupported/)
+  assert.throws(() => validateMailSearchRegex('(?!invoice)'), /unsupported/)
+  assert.throws(() => validateMailSearchRegex('(?<=invoice)'), /unsupported/)
   assert.throws(() => validateMailSearchRegex('(invoice)\\1'), /unsupported/)
   assert.throws(() => validateMailSearchRegex('\\binvoice\\b'), /unsupported/)
   assert.throws(() => validateMailSearchRegex('x'.repeat(161)), /between 1 and 160/)
@@ -28,5 +40,14 @@ test('accepts only message IDs returned by search tools', () => {
   assert.throws(
     () => parseNaturalSearchSelection('{"message_ids":[9]}', new Set([1, 3])),
     /unknown message ID/
+  )
+  assert.throws(() => parseNaturalSearchSelection('{}', new Set([1, 3])), /omitted/)
+  assert.throws(
+    () => parseNaturalSearchSelection('{"message_ids":[1.5]}', new Set([1, 3])),
+    /unknown/
+  )
+  assert.throws(
+    () => parseNaturalSearchSelection('{"message_ids":["1"]}', new Set([1, 3])),
+    /unknown/
   )
 })

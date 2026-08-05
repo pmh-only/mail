@@ -91,7 +91,7 @@ function filenameParts(filename: string): string[] {
 }
 
 function addReason(reasons: string[], reason: string) {
-  if (!reasons.includes(reason)) reasons.push(reason)
+  reasons.push(reason)
 }
 
 export function scoreAttachmentSafety(attachment: AttachmentSafetyInput): AttachmentSafetyScore {
@@ -201,9 +201,6 @@ function isValidBase64(contentBase64: string) {
       code === 43 ||
       code === 47
     if (!valid) return false
-  }
-  for (let index = contentLength; index < contentBase64.length; index += 1) {
-    if (contentBase64.charCodeAt(index) !== 61) return false
   }
   return true
 }
