@@ -2,7 +2,7 @@ name: Label pull requests
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review]
 
 permissions:
   contents: read
@@ -93,3 +93,19 @@ jobs:
               issue_number: context.issue.number,
               labels: [size],
             });
+
+      - name: Require an area label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pullRequest = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: context.issue.number,
+            });
+            const labels = pullRequest.data.labels.map((label) =>
+              typeof label === 'string' ? label : label.name
+            );
+
+            if (!labels.some((label) => label.startsWith('area:'))) {
+              core.setFailed('Pull requests must have at least one area: label.');
+            }
