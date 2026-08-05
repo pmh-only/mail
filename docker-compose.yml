@@ -3,10 +3,11 @@ services:
     build:
       context: .
       target: runtime
-    network_mode: host
     env_file: .env
     environment:
       PUBLIC_ATTACHMENT_DIR: /app/data/public-attachments
+    ports:
+      - '3000:3000'
     volumes:
       - public-attachments:/app/data/public-attachments
     restart: unless-stopped
@@ -16,11 +17,12 @@ services:
     build:
       context: .
       target: worker
-    network_mode: host
     env_file: .env
     environment:
       IMAP_PUBLIC_HOST: 0.0.0.0
       IMAP_PUBLIC_PORT: ${IMAP_PUBLIC_PORT:-993}
+    ports:
+      - '0.0.0.0:${IMAP_PUBLIC_PORT:-993}:${IMAP_PUBLIC_PORT:-993}'
     restart: unless-stopped
 
 volumes:
