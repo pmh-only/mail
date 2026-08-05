@@ -68,7 +68,7 @@
     "drizzle-kit": "^0.31.10",
     "oxfmt": "^0.62.0",
     "oxlint": "^1.77.0",
-    "svelte": "^5.55.2",
+    "svelte": "^5.55.7",
     "svelte-check": "^4.4.6",
     "svelte-sonner": "^1.1.1",
     "tailwindcss": "^4.2.4",
