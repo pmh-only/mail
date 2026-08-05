@@ -9,6 +9,7 @@ import {
   readSignature,
   sign,
   verify,
+  type PartialConfig,
   type PrivateKey,
   type PublicKey
 } from 'openpgp'
@@ -44,6 +45,10 @@ const EMPTY_RESULT: OpenPgpSecurityResult = {
   decrypted: false,
   error: null
 }
+
+const OPENPGP_DECRYPT_CONFIG = {
+  maxDecompressedMessageSize: 25 * 1024 * 1024
+} satisfies PartialConfig
 
 function normalizeCrlf(value: string | Uint8Array) {
   return Buffer.from(value).toString('utf8').replace(/\r?\n/g, '\r\n')
@@ -392,7 +397,8 @@ async function decryptPgpMime(
       message,
       decryptionKeys: privateKeys,
       verificationKeys,
-      format: 'binary'
+      format: 'binary',
+      config: OPENPGP_DECRYPT_CONFIG
     })
     const entity = Buffer.from(decrypted.data).toString('utf8')
     const signature = await signatureResult(
@@ -462,7 +468,8 @@ export async function processInboundOpenPgp(input: {
         message: await readMessage({ armoredMessage: text }),
         decryptionKeys: input.privateKeys,
         verificationKeys: input.verificationKeys,
-        format: 'utf8'
+        format: 'utf8',
+        config: OPENPGP_DECRYPT_CONFIG
       })
       const signature = await signatureResult(
         decrypted,

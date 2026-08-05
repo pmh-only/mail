@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createMessage, encrypt, generateKey, type PrivateKey, type PublicKey } from 'openpgp'
+import {
+  createMessage,
+  encrypt,
+  enums,
+  generateKey,
+  type PrivateKey,
+  type PublicKey
+} from 'openpgp'
 import { simpleParser } from 'mailparser'
 import {
   clearSignText,
@@ -200,4 +207,27 @@ test('decrypts inline armored OpenPGP messages into a renderable text body', asy
   assert.equal(result.decrypted, true)
   assert.equal(result.signatureStatus, 'valid')
   assert.equal(parsed.text?.trim(), 'Inline encrypted content.')
+})
+
+test('rejects OpenPGP messages that decompress beyond the message size limit', async () => {
+  const encrypted = String(
+    await encrypt({
+      message: await createMessage({ text: 'x'.repeat(25 * 1024 * 1024 + 1) }),
+      encryptionKeys: publicKey,
+      format: 'armored',
+      config: { preferredCompressionAlgorithm: enums.compression.zlib }
+    })
+  )
+  const raw = Buffer.from(`Content-Type: text/plain\r\n\r\n${encrypted}`)
+  const result = await processInboundOpenPgp({
+    raw,
+    text: encrypted,
+    privateKeys: [privateKey],
+    verificationKeys: []
+  })
+
+  assert.equal(result.encrypted, true)
+  assert.equal(result.decrypted, false)
+  assert.match(result.error ?? '', /Maximum decompressed message size exceeded/)
+  assert.match(result.rawMessage.toString('utf8'), /-----BEGIN PGP MESSAGE-----/)
 })
