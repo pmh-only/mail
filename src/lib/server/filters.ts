@@ -7,6 +7,7 @@ import {
   type FilterCondition,
   type FilterConditionSet
 } from '$lib/filter-conditions'
+import { getImapMailboxes, refreshThreadSummaries } from './mail'
 
 type Filter = typeof mailFilter.$inferSelect
 
@@ -168,7 +169,6 @@ export async function runFiltersOnMessages(messageIds: string[]): Promise<void> 
 
           if (filter.action === 'trash' || filter.action === 'delete') {
             // Find trash mailbox from known mailboxes
-            const { getImapMailboxes } = await import('./mail')
             const mailboxes = await getImapMailboxes()
             const trashMb = mailboxes.find((mb) =>
               /\b(trash|deleted[\s._-]?(items|messages)?)\b/i.test(mb.name + ' ' + mb.path)
@@ -194,7 +194,6 @@ export async function runFiltersOnMessages(messageIds: string[]): Promise<void> 
 
   if (touchedThreadKeysByMailbox.size === 0) return
 
-  const { refreshThreadSummaries } = await import('./mail')
   for (const [mailbox, threadKeys] of touchedThreadKeysByMailbox) {
     await refreshThreadSummaries(mailbox, threadKeys)
   }

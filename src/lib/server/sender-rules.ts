@@ -2,6 +2,7 @@ import { desc, eq, inArray } from 'drizzle-orm'
 import { db } from './db'
 import { mailMessage, mailMessageMailbox, mailSenderRule } from './db/schema'
 import { scheduleMoveMessage } from './imap-operations'
+import { getImapMailboxes, refreshThreadSummaries } from './mail'
 
 export type SenderRuleType = 'block' | 'allow'
 
@@ -71,7 +72,6 @@ export async function applySenderRulesToMessages(messageIds: string[]): Promise<
     .where(inArray(mailMessage.messageId, messageIds))
 
   const blockedThreadKeysByMailbox = new Map<string, Set<string>>()
-  const { getImapMailboxes } = await import('./mail')
   const mailboxes = await getImapMailboxes()
   const trashMailbox = mailboxes.find((mb) =>
     /\b(trash|deleted[\s._-]?(items|messages)?)\b/i.test(`${mb.name} ${mb.path}`)
@@ -101,7 +101,6 @@ export async function applySenderRulesToMessages(messageIds: string[]): Promise<
   }
 
   if (blockedThreadKeysByMailbox.size > 0) {
-    const { refreshThreadSummaries } = await import('./mail')
     for (const [mailbox, threadKeys] of blockedThreadKeysByMailbox) {
       await refreshThreadSummaries(mailbox, threadKeys)
     }

@@ -58,6 +58,7 @@ import {
   syncRuntime
 } from './db/schema'
 import { scheduleMoveMessage } from './imap-operations'
+import { dismissReadNotifications as sendDismissPush, sendPushToAll } from './push'
 import { getImapConfig, getImapConfigs, getSmtpConfigs, type ImapConfig } from './config'
 import { logServerError, perfError, perfLog, perfMs, perfNow } from './perf'
 import { withRetry } from './retry'
@@ -1297,7 +1298,6 @@ async function reconcileMailbox(client: ImapFlow, mailbox: string, changedSince?
 async function dismissReadNotifications(messageIds: number[]) {
   if (messageIds.length === 0) return
   try {
-    const { dismissReadNotifications: sendDismissPush } = await import('./push')
     await sendDismissPush(messageIds)
   } catch (error) {
     logServerError('push.dismissReadNotifications', error, { messageIds })
@@ -1686,7 +1686,6 @@ async function syncOneMailbox(
             const shouldNotifyMailbox = await shouldSendMailboxNotifications(mailboxPath)
 
             if (shouldNotifyMailbox) {
-              const { sendPushToAll } = await import('./push')
               const newMsgs = await db
                 .select({
                   id: mailMessageMailbox.id,

@@ -13,6 +13,7 @@ import {
 import { buildDraftMessage } from './draft-message'
 import { draftAppendMatches, draftDeleteJob, previousDraftUidToDelete } from '../imap-sync'
 import { startBackgroundAction, waitForBackgroundActions } from './background-actions'
+import { refreshThreadSummaries } from './mail'
 
 const MAX_JOB_ATTEMPTS = 8
 const PERMANENT_JOB_ERROR_RE =
@@ -219,7 +220,6 @@ async function runMove(
       .limit(1)
     if (entry) {
       await db.delete(mailMessageMailbox).where(eq(mailMessageMailbox.id, entry.id))
-      const { refreshThreadSummaries } = await import('./mail')
       await refreshThreadSummaries(job.mailbox, [entry.threadKey])
     }
   } catch (error) {
