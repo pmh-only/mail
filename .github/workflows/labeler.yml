@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Create required labels
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const labels = [
@@ -56,7 +56,7 @@ jobs:
           sync-labels: true
 
       - name: Apply pull request size label
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const pullRequest = await github.rest.pulls.get({
@@ -95,7 +95,7 @@ jobs:
             });
 
       - name: Require an area label
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const pullRequest = await github.rest.pulls.get({
