@@ -44,12 +44,29 @@ const handleStartup: Handle = async ({ event, resolve }) => {
 }
 
 const SETUP_PATHS = ['/setup']
-const AUTH_PATHS = ['/login', '/api/auth', '/share', '/attachments', '/api-docs']
+const EXACT_PUBLIC_PATHS = new Set(['/login', '/setup', '/api-docs'])
+const PUBLIC_PATH_PREFIXES = ['/api/auth', '/share', '/attachments']
 const EXTERNAL_API_PREFIX = '/api/external/v1'
 const EMAIL_TRACKING_PREFIX = '/email-open/'
 
 function isExternalApiPath(path: string) {
   return path === EXTERNAL_API_PREFIX || path.startsWith(`${EXTERNAL_API_PREFIX}/`)
+}
+
+function isPublicPath(path: string) {
+  return (
+    EXACT_PUBLIC_PATHS.has(path) ||
+    PUBLIC_PATH_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
+  )
+}
+
+function redactCapabilityPath(path: string) {
+  if (path.startsWith(EMAIL_TRACKING_PREFIX)) return `${EMAIL_TRACKING_PREFIX}[redacted]/pixel.gif`
+  if (/^\/share\/[^/]+/.test(path)) return path.replace(/^\/share\/[^/]+/, '/share/[redacted]')
+  if (/^\/attachments\/[^/]+/.test(path)) {
+    return path.replace(/^\/attachments\/[^/]+/, '/attachments/[redacted]')
+  }
+  return path
 }
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
@@ -74,7 +91,7 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
   if (!building) {
     const configured = await isAuthenticationConfigured()
     if (!configured) {
-      const isSetup = SETUP_PATHS.some((p) => path.startsWith(p))
+      const isSetup = SETUP_PATHS.includes(path)
       if (!isSetup) redirect(302, '/setup')
       return resolve(event)
     }
@@ -123,7 +140,7 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
     event.locals.user = session.user
   }
 
-  const isPublic = [...AUTH_PATHS, ...SETUP_PATHS].some((p) => path.startsWith(p))
+  const isPublic = isPublicPath(path)
 
   if (!session && !isPublic) {
     redirect(302, '/login')
@@ -144,9 +161,7 @@ const handleTraffic: Handle = async ({ event, resolve }) => {
   const start = performance.now()
   const { method } = event.request
   const path = event.url.pathname
-  const loggedPath = path.startsWith(EMAIL_TRACKING_PREFIX)
-    ? `${EMAIL_TRACKING_PREFIX}[redacted]/pixel.gif`
-    : path
+  const loggedPath = redactCapabilityPath(path)
 
   const response = await resolve(event)
 
@@ -164,7 +179,7 @@ export const handle: Handle = sequence(handleStartup, handleTraffic, handleBette
 export const handleError: HandleServerError = ({ error, event, status, message }) => {
   logServerError('request', error, {
     method: event.request.method,
-    path: event.url.pathname + event.url.search,
+    path: redactCapabilityPath(event.url.pathname),
     routeId: event.route.id ?? null,
     status,
     message

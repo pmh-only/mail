@@ -20,7 +20,7 @@ export async function startPublicImapProxy() {
   if (port === null || server) return
 
   const configId = process.env.IMAP_PUBLIC_CONFIG_ID || 'primary'
-  const host = process.env.IMAP_PUBLIC_HOST || '0.0.0.0'
+  const host = process.env.IMAP_PUBLIC_HOST || '127.0.0.1'
   server = createImapProxyServer(async () => {
     const config = (await getImapConfigs()).find((candidate) => candidate.id === configId)
     if (!config) throw new Error(`IMAP configuration "${configId}" was not found`)

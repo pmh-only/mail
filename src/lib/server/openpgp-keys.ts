@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, or } from 'drizzle-orm'
 import {
   decryptKey,
   generateKey,
@@ -35,6 +35,19 @@ function identityFromUserIds(userIds: string[]) {
   return { name, email }
 }
 
+function confirmedEncryptionEmails(value: string | null | undefined) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) {
+      return parsed.filter((email): email is string => typeof email === 'string')
+    }
+  } catch {
+    // Legacy values stored one address directly.
+  }
+  return [value]
+}
+
 function serializeKey(row: typeof openPgpKey.$inferSelect, userIds: string[]): OpenPgpKeySummary {
   return {
     id: row.id,
@@ -65,6 +78,8 @@ async function saveKey(input: {
   passphrase?: string | null
   isOwn: boolean
   makeDefault?: boolean
+  encryptionEmail?: string
+  encryptionSource?: string
 }) {
   const publicKey = await readKey({ armoredKey: input.publicKey })
   const fingerprint = publicKey.getFingerprint().toLowerCase()
@@ -77,6 +92,13 @@ async function saveKey(input: {
     .limit(1)
   const isOwn = input.isOwn || existing?.isOwn === true
   const isDefault = input.isOwn ? input.makeDefault !== false : (existing?.isDefault ?? false)
+  const encryptionEmail = input.encryptionEmail
+    ? JSON.stringify(
+        Array.from(
+          new Set([...confirmedEncryptionEmails(existing?.encryptionEmail), input.encryptionEmail])
+        )
+      )
+    : undefined
 
   if (isOwn && isDefault && (!existing || !existing.isDefault)) {
     await db.update(openPgpKey).set({ isDefault: false }).where(eq(openPgpKey.isOwn, true))
@@ -91,7 +113,10 @@ async function saveKey(input: {
       privateKey: input.privateKey ? encryptSecret(input.privateKey) : null,
       passphrase: input.passphrase ? encryptSecret(input.passphrase) : null,
       isOwn,
-      isDefault
+      isDefault,
+      encryptionEmail,
+      encryptionConfirmedAt: input.encryptionEmail ? new Date() : undefined,
+      encryptionSource: input.encryptionSource
     })
     .onConflictDoUpdate({
       target: openPgpKey.fingerprint,
@@ -106,6 +131,13 @@ async function saveKey(input: {
           : {}),
         isOwn,
         isDefault,
+        ...(input.encryptionEmail
+          ? {
+              encryptionEmail,
+              encryptionConfirmedAt: new Date(),
+              encryptionSource: input.encryptionSource
+            }
+          : {}),
         updatedAt: new Date()
       }
     })
@@ -322,31 +354,72 @@ export async function getOpenPgpPrivateKeys(): Promise<PrivateKey[]> {
 export async function getEncryptionKeysForAddresses(addresses: string[]) {
   const normalized = new Set(addresses.map((address) => address.trim().toLowerCase()))
   const matched = new Map<string, PublicKey>()
-  async function addUsableKeys(keys: PublicKey[]) {
-    for (const key of keys) {
+  const rows = await db
+    .select()
+    .from(openPgpKey)
+    .where(or(eq(openPgpKey.isOwn, true), isNotNull(openPgpKey.encryptionConfirmedAt)))
+  for (const row of rows) {
+    try {
+      const key = await readKey({ armoredKey: row.publicKey })
       try {
         await key.getEncryptionKey()
       } catch {
         continue
       }
-      for (const email of openPgpKeyEmails(key)) {
+      const allowedEmails = row.isOwn
+        ? openPgpKeyEmails(key)
+        : confirmedEncryptionEmails(row.encryptionEmail).map((email) => email.toLowerCase())
+      for (const email of allowedEmails) {
         if (normalized.has(email) && !matched.has(email)) matched.set(email, key)
       }
+    } catch {
+      // Invalid or unusable stored keys are ignored.
     }
-  }
-
-  await addUsableKeys(await getOpenPgpPublicKeys())
-  const missingAddresses = [...normalized].filter((address) => !matched.has(address))
-  for (let index = 0; index < missingAddresses.length; index += 8) {
-    const discovered = await Promise.all(
-      missingAddresses
-        .slice(index, index + 8)
-        .map((address) => lookupOpenPgpKeysByEmail(address, { requireEncryption: true }))
-    )
-    await addUsableKeys(discovered.flat())
   }
   return {
     keys: Array.from(new Set(matched.values())),
     missing: addresses.filter((address) => !matched.has(address.trim().toLowerCase()))
   }
+}
+
+export async function discoverEncryptionKeyCandidates(addresses: string[]) {
+  const candidates = []
+  for (const email of addresses.map((value) => value.trim().toLowerCase())) {
+    const keys = await lookupOpenPgpKeysByEmail(email, {
+      requireEncryption: true,
+      allowMultiple: true
+    })
+    for (const key of keys) {
+      candidates.push({
+        email,
+        fingerprint: key.getFingerprint().toLowerCase(),
+        userIds: key.getUserIDs(),
+        armoredKey: key.armor(),
+        source: 'public-keyserver'
+      })
+    }
+  }
+  return candidates
+}
+
+export async function confirmEncryptionKey(input: {
+  email: string
+  fingerprint: string
+  armoredKey: string
+  source: string
+}) {
+  const email = input.email.trim().toLowerCase()
+  const key = await readKey({ armoredKey: input.armoredKey })
+  if (key.getFingerprint().toLowerCase() !== input.fingerprint.toLowerCase()) {
+    throw new Error('OpenPGP fingerprint changed')
+  }
+  if (!openPgpKeyEmails(key).includes(email))
+    throw new Error('OpenPGP key does not contain this address')
+  await key.getEncryptionKey()
+  return saveKey({
+    publicKey: key.armor(),
+    isOwn: false,
+    encryptionEmail: email,
+    encryptionSource: input.source || 'public-keyserver'
+  })
 }

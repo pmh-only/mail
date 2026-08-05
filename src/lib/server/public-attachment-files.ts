@@ -5,7 +5,10 @@ import { resolve } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-export const MAX_PUBLIC_ATTACHMENT_SIZE = 1024 ** 3
+export const MAX_PUBLIC_ATTACHMENT_SIZE =
+  Number(process.env.PUBLIC_ATTACHMENT_MAX_BYTES) || 100 * 1024 ** 2
+const UPLOAD_IDLE_TIMEOUT_MS = 30_000
+const UPLOAD_MAX_DURATION_MS = 5 * 60_000
 
 export function publicAttachmentDirectory() {
   return resolve(process.env.PUBLIC_ATTACHMENT_DIR || 'data/public-attachments')
@@ -37,6 +40,7 @@ export async function writePublicAttachmentFile(
   let received = 0
   const counter = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
+      resetIdleTimeout()
       received += chunk.length
       if (received > expectedSize) {
         callback(new Error('Uploaded attachment is larger than declared'))
@@ -45,6 +49,21 @@ export async function writePublicAttachmentFile(
       callback(null, chunk)
     }
   })
+  let idleTimeout = setTimeout(
+    () => counter.destroy(new Error('Attachment upload timed out')),
+    UPLOAD_IDLE_TIMEOUT_MS
+  )
+  const durationTimeout = setTimeout(
+    () => counter.destroy(new Error('Attachment upload exceeded maximum duration')),
+    UPLOAD_MAX_DURATION_MS
+  )
+  const resetIdleTimeout = () => {
+    clearTimeout(idleTimeout)
+    idleTimeout = setTimeout(
+      () => counter.destroy(new Error('Attachment upload timed out')),
+      UPLOAD_IDLE_TIMEOUT_MS
+    )
+  }
 
   try {
     await pipeline(
@@ -58,6 +77,9 @@ export async function writePublicAttachmentFile(
   } catch (error) {
     await unlink(temporary).catch(() => undefined)
     throw error
+  } finally {
+    clearTimeout(idleTimeout)
+    clearTimeout(durationTimeout)
   }
 }
 

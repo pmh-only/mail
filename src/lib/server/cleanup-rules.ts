@@ -72,8 +72,7 @@ async function getCleanupCandidates(
       mailbox: mailMessageMailbox.mailbox,
       receivedAt: mailMessageMailbox.receivedAt
     })
-    .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .from(mailMessageMailbox).innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(and(...conditions))
     .orderBy(desc(mailMessageMailbox.receivedAt), desc(mailMessageMailbox.uid))
     .limit(Math.max(limit * 4, limit))
@@ -150,8 +149,7 @@ export async function runCleanupRules(limitPerRule = DEFAULT_RUN_LIMIT): Promise
         threadKey: mailMessage.threadKey,
         receivedAt: mailMessageMailbox.receivedAt
       })
-      .from(mailMessageMailbox)
-      .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+      .from(mailMessageMailbox).innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
       .where(and(...conditions))
       .orderBy(desc(mailMessageMailbox.receivedAt), desc(mailMessageMailbox.uid))
       .limit(limitPerRule * 4)

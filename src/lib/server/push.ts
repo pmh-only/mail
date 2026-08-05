@@ -7,6 +7,7 @@ import { getQuietHoursConfig } from './config'
 import { isQuietHoursActive } from './quiet-hours'
 import { readControlSubscriptions, readNotificationBatches } from '$lib/push-control'
 import { pushDeliveryComplete, type PushDeliveryResult } from '$lib/push-delivery'
+import { sendWebPushSafely, validatePushSubscription } from './push-endpoint'
 
 const PUSH_TTL_SECONDS = 24 * 60 * 60
 const CONTROL_PUSH_ATTEMPTS = 3
@@ -57,16 +58,21 @@ async function sendPushPayload(payload: PushPayload): Promise<boolean> {
   const data = JSON.stringify(payload)
   const maxAttempts = 'type' in payload ? CONTROL_PUSH_ATTEMPTS : 1
 
-  const results = await Promise.all(
-    subscriptions.map(async (sub: (typeof subscriptions)[number]): Promise<PushDeliveryResult> => {
+  const results: PushDeliveryResult[] = []
+  let nextIndex = 0
+  const workers = Array.from({ length: Math.min(4, subscriptions.length) }, async () => {
+    while (nextIndex < subscriptions.length) {
+      const sub = subscriptions[nextIndex++]
+      let result: PushDeliveryResult = 'retryable'
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
-          await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            data,
-            { TTL: PUSH_TTL_SECONDS }
-          )
-          return 'delivered'
+          const subscription = validatePushSubscription({
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth }
+          })
+          await sendWebPushSafely(subscription, data, PUSH_TTL_SECONDS)
+          result = 'delivered'
+          break
         } catch (err: unknown) {
           // 404/410 means the subscription is gone — remove it
           const status = (err as { statusCode?: number })?.statusCode
@@ -74,7 +80,8 @@ async function sendPushPayload(payload: PushPayload): Promise<boolean> {
             await db
               .delete(mailPushSubscription)
               .where(eq(mailPushSubscription.endpoint, sub.endpoint))
-            return 'terminal'
+            result = 'terminal'
+            break
           }
 
           const retryable =
@@ -85,16 +92,18 @@ async function sendPushPayload(payload: PushPayload): Promise<boolean> {
           }
 
           logServerError('push.sendNotification', err, {
-            endpoint: sub.endpoint,
+            endpointOrigin: new URL(sub.endpoint).origin,
             status: status ?? null,
             attempts: attempt
           })
-          return retryable ? 'retryable' : 'terminal'
+          result = retryable ? 'retryable' : 'terminal'
+          break
         }
       }
-      return 'retryable'
-    })
-  )
+      results.push(result)
+    }
+  })
+  await Promise.all(workers)
   return pushDeliveryComplete(results)
 }
 

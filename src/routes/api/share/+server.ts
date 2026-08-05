@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
-import { createShareToken, createThreadShareToken } from '$lib/server/mail'
+import { createShareToken, createThreadShareToken, revokeShareToken } from '$lib/server/mail'
 
 export const POST: RequestHandler = async ({ request, url }) => {
   const body = await request.json().catch(() => null)
@@ -25,4 +25,11 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
   const shareUrl = `${url.origin}/share/${token}`
   return json({ url: shareUrl, token })
+}
+
+export const DELETE: RequestHandler = async ({ request }) => {
+  const body = await request.json().catch(() => null)
+  if (typeof body?.token !== 'string' || !body.token) error(400, 'Missing share token')
+  if (!(await revokeShareToken(body.token))) error(404, 'Share token not found')
+  return json({ ok: true })
 }

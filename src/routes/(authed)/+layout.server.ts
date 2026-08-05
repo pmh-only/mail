@@ -1,4 +1,5 @@
 import type { LayoutServerLoad } from './$types'
+import { redirect } from '@sveltejs/kit'
 import { db } from '$lib/server/db'
 import { mailMessage, mailMessageMailbox, savedSearch } from '$lib/server/db/schema'
 import { getImapMailboxes } from '$lib/server/mail'
@@ -13,6 +14,7 @@ import {
 } from '$lib/server/composed-mailboxes'
 
 export const load: LayoutServerLoad = async ({ locals }) => {
+  if (!locals.user) redirect(302, '/login')
   const preferences = await getStoredPreferences()
   const { mailboxPreferences } = preferences
 
@@ -33,25 +35,28 @@ export const load: LayoutServerLoad = async ({ locals }) => {
     }
   }
 
-  const [openaiConfig, imapConfigs, [imapMailboxes, unreadRows, savedSearchRows, composedMailboxes]] =
-    await Promise.all([
-      getOpenAIConfig(),
-      getImapConfigs(),
-      Promise.all([
-        getImapMailboxes(),
-        db
-          .select({
-            mailbox: mailMessageMailbox.mailbox,
-            count: sql<number>`count(distinct ${mailMessage.threadKey})`
-          })
-          .from(mailMessageMailbox)
-          .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
-          .where(notLike(mailMessageMailbox.flags, '%\\\\Seen%'))
-          .groupBy(mailMessageMailbox.mailbox),
-        db.select().from(savedSearch).orderBy(asc(savedSearch.name)),
-        listComposedMailboxes()
-      ])
+  const [
+    openaiConfig,
+    imapConfigs,
+    [imapMailboxes, unreadRows, savedSearchRows, composedMailboxes]
+  ] = await Promise.all([
+    getOpenAIConfig(),
+    getImapConfigs(),
+    Promise.all([
+      getImapMailboxes(),
+      db
+        .select({
+          mailbox: mailMessageMailbox.mailbox,
+          count: sql<number>`count(distinct ${mailMessage.threadKey})`
+        })
+        .from(mailMessageMailbox)
+        .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
+        .where(notLike(mailMessageMailbox.flags, '%\\\\Seen%'))
+        .groupBy(mailMessageMailbox.mailbox),
+      db.select().from(savedSearch).orderBy(asc(savedSearch.name)),
+      listComposedMailboxes()
     ])
+  ])
 
   const secondaryNames = imapConfigs
     .filter((s) => s.id !== 'primary')

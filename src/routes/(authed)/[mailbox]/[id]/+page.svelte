@@ -990,9 +990,20 @@
     else if (e.key === 'ArrowRight') nextPreview()
   }
 
+  async function markOpenedMessageRead() {
+    if (message.flags.includes('\\Seen') || message.id <= 0) return
+    const response = await fetch('/api/messages/bulk', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids: [message.id], action: 'mark_read', mailbox: page.params.mailbox })
+    })
+    if (response.ok) message.flags = [...message.flags, '\\Seen']
+  }
+
   onMount(() => {
     online = navigator.onLine
     void cacheOpenedMessage()
+    void markOpenedMessageRead()
 
     const updateOnline = () => {
       online = navigator.onLine

@@ -4,7 +4,7 @@ import { attachmentContentDisposition } from '$lib/public-attachments'
 import { db } from '$lib/server/db'
 import { publicAttachment } from '$lib/server/db/schema'
 import { getDemoPublicAttachment, isDemoModeEnabled } from '$lib/server/demo'
-import { eq } from 'drizzle-orm'
+import { and, eq, gt, isNull } from 'drizzle-orm'
 import { Readable } from 'node:stream'
 import { publicAttachmentFile } from '$lib/server/public-attachment-files'
 
@@ -15,7 +15,13 @@ export const GET: RequestHandler = async ({ params }) => {
         await db
           .select()
           .from(publicAttachment)
-          .where(eq(publicAttachment.token, params.token))
+          .where(
+            and(
+              eq(publicAttachment.token, params.token),
+              gt(publicAttachment.expiresAt, new Date()),
+              isNull(publicAttachment.revokedAt)
+            )
+          )
           .limit(1)
       )[0]
 
@@ -42,6 +48,7 @@ export const GET: RequestHandler = async ({ params }) => {
       'Content-Disposition': attachmentContentDisposition(filename),
       'Content-Length': String(attachment.size),
       'Cache-Control': 'private, max-age=3600',
+      'Referrer-Policy': 'no-referrer',
       'X-Content-Type-Options': 'nosniff'
     }
   })

@@ -7,7 +7,11 @@ import { getSmtpConfig, getSmtpConfigs, getUndoSendSeconds } from '$lib/server/c
 import { isDemoModeEnabled, sendDemoMessage } from '$lib/server/demo'
 import { scheduleSmtpSend } from '$lib/server/smtp-operations'
 import type { OpenPgpSigningMethod } from '$lib/server/openpgp-message'
-import { getEncryptionKeysForAddresses, getOpenPgpKeyForAddress } from '$lib/server/openpgp-keys'
+import {
+  discoverEncryptionKeyCandidates,
+  getEncryptionKeysForAddresses,
+  getOpenPgpKeyForAddress
+} from '$lib/server/openpgp-keys'
 import { outgoingSenderAddress } from '$lib/server/outgoing-message'
 import { parseAddressFields } from '$lib/server/contacts'
 import {
@@ -97,8 +101,13 @@ export const POST: RequestHandler = async ({ request, url }) => {
       )
       const encryption = await getEncryptionKeysForAddresses(recipientEmails)
       if (encryption.missing.length > 0) {
-        return sendValidationError(
-          `Missing OpenPGP public keys for ${encryption.missing.join(', ')}`
+        const candidates = await discoverEncryptionKeyCandidates(encryption.missing)
+        return json(
+          {
+            error: `Missing confirmed OpenPGP public keys for ${encryption.missing.join(', ')}`,
+            keyConfirmations: candidates
+          },
+          { status: 409 }
         )
       }
     }

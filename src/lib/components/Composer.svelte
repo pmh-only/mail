@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { SvelteMap } from 'svelte/reactivity'
   import { resolve } from '$app/paths'
   import { page } from '$app/state'
   import { Editor } from '@tiptap/core'
@@ -82,6 +83,7 @@
   let composingAi = $state(false)
   let aiRewriteMode = $state<RewriteMode | null>(null)
   let aiPreviewHtml = $state('')
+  let aiPreviewText = $state('')
   let aiPreviewQuotedHtml = $state('')
   let errorDialogMessage = $state<string | null>(null)
   let attachmentError = $state<string | null>(null)
@@ -114,6 +116,13 @@
   }
 
   type RewriteMode = 'concise' | 'formal' | 'friendly'
+  type OpenPgpKeyCandidate = {
+    email: string
+    fingerprint: string
+    userIds: string[]
+    armoredKey: string
+    source: string
+  }
   const rewriteModes: RewriteMode[] = ['concise', 'formal', 'friendly']
 
   type SendPayload = {
@@ -586,14 +595,8 @@
   function clearAiPreview() {
     aiRewriteMode = null
     aiPreviewHtml = ''
+    aiPreviewText = ''
     aiPreviewQuotedHtml = ''
-  }
-
-  function previewText(html: string) {
-    if (typeof document === 'undefined') return html.replace(/<[^>]*>/g, ' ').trim()
-    const preview = document.createElement('div')
-    preview.innerHTML = html
-    return preview.textContent?.trim() || ''
   }
 
   async function composeWithAi(rewriteMode?: RewriteMode) {
@@ -628,12 +631,13 @@
         throw new Error(await readErrorMessage(res, 'AI compose failed.'))
       }
 
-      const data = (await res.json()) as { html?: string }
+      const data = (await res.json()) as { html?: string; text?: string }
       if (!data.html) throw new Error('AI compose returned an empty draft.')
 
       if (rewriteMode) {
         aiRewriteMode = rewriteMode
         aiPreviewHtml = data.html
+        aiPreviewText = data.text ?? ''
         aiPreviewQuotedHtml = quotedHtml
         return
       }
@@ -714,6 +718,7 @@
     }
     if (isAdvancedLayout && sendLaterAt) payload.sendAt = new Date(sendLaterAt).toISOString()
     sending = true
+    let retryAfterKeyConfirmation = false
     try {
       const res = await fetch('/api/send', {
         method: 'POST',
@@ -735,13 +740,57 @@
           showUndoSend(data.jobId, data.undoSendSeconds ?? 0, payload)
         }
       } else {
-        errorDialogMessage = await readErrorMessage(res, 'Failed to send message.')
+        const responseBody = (await res.json().catch(() => null)) as {
+          error?: string
+          keyConfirmations?: OpenPgpKeyCandidate[]
+        } | null
+        if (res.status === 409 && responseBody?.keyConfirmations?.length) {
+          const candidatesByEmail = new SvelteMap<string, OpenPgpKeyCandidate[]>()
+          for (const candidate of responseBody.keyConfirmations) {
+            candidatesByEmail.set(candidate.email, [
+              ...(candidatesByEmail.get(candidate.email) ?? []),
+              candidate
+            ])
+          }
+          let confirmedAll = true
+          for (const [email, candidates] of candidatesByEmail) {
+            let confirmed = false
+            for (const candidate of candidates) {
+              const accepted = window.confirm(
+                `A public OpenPGP key was found for ${email}.\n\nFingerprint:\n${candidate.fingerprint.toUpperCase()}\n\nUser IDs:\n${candidate.userIds.join('\n')}\n\nSource: ${candidate.source}\n\nAn email match does not verify this person's identity. Compare the fingerprint over a trusted channel. Use and pin this key?`
+              )
+              if (!accepted) continue
+              const confirmResponse = await fetch('/api/openpgp/keys', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ action: 'confirm-encryption', ...candidate })
+              })
+              if (!confirmResponse.ok) {
+                throw new Error(
+                  await readErrorMessage(confirmResponse, 'Unable to confirm OpenPGP key.')
+                )
+              }
+              confirmed = true
+              break
+            }
+            if (!confirmed) {
+              confirmedAll = false
+              break
+            }
+          }
+          retryAfterKeyConfirmation = confirmedAll
+          if (!confirmedAll)
+            errorDialogMessage = responseBody.error ?? 'OpenPGP key confirmation was canceled.'
+        } else {
+          errorDialogMessage = responseBody?.error ?? 'Failed to send message.'
+        }
       }
     } catch (e) {
       errorDialogMessage = errorMessageFromUnknown(e, 'Failed to send message.')
     } finally {
       sending = false
     }
+    if (retryAfterKeyConfirmation) void send()
   }
 
   function showUndoSend(jobId: number, delaySeconds: number, payload: SendPayload) {
@@ -1714,7 +1763,7 @@
         <div
           class="max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-3 text-sm leading-6 whitespace-pre-wrap text-zinc-200"
         >
-          {previewText(aiPreviewHtml)}
+          {aiPreviewText}
         </div>
       </div>
     {/if}

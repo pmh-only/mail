@@ -1,6 +1,11 @@
 import { error, json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
-import { generateOpenPgpKey, importOpenPgpKey, listOpenPgpKeys } from '$lib/server/openpgp-keys'
+import {
+  confirmEncryptionKey,
+  generateOpenPgpKey,
+  importOpenPgpKey,
+  listOpenPgpKeys
+} from '$lib/server/openpgp-keys'
 
 export const GET: RequestHandler = async () => json({ keys: await listOpenPgpKeys() })
 
@@ -22,6 +27,22 @@ export const POST: RequestHandler = async ({ request }) => {
         passphrase: typeof body.passphrase === 'string' ? body.passphrase : undefined,
         isOwn: body.isOwn !== false,
         makeDefault: body.makeDefault !== false
+      })
+      return json({ key }, { status: 201 })
+    }
+    if (body.action === 'confirm-encryption') {
+      if (
+        typeof body.email !== 'string' ||
+        typeof body.fingerprint !== 'string' ||
+        typeof body.armoredKey !== 'string'
+      ) {
+        return error(400, 'Invalid OpenPGP confirmation')
+      }
+      const key = await confirmEncryptionKey({
+        email: body.email,
+        fingerprint: body.fingerprint,
+        armoredKey: body.armoredKey,
+        source: typeof body.source === 'string' ? body.source : 'public-keyserver'
       })
       return json({ key }, { status: 201 })
     }

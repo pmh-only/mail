@@ -17,7 +17,11 @@ import {
   deletePublicAttachmentFile,
   writePublicAttachmentFile
 } from './public-attachment-files'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm'
+
+const PUBLIC_ATTACHMENT_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const PUBLIC_ATTACHMENT_TOTAL_BYTES =
+  Number(process.env.PUBLIC_ATTACHMENT_TOTAL_BYTES) || 2 * 1024 ** 3
 
 type PublicAttachmentMetadata = {
   filename: string
@@ -33,13 +37,38 @@ export async function registerPublicAttachment(
     registerDemoPublicAttachment(token, attachment)
     return
   }
-  await db.insert(publicAttachment).values({ token, ...attachment, content: null })
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('public_attachment_quota'))`)
+    const [usage] = await tx
+      .select({ bytes: sql<number>`coalesce(sum(${publicAttachment.size}), 0)` })
+      .from(publicAttachment)
+      .where(and(isNull(publicAttachment.revokedAt), gt(publicAttachment.expiresAt, new Date())))
+    if (Number(usage?.bytes ?? 0) + attachment.size > PUBLIC_ATTACHMENT_TOTAL_BYTES) {
+      throw new Error('Public attachment storage quota exceeded')
+    }
+    await tx.insert(publicAttachment).values({
+      token,
+      ...attachment,
+      content: null,
+      expiresAt: new Date(Date.now() + PUBLIC_ATTACHMENT_TTL_MS)
+    })
+  })
 }
 
 async function getPublicAttachmentMetadata(token: string) {
   if (isDemoModeEnabled()) return getDemoPublicAttachment(token)
   return (
-    await db.select().from(publicAttachment).where(eq(publicAttachment.token, token)).limit(1)
+    await db
+      .select()
+      .from(publicAttachment)
+      .where(
+        and(
+          eq(publicAttachment.token, token),
+          gt(publicAttachment.expiresAt, new Date()),
+          isNull(publicAttachment.revokedAt)
+        )
+      )
+      .limit(1)
   )[0]
 }
 
@@ -56,8 +85,8 @@ async function storeLegacyPublicAttachment(
   const content = Buffer.from(attachment.contentBase64, 'base64')
 
   try {
-    await writePublicAttachmentFile(token, Readable.toWeb(Readable.from(content)), content.length)
     await registerPublicAttachment(token, metadata)
+    await writePublicAttachmentFile(token, Readable.toWeb(Readable.from(content)), content.length)
   } catch (error) {
     await deletePublicAttachmentFile(token)
     throw error
@@ -135,4 +164,15 @@ export async function deletePublicAttachments(tokens: string[]) {
           .returning({ token: publicAttachment.token })
       ).map((attachment) => attachment.token)
   await Promise.all(deletedTokens.map(deletePublicAttachmentFile))
+}
+
+export async function cleanupStalePublicAttachments() {
+  if (isDemoModeEnabled()) return 0
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const rows = await db
+    .delete(publicAttachment)
+    .where(and(isNull(publicAttachment.committedAt), lt(publicAttachment.createdAt, cutoff)))
+    .returning({ token: publicAttachment.token })
+  await Promise.all(rows.map(({ token }) => deletePublicAttachmentFile(token)))
+  return rows.length
 }

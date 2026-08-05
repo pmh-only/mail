@@ -14,7 +14,7 @@ import {
   mailboxNotificationSetting,
   passkey
 } from '$lib/server/db/schema'
-import { and, eq, ilike, inArray, not, or } from 'drizzle-orm'
+import { and, eq, inArray, not, or, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import {
   getAuthenticationConfig,
@@ -56,6 +56,14 @@ function parseServerArray(value: unknown): Record<string, unknown>[] {
   }
 
   return []
+}
+
+function escapeLikePattern(value: string) {
+  return value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')
+}
+
+function ilikeLiteral(field: AnyPgColumn, value: string, suffix = '') {
+  return sql`${field} ilike ${escapeLikePattern(value) + suffix} escape '\\'`
 }
 
 function normalizeServerPayload(
@@ -199,24 +207,16 @@ export const POST: RequestHandler = async (event) => {
     values.imapServers = imapServers
 
     const oldImapServers = parseServerArray(existingConfig?.imapServers)
-    console.log('[DEBUG-CLEANUP] oldImapServers:', JSON.stringify(oldImapServers))
-    console.log('[DEBUG-CLEANUP] newImapServers:', JSON.stringify(imapServers))
     for (const oldServer of oldImapServers) {
       const oldId = oldServer.id as string
       const oldName = oldServer.name as string
       if (!oldName) continue
 
       const newServer = imapServers.find((s) => s.id === oldId)
-      console.log(
-        `[DEBUG-CLEANUP] Checking server: ${oldName} (id: ${oldId}). Found match:`,
-        JSON.stringify(newServer)
-      )
       if (!newServer || newServer.name !== oldName) {
-        console.log(`[DEBUG-CLEANUP] Found obsolete server name: ${oldName}`)
         obsoleteServerNames.push(oldName)
       }
     }
-    console.log('[DEBUG-CLEANUP] obsoleteServerNames to delete:', obsoleteServerNames)
   }
 
   // SMTP fields
@@ -480,17 +480,12 @@ export const POST: RequestHandler = async (event) => {
             .map((s) => s.name as string)
             .filter(Boolean)
 
-          console.log(
-            '[DEBUG-CLEANUP] Primary IMAP changed. Cleaning legacy primary mailboxes. Active secondary names:',
-            activeSecondaryNames
-          )
-
           const buildPrimaryExcludeCondition = (field: AnyPgColumn) => {
             if (activeSecondaryNames.length === 0) return undefined
             return and(
               ...activeSecondaryNames.flatMap((name) => [
-                not(ilike(field, name)),
-                not(ilike(field, `${name}/%`))
+                not(ilikeLiteral(field, name)),
+                not(ilikeLiteral(field, name, '/%'))
               ])
             )
           }
@@ -541,48 +536,54 @@ export const POST: RequestHandler = async (event) => {
     }
 
     if (obsoleteServerNames.length > 0) {
-      console.log('[DEBUG-CLEANUP] Starting DB cleanup transaction for:', obsoleteServerNames)
       await db.transaction(async (tx) => {
         for (const name of obsoleteServerNames) {
-          const prefix = `${name}/`
-          console.log(`[DEBUG-CLEANUP] Cleaning up database records for prefix: ${prefix}`)
-
           await tx
             .delete(mailboxCatalog)
-            .where(or(ilike(mailboxCatalog.path, name), ilike(mailboxCatalog.path, `${prefix}%`)))
+            .where(
+              or(
+                ilikeLiteral(mailboxCatalog.path, name),
+                ilikeLiteral(mailboxCatalog.path, name, '/%')
+              )
+            )
           await tx
             .delete(mailboxSync)
-            .where(or(ilike(mailboxSync.mailbox, name), ilike(mailboxSync.mailbox, `${prefix}%`)))
+            .where(
+              or(
+                ilikeLiteral(mailboxSync.mailbox, name),
+                ilikeLiteral(mailboxSync.mailbox, name, '/%')
+              )
+            )
           await tx
             .delete(mailMessageMailbox)
             .where(
               or(
-                ilike(mailMessageMailbox.mailbox, name),
-                ilike(mailMessageMailbox.mailbox, `${prefix}%`)
+                ilikeLiteral(mailMessageMailbox.mailbox, name),
+                ilikeLiteral(mailMessageMailbox.mailbox, name, '/%')
               )
             )
           await tx
             .delete(mailThreadSummary)
             .where(
               or(
-                ilike(mailThreadSummary.mailbox, name),
-                ilike(mailThreadSummary.mailbox, `${prefix}%`)
+                ilikeLiteral(mailThreadSummary.mailbox, name),
+                ilikeLiteral(mailThreadSummary.mailbox, name, '/%')
               )
             )
           await tx
             .delete(mailThreadMetadata)
             .where(
               or(
-                ilike(mailThreadMetadata.mailbox, name),
-                ilike(mailThreadMetadata.mailbox, `${prefix}%`)
+                ilikeLiteral(mailThreadMetadata.mailbox, name),
+                ilikeLiteral(mailThreadMetadata.mailbox, name, '/%')
               )
             )
           await tx
             .delete(mailboxNotificationSetting)
             .where(
               or(
-                ilike(mailboxNotificationSetting.mailbox, name),
-                ilike(mailboxNotificationSetting.mailbox, `${prefix}%`)
+                ilikeLiteral(mailboxNotificationSetting.mailbox, name),
+                ilikeLiteral(mailboxNotificationSetting.mailbox, name, '/%')
               )
             )
         }

@@ -6,6 +6,7 @@ import {
   countDistinct,
   desc,
   eq,
+  gt,
   gte,
   ilike,
   inArray,
@@ -261,6 +262,7 @@ export type MailListRow = {
 
 // Joined row returned by detail queries
 export type MailRow = MailListRow & {
+  contentId?: number
   textContent: string
   htmlContent: string | null
   replyTo: string | null
@@ -910,7 +912,8 @@ async function replaceMailboxCatalog(mailboxes: ImapMailbox[]) {
 async function resolveThreadKey(
   references: string[],
   inReplyTo: string | null,
-  ownId: string
+  ownId: string,
+  configId = 'primary'
 ): Promise<string> {
   const startedAt = Date.now()
   const candidates = referenceCandidates({
@@ -922,7 +925,7 @@ async function resolveThreadKey(
   const existing = await db
     .select({ messageId: mailMessage.messageId, threadKey: mailMessage.threadKey })
     .from(mailMessage)
-    .where(inArray(mailMessage.messageId, candidates))
+    .where(and(eq(mailMessage.configId, configId), inArray(mailMessage.messageId, candidates)))
   const existingById = new Map(existing.map((message) => [message.messageId, message.threadKey]))
   const resolved = existingById.get(candidates[0]!) ?? candidates[0]!
   const ms = Date.now() - startedAt
@@ -940,8 +943,9 @@ async function storeMessageContent(
   effectiveMessageId: string,
   message: Awaited<ReturnType<typeof simpleParser>>,
   internalDate?: Date,
-  replaceContent = false
-): Promise<{ isNew: boolean; threadKey: string }> {
+  replaceContent = false,
+  configId = 'primary'
+): Promise<{ id: number; isNew: boolean; threadKey: string }> {
   const startedAt = Date.now()
   const sanitizedMessageId = sanitizePgText(effectiveMessageId)
   const receivedAt = message.date ?? internalDate ?? null
@@ -966,11 +970,12 @@ async function storeMessageContent(
 
   // Resolve thread key
   const refList = references ? references.split(/\s+/).filter(Boolean) : []
-  const threadKey = await resolveThreadKey(refList, inReplyTo, sanitizedMessageId)
+  const threadKey = await resolveThreadKey(refList, inReplyTo, sanitizedMessageId, configId)
 
   const result = await db
     .insert(mailMessage)
     .values({
+      configId,
       messageId: sanitizedMessageId,
       subject: sanitizePgText(message.subject?.trim() ?? '(no subject)'),
       from,
@@ -986,21 +991,34 @@ async function storeMessageContent(
       threadKey,
       receivedAt
     })
-    .onConflictDoNothing()
+    .onConflictDoNothing({ target: [mailMessage.configId, mailMessage.messageId] })
     .returning({ id: mailMessage.id })
 
   const isNew = result.length > 0
+  const messageRowId =
+    result[0]?.id ??
+    (
+      await db
+        .select({ id: mailMessage.id })
+        .from(mailMessage)
+        .where(
+          and(eq(mailMessage.configId, configId), eq(mailMessage.messageId, sanitizedMessageId))
+        )
+        .limit(1)
+    )[0]?.id
+  if (!messageRowId) throw new Error('Unable to resolve stored message')
 
   if (!isNew && replaceContent) {
     await db.transaction(async (tx) => {
       await tx
         .update(mailMessage)
         .set({ preview: createPreview(textContent), textContent, htmlContent })
-        .where(eq(mailMessage.messageId, sanitizedMessageId))
-      await tx.delete(mailAttachment).where(eq(mailAttachment.messageId, sanitizedMessageId))
+        .where(eq(mailMessage.id, messageRowId))
+      await tx.delete(mailAttachment).where(eq(mailAttachment.mailMessageId, messageRowId))
       for (const attachment of message.attachments ?? []) {
         if (attachment.contentDisposition === 'inline' || !attachment.content) continue
         await tx.insert(mailAttachment).values({
+          mailMessageId: messageRowId,
           messageId: sanitizedMessageId,
           filename: sanitizePgText(attachment.filename ?? 'attachment'),
           contentType: sanitizePgText(attachment.contentType ?? 'application/octet-stream'),
@@ -1030,6 +1048,7 @@ async function storeMessageContent(
       if (!att.content) continue
       try {
         await db.insert(mailAttachment).values({
+          mailMessageId: messageRowId,
           messageId: sanitizedMessageId,
           filename: sanitizePgText(att.filename ?? 'attachment'),
           contentType: sanitizePgText(att.contentType ?? 'application/octet-stream'),
@@ -1049,12 +1068,14 @@ async function storeMessageContent(
     )
   }
 
-  return { isNew, threadKey }
+  return { id: messageRowId, isNew, threadKey }
 }
 
 // Insert or update the per-mailbox entry for a message
 async function storeMailboxEntry(
   effectiveMessageId: string,
+  mailMessageId: number,
+  configId: string,
   mailbox: string,
   uid: number,
   uidValidity: number | null,
@@ -1093,6 +1114,8 @@ async function storeMailboxEntry(
   await db
     .insert(mailMessageMailbox)
     .values({
+      configId,
+      mailMessageId,
       messageId: sanitizedMessageId,
       mailbox: sanitizedMailbox,
       uid,
@@ -1105,6 +1128,8 @@ async function storeMailboxEntry(
     .onConflictDoUpdate({
       target: [mailMessageMailbox.mailbox, mailMessageMailbox.uid],
       set: {
+        configId,
+        mailMessageId,
         messageId: sanitizedMessageId,
         uidValidity,
         flags: mailboxFlagsJson(sanitizedMailbox, flags),
@@ -1173,7 +1198,7 @@ async function reconcileMailbox(client: ImapFlow, mailbox: string, changedSince?
         threadKey: mailMessage.threadKey
       })
       .from(mailMessageMailbox)
-      .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+      .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
       .where(eq(mailMessageMailbox.mailbox, mailbox)),
     db
       .select({
@@ -1481,9 +1506,18 @@ async function syncOneMailbox(
         const allMessageIds = envelopeItems.map((i) => i.effectiveMessageId)
         const [existingRows, existingMailboxRows] = await Promise.all([
           db
-            .select({ messageId: mailMessage.messageId, threadKey: mailMessage.threadKey })
+            .select({
+              id: mailMessage.id,
+              messageId: mailMessage.messageId,
+              threadKey: mailMessage.threadKey
+            })
             .from(mailMessage)
-            .where(inArray(mailMessage.messageId, allMessageIds)),
+            .where(
+              and(
+                eq(mailMessage.configId, config.id),
+                inArray(mailMessage.messageId, allMessageIds)
+              )
+            ),
           db
             .select({
               uid: mailMessageMailbox.uid,
@@ -1504,11 +1538,18 @@ async function syncOneMailbox(
         const existingThreadKeyById = new Map(
           existingRows.map((row) => [row.messageId, row.threadKey])
         )
+        const existingContentIdById = new Map(existingRows.map((row) => [row.messageId, row.id]))
         const cachedSourceUids = new Set(
           existingMailboxRows.filter((row) => row.rawStored).map((row) => row.uid)
         )
-        const needsSourceItems = envelopeItems.filter((item) => !cachedSourceUids.has(item.uid))
-        const cachedItems = envelopeItems.filter((item) => cachedSourceUids.has(item.uid))
+        const needsSourceItems = envelopeItems.filter(
+          (item) =>
+            !cachedSourceUids.has(item.uid) || !existingContentIdById.has(item.effectiveMessageId)
+        )
+        const cachedItems = envelopeItems.filter(
+          (item) =>
+            cachedSourceUids.has(item.uid) && existingContentIdById.has(item.effectiveMessageId)
+        )
         const cachedCount = fetchedCount - needsSourceItems.length
 
         await setSyncProgress(mailboxPath, 0, fetchedCount)
@@ -1550,7 +1591,9 @@ async function syncOneMailbox(
               const storedMessage = await storeMessageContent(
                 item.effectiveMessageId,
                 parsed,
-                item.internalDate
+                item.internalDate,
+                false,
+                config.id
               )
               if (storedMessage.isNew) {
                 newlyStoredMessageIds.push(item.effectiveMessageId)
@@ -1559,6 +1602,8 @@ async function syncOneMailbox(
               touchedThreadKeys.add(storedMessage.threadKey)
               await storeMailboxEntry(
                 item.effectiveMessageId,
+                storedMessage.id,
+                config.id,
                 mailboxPath,
                 item.uid,
                 uidValidity,
@@ -1602,6 +1647,8 @@ async function syncOneMailbox(
               await db
                 .insert(mailMessageMailbox)
                 .values({
+                  configId: config.id,
+                  mailMessageId: existingContentIdById.get(item.effectiveMessageId)!,
                   messageId: item.effectiveMessageId,
                   mailbox: mailboxPath,
                   uid: item.uid,
@@ -1613,6 +1660,8 @@ async function syncOneMailbox(
                 .onConflictDoUpdate({
                   target: [mailMessageMailbox.mailbox, mailMessageMailbox.uid],
                   set: {
+                    configId: config.id,
+                    mailMessageId: existingContentIdById.get(item.effectiveMessageId)!,
                     messageId: item.effectiveMessageId,
                     uidValidity,
                     flags: mailboxFlagsJson(mailboxPath, item.flags),
@@ -1668,7 +1717,7 @@ async function syncOneMailbox(
                   from: mailMessage.from
                 })
                 .from(mailMessageMailbox)
-                .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+                .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
                 .where(
                   and(
                     eq(mailMessageMailbox.mailbox, mailboxPath),
@@ -1680,7 +1729,7 @@ async function syncOneMailbox(
               const [unreadRow] = await db
                 .select({ count: sql<number>`count(distinct ${mailMessage.threadKey})` })
                 .from(mailMessageMailbox)
-                .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+                .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
                 .where(
                   and(
                     eq(mailMessageMailbox.mailbox, mailboxPath),
@@ -2326,6 +2375,7 @@ function noPendingMoveCondition() {
 
 const detailSelect = {
   ...listSelect,
+  contentId: mailMessage.id,
   textContent: mailMessage.textContent,
   htmlContent: mailMessage.htmlContent,
   replyTo: mailMessage.replyTo,
@@ -2345,6 +2395,25 @@ const detailSelect = {
   rawSourceAvailable: sql<boolean>`${mailMessageMailbox.rawSource} is not null`
 }
 
+export async function purgeOrphanedMessages() {
+  if (isDemoModeEnabled()) return 0
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const deleted = await db
+    .delete(mailMessage)
+    .where(
+      and(
+        isNotNull(mailMessage.orphanedAt),
+        lte(mailMessage.orphanedAt, cutoff),
+        sql`not exists (
+          select 1 from ${mailMessageMailbox}
+          where ${mailMessageMailbox.mailMessageId} = ${mailMessage.id}
+        )`
+      )
+    )
+    .returning({ id: mailMessage.id })
+  return deleted.length
+}
+
 async function refreshThreadSummary(mailbox: string, threadKey: string) {
   const [candidateRow] = await db
     .select({
@@ -2353,7 +2422,7 @@ async function refreshThreadSummary(mailbox: string, threadKey: string) {
       latestReceivedAt: mailMessageMailbox.receivedAt
     })
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(and(eq(mailMessageMailbox.mailbox, mailbox), eq(mailMessage.threadKey, threadKey)))
     .orderBy(desc(mailMessageMailbox.receivedAt), desc(mailMessageMailbox.uid))
     .limit(1)
@@ -2370,7 +2439,7 @@ async function refreshThreadSummary(mailbox: string, threadKey: string) {
   const [countRow] = await db
     .select({ value: count() })
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(and(eq(mailMessageMailbox.mailbox, mailbox), eq(mailMessage.threadKey, threadKey)))
 
   await db
@@ -2571,7 +2640,7 @@ export async function listStoredMessages(
     const rows = await db
       .select(listSelect)
       .from(mailMessageMailbox)
-      .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+      .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
       .where(whereClause)
       .orderBy(
         desc(sql`exists (
@@ -2640,7 +2709,7 @@ export async function countStoredMessages(
     db
       .select({ value: count() })
       .from(mailMessageMailbox)
-      .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+      .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
       .where(whereClause),
     metadataFilter || unreadOnly ? Promise.resolve(0) : countSentPlaceholders(mailboxPath)
   ])
@@ -2693,7 +2762,7 @@ export async function countStoredMessagesInMailboxes(
   const [row] = await db
     .select({ value: countDistinct(mailMessage.messageId) })
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(
       and(
         activeSnoozeCondition(),
@@ -2735,7 +2804,7 @@ export async function listMessagesBySender(mailboxPath: string, sender: string) 
   const rows = await db
     .select(detailSelect)
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(senderWhereClause(mailboxPath, normalizedSender))
     .orderBy(desc(mailMessageMailbox.receivedAt), desc(mailMessageMailbox.uid))
 
@@ -2757,7 +2826,7 @@ export async function countMessagesBySender(mailboxPath: string, sender: string)
   const [row] = await db
     .select({ value: count() })
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(senderWhereClause(mailboxPath, normalizedSender))
 
   return Number(row?.value ?? 0)
@@ -2807,7 +2876,7 @@ export async function listStoredThreads(
         hasUnread: sql<boolean>`exists (
           select 1
           from mail_message_mailbox as unread_mmm
-          inner join mail_message as unread_mm on unread_mmm.message_id = unread_mm.message_id
+          inner join mail_message as unread_mm on unread_mmm.mail_message_id = unread_mm.id
           where unread_mm.thread_key = ${mailThreadSummary.threadKey}
           and unread_mmm.mailbox = ${mailThreadSummary.mailbox}
           and unread_mmm.flags not like ${'%\\\\Seen%'}
@@ -2816,7 +2885,7 @@ export async function listStoredThreads(
         hasImportantUnread: sql<boolean>`exists (
           select 1
           from mail_message_mailbox as important_mmm
-          inner join mail_message as important_mm on important_mmm.message_id = important_mm.message_id
+          inner join mail_message as important_mm on important_mmm.mail_message_id = important_mm.id
           where important_mm.thread_key = ${mailThreadSummary.threadKey}
           and important_mmm.mailbox = ${mailThreadSummary.mailbox}
           and important_mmm.flags not like ${'%\\\\Seen%'}
@@ -2848,7 +2917,7 @@ export async function listStoredThreads(
         mailMessageMailbox,
         eq(mailMessageMailbox.id, mailThreadSummary.representativeMailboxEntryId)
       )
-      .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+      .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
       .where(
         unreadOnly
           ? and(
@@ -2858,7 +2927,7 @@ export async function listStoredThreads(
               sql`exists (
                 select 1
                 from mail_message_mailbox as unread_mmm
-                inner join mail_message as unread_mm on unread_mmm.message_id = unread_mm.message_id
+                inner join mail_message as unread_mm on unread_mmm.mail_message_id = unread_mm.id
                 where unread_mm.thread_key = ${mailThreadSummary.threadKey}
                 and unread_mmm.mailbox = ${mailThreadSummary.mailbox}
                 and unread_mmm.flags not like ${'%\\\\Seen%'}
@@ -2955,7 +3024,7 @@ export async function countStoredThreads(
               sql`exists (
                 select 1
                 from mail_message_mailbox as unread_mmm
-                inner join mail_message as unread_mm on unread_mmm.message_id = unread_mm.message_id
+                inner join mail_message as unread_mm on unread_mmm.mail_message_id = unread_mm.id
                 where unread_mm.thread_key = ${mailThreadSummary.threadKey}
                 and unread_mmm.mailbox = ${mailThreadSummary.mailbox}
                 and unread_mmm.flags not like ${'%\\\\Seen%'}
@@ -2995,7 +3064,7 @@ export async function listStoredThreadsInMailboxes(
   const counts = await db
     .select({ threadKey: mailMessage.threadKey, value: countDistinct(mailMessage.messageId) })
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(
       and(
         inArray(mailMessageMailbox.mailbox, mailboxPaths),
@@ -3035,7 +3104,7 @@ export async function countStoredThreadsInMailboxes(
   const [row] = await db
     .select({ value: countDistinct(mailMessage.threadKey) })
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(
       and(
         activeSnoozeCondition(),
@@ -3306,7 +3375,7 @@ export async function getStoredMessageById(id: string | number): Promise<MailRow
   const [message] = await db
     .select(detailSelect)
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(eq(mailMessageMailbox.id, numericId))
     .limit(1)
 
@@ -3339,7 +3408,7 @@ export async function getStoredRawMessageById(
   const [message] = await db
     .select({ rawSource: mailMessageMailbox.rawSource })
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(eq(mailMessageMailbox.id, numericId))
     .limit(1)
   return message?.rawSource
@@ -3356,7 +3425,7 @@ export async function snoozeMessages(ids: number[], snoozedUntil: Date | null) {
       threadKey: mailMessage.threadKey
     })
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(inArray(mailMessageMailbox.id, ids))
 
   if (rows.length === 0) return 0
@@ -3403,7 +3472,7 @@ export async function markMessagesSeen(ids: number[], seen: boolean) {
       threadKey: mailMessage.threadKey
     })
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(inArray(mailMessageMailbox.messageId, messageIds))
 
   const changedRows = changedReadStateCopies(rows, new Set(messageIds), seen)
@@ -3578,7 +3647,7 @@ export async function createShareToken(mailboxEntryId: number): Promise<string |
   const [row] = await db
     .select({ messageId: mailMessage.messageId })
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(eq(mailMessageMailbox.id, mailboxEntryId))
     .limit(1)
 
@@ -3590,7 +3659,9 @@ export async function createShareToken(mailboxEntryId: number): Promise<string |
     .where(
       and(
         eq(mailShare.messageId, row.messageId),
-        or(isNull(mailShare.messageIds), eq(mailShare.messageIds, JSON.stringify([row.messageId])))
+        or(isNull(mailShare.messageIds), eq(mailShare.messageIds, JSON.stringify([row.messageId]))),
+        gt(mailShare.expiresAt, new Date()),
+        isNull(mailShare.revokedAt)
       )
     )
     .limit(1)
@@ -3598,7 +3669,11 @@ export async function createShareToken(mailboxEntryId: number): Promise<string |
   if (existing) return existing.token
 
   const token = randomUUID()
-  await db.insert(mailShare).values({ token, messageId: row.messageId })
+  await db.insert(mailShare).values({
+    token,
+    messageId: row.messageId,
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  })
   return token
 }
 
@@ -3612,11 +3687,15 @@ export async function createThreadShareToken(messageIds: string[]): Promise<stri
     .select({ token: mailShare.token })
     .from(mailShare)
     .where(
-      or(
-        eq(mailShare.messageIds, jsonIds),
-        ...(messageIds.length === 1
-          ? [and(eq(mailShare.messageId, messageIds[0]), isNull(mailShare.messageIds))]
-          : [])
+      and(
+        or(
+          eq(mailShare.messageIds, jsonIds),
+          ...(messageIds.length === 1
+            ? [and(eq(mailShare.messageId, messageIds[0]), isNull(mailShare.messageIds))]
+            : [])
+        ),
+        gt(mailShare.expiresAt, new Date()),
+        isNull(mailShare.revokedAt)
       )
     )
     .limit(1)
@@ -3624,22 +3703,35 @@ export async function createThreadShareToken(messageIds: string[]): Promise<stri
   if (existing) return existing.token
 
   const token = randomUUID()
-  await db
-    .insert(mailShare)
-    .values({ token, messageId: messageIds[0], messageIds: jsonIds })
+  await db.insert(mailShare).values({
+    token,
+    messageId: messageIds[0],
+    messageIds: jsonIds,
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  })
   return token
 }
 
 export async function getMessageByShareToken(token: string): Promise<MailRow | null> {
   if (isDemoModeEnabled()) return getDemoMessageByShareToken(token)
-  const [share] = await db.select().from(mailShare).where(eq(mailShare.token, token)).limit(1)
+  const [share] = await db
+    .select()
+    .from(mailShare)
+    .where(
+      and(
+        eq(mailShare.token, token),
+        gt(mailShare.expiresAt, new Date()),
+        isNull(mailShare.revokedAt)
+      )
+    )
+    .limit(1)
 
   if (!share) return null
 
   const [message] = await db
     .select(detailSelect)
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(eq(mailMessage.messageId, share.messageId))
     .limit(1)
 
@@ -3649,7 +3741,17 @@ export async function getMessageByShareToken(token: string): Promise<MailRow | n
 export async function getSharedMessagesByShareToken(token: string): Promise<MailRow[]> {
   if (isDemoModeEnabled()) return getDemoSharedMessagesByShareToken(token)
 
-  const [share] = await db.select().from(mailShare).where(eq(mailShare.token, token)).limit(1)
+  const [share] = await db
+    .select()
+    .from(mailShare)
+    .where(
+      and(
+        eq(mailShare.token, token),
+        gt(mailShare.expiresAt, new Date()),
+        isNull(mailShare.revokedAt)
+      )
+    )
+    .limit(1)
   if (!share) return []
 
   let targetIds: string[] = []
@@ -3673,7 +3775,7 @@ export async function getSharedMessagesByShareToken(token: string): Promise<Mail
   const rows = await db
     .select(detailSelect)
     .from(mailMessageMailbox)
-    .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+    .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
     .where(inArray(mailMessage.messageId, targetIds))
     .orderBy(asc(mailMessage.receivedAt))
 
@@ -3698,7 +3800,24 @@ export async function markShareTokenAsRead(token: string): Promise<void> {
   await db
     .update(mailShare)
     .set({ readAt: new Date() })
-    .where(and(eq(mailShare.token, token), isNull(mailShare.readAt)))
+    .where(
+      and(
+        eq(mailShare.token, token),
+        isNull(mailShare.readAt),
+        gt(mailShare.expiresAt, new Date()),
+        isNull(mailShare.revokedAt)
+      )
+    )
+}
+
+export async function revokeShareToken(token: string): Promise<boolean> {
+  if (isDemoModeEnabled()) return false
+  const rows = await db
+    .update(mailShare)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(mailShare.token, token), isNull(mailShare.revokedAt)))
+    .returning({ token: mailShare.token })
+  return rows.length > 0
 }
 
 export async function countSharedMessageReads(messageId: string): Promise<number> {
@@ -3707,7 +3826,13 @@ export async function countSharedMessageReads(messageId: string): Promise<number
   const shares = await db
     .select({ messageId: mailShare.messageId, messageIds: mailShare.messageIds })
     .from(mailShare)
-    .where(isNotNull(mailShare.readAt))
+    .where(
+      and(
+        isNotNull(mailShare.readAt),
+        gt(mailShare.expiresAt, new Date()),
+        isNull(mailShare.revokedAt)
+      )
+    )
 
   let total = 0
   for (const share of shares) {

@@ -53,8 +53,7 @@ export async function getComposedMailboxUnreadCounts(mailboxes: ComposedMailbox[
     mailboxes.map(async (mailbox) => {
       const [row] = await db
         .select({ value: countDistinct(mailMessage.threadKey) })
-        .from(mailMessageMailbox)
-        .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+        .from(mailMessageMailbox).innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
         .where(
           and(
             inArray(mailMessageMailbox.mailbox, mailbox.mailboxPaths),

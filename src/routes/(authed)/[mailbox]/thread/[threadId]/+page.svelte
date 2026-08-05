@@ -916,7 +916,24 @@
     void settleThreadScrollAtBottom()
   })
 
+  async function markOpenedThreadRead() {
+    const ids = messages
+      .filter((message) => !message.flags.includes('\\Seen'))
+      .map((message) => message.id)
+    if (ids.length === 0) return
+    const response = await fetch('/api/messages/bulk', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids, action: 'mark_read', mailbox: page.params.mailbox })
+    })
+    if (!response.ok) return
+    for (const message of messages) {
+      if (ids.includes(message.id)) message.flags = [...message.flags, '\\Seen']
+    }
+  }
+
   onMount(() => {
+    void markOpenedThreadRead()
     setTimeout(() => notifyMailboxStateChanged('thread-opened'), 0)
     void refreshReadStatuses()
     const readStatusInterval = setInterval(() => void refreshReadStatuses(), 10_000)
@@ -1694,8 +1711,10 @@
 {/if}
 
 {#if showShareModal}
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-    <div class="w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+    <div
+      class="w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl"
+    >
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-white/8 px-6 py-4">
         <div class="flex items-center gap-2">
@@ -1719,12 +1738,12 @@
 
         <!-- Selection Controls: Master Checkbox Header -->
         <div class="mt-4 flex items-center justify-between border-b border-white/8 px-1 pb-3">
-          <label class="flex items-center gap-3 cursor-pointer select-none">
+          <label class="flex cursor-pointer items-center gap-3 select-none">
             <input
               type="checkbox"
               checked={allShareMessagesSelected}
               onchange={toggleSelectAllShareMessages}
-              class="h-4 w-4 rounded border-white/20 bg-white/5 text-sky-500 focus:ring-sky-500 cursor-pointer"
+              class="h-4 w-4 cursor-pointer rounded border-white/20 bg-white/5 text-sky-500 focus:ring-sky-500"
             />
             <span class="text-xs font-semibold text-zinc-200">
               전체 선택 ({selectedShareMessageIds.length}/{messages.length})
@@ -1765,7 +1784,7 @@
                     {formatFullDate(msg.receivedAt)}
                   </span>
                 </div>
-                <p class="truncate text-xs text-zinc-400 mt-0.5">
+                <p class="mt-0.5 truncate text-xs text-zinc-400">
                   {msg.preview || msg.subject || '(no content)'}
                 </p>
               </div>
@@ -1776,14 +1795,16 @@
         <!-- Generated URL result -->
         {#if generatedShareUrl}
           <div class="mt-5 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3.5">
-            <label for="share-link-input" class="block text-xs font-medium text-sky-300">Public Share Link</label>
+            <label for="share-link-input" class="block text-xs font-medium text-sky-300"
+              >Public Share Link</label
+            >
             <div class="mt-1.5 flex items-center gap-2">
               <input
                 id="share-link-input"
                 type="text"
                 readonly
                 value={generatedShareUrl}
-                class="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-zinc-200 font-mono focus:outline-none"
+                class="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 font-mono text-xs text-zinc-200 focus:outline-none"
               />
               <button
                 type="button"
@@ -1804,7 +1825,7 @@
       </div>
 
       <!-- Footer Actions -->
-      <div class="flex items-center justify-end gap-3 border-t border-white/8 px-6 py-4 bg-white/2">
+      <div class="flex items-center justify-end gap-3 border-t border-white/8 bg-white/2 px-6 py-4">
         <button
           type="button"
           onclick={closeThreadShareModal}

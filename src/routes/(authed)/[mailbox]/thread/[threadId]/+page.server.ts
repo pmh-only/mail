@@ -77,18 +77,10 @@ export const load: PageServerLoad = async ({ params }) => {
     redirect(302, `/${params.mailbox}/${messages[0].id}`)
   }
 
-  const unreadMessages = unreadMessageRows(messages)
-  const unreadIds = unreadMessages.map((message) => message.id)
-  if (unreadIds.length > 0) {
-    if (isDemoModeEnabled()) markDemoMessagesSeen(unreadIds, true)
-    else await markMessagesSeen(unreadIds, true)
-  }
-  for (const message of unreadMessages) {
-    const flags = JSON.parse(message.flags) as string[]
-    message.flags = JSON.stringify([...flags, '\\Seen'])
-  }
-
   const messageIds = messages.map((m) => m.messageId)
+  const contentIds = messages.flatMap((message) =>
+    typeof message.contentId === 'number' ? [message.contentId] : []
+  )
 
   // Load attachment metadata for all messages in the thread
   const attachments =
@@ -104,7 +96,7 @@ export const load: PageServerLoad = async ({ params }) => {
               size: mailAttachment.size
             })
             .from(mailAttachment)
-            .where(inArray(mailAttachment.messageId, messageIds))
+            .where(inArray(mailAttachment.mailMessageId, contentIds))
       : []
 
   const [mailboxRole, metadata, threadNote] = await Promise.all([

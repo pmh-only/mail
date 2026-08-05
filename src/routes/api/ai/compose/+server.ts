@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types'
 import { generateOpenAIText } from '$lib/server/openai'
 import { logServerError } from '$lib/server/perf'
 import { generateDemoAiCompose, isDemoModeEnabled } from '$lib/server/demo'
+import { aiComposePreviewText, sanitizeAiComposeHtml } from '$lib/server/ai-compose-html'
 
 const MAX_HTML_CHARS = 12_000
 const REWRITE_MODES = ['concise', 'formal', 'friendly'] as const
@@ -20,9 +21,14 @@ function stripCodeFence(value: string) {
 }
 
 function normalizeHtml(value: string) {
-  const html = stripCodeFence(value)
+  const html = sanitizeAiComposeHtml(stripCodeFence(value))
   if (!html) throw new Error('OpenAI returned an empty draft')
   return html
+}
+
+function composeResponse(value: string) {
+  const html = normalizeHtml(value)
+  return { html, text: aiComposePreviewText(html) }
 }
 
 function readRewriteMode(value: unknown): RewriteMode | '' {
@@ -60,7 +66,7 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   if (isDemoModeEnabled()) {
-    return json({ html: generateDemoAiCompose({ mode, subject, html, to, rewriteMode }) })
+    return json(composeResponse(generateDemoAiCompose({ mode, subject, html, to, rewriteMode })))
   }
 
   try {
@@ -87,7 +93,7 @@ export const POST: RequestHandler = async ({ request }) => {
       maxInputChars: 18_000
     })
 
-    return json({ html: normalizeHtml(output) })
+    return json(composeResponse(output))
   } catch (err) {
     logServerError('api.ai.compose', err, {
       mode,

@@ -6,7 +6,8 @@ import { mailAttachment } from '$lib/server/db/schema'
 import { inArray } from 'drizzle-orm'
 import { isDemoModeEnabled, listDemoAttachmentsForMessages } from '$lib/server/demo'
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, setHeaders }) => {
+  setHeaders({ 'referrer-policy': 'no-referrer' })
   const rawMessages = await getSharedMessagesByShareToken(params.token)
 
   if (!rawMessages || rawMessages.length === 0) {

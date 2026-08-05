@@ -82,7 +82,8 @@ function cleanName(name: string) {
 }
 
 function csvEscape(value: string | number | null | undefined) {
-  const text = value === null || value === undefined ? '' : String(value)
+  const raw = value === null || value === undefined ? '' : String(value)
+  const text = /^[\u0000-\u0020]*[=+\-@]/.test(raw) || /^[\t\r\n]/.test(raw) ? `'${raw}` : raw
   return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 

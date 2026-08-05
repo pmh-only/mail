@@ -6,7 +6,7 @@ import {
   MAX_PUBLIC_ATTACHMENT_SIZE,
   writePublicAttachmentFile
 } from '$lib/server/public-attachment-files'
-import { registerPublicAttachment } from '$lib/server/public-attachments'
+import { deletePublicAttachments, registerPublicAttachment } from '$lib/server/public-attachments'
 
 function decodedFilename(value: string | null) {
   if (!value) return ''
@@ -30,9 +30,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
   const token = randomUUID()
   try {
-    await writePublicAttachmentFile(token, request.body, size)
     await registerPublicAttachment(token, { filename, contentType, size })
+    await writePublicAttachmentFile(token, request.body, size)
   } catch (uploadError) {
+    await deletePublicAttachments([token])
     await deletePublicAttachmentFile(token)
     const message = uploadError instanceof Error ? uploadError.message : 'Attachment upload failed'
     if (message.includes('declared') || message.includes('declaration')) return error(400, message)

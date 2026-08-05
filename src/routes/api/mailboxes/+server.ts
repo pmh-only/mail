@@ -39,8 +39,7 @@ export const GET: RequestHandler = async () => {
         mailbox: mailMessageMailbox.mailbox,
         count: sql<number>`count(distinct ${mailMessage.threadKey})`
       })
-      .from(mailMessageMailbox)
-      .innerJoin(mailMessage, eq(mailMessageMailbox.messageId, mailMessage.messageId))
+      .from(mailMessageMailbox).innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
       .where(notLike(mailMessageMailbox.flags, '%\\\\Seen%'))
       .groupBy(mailMessageMailbox.mailbox),
     listComposedMailboxes()

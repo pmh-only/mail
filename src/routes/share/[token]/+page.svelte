@@ -3,6 +3,8 @@
   import ActionModal from '$lib/components/ActionModal.svelte'
   import { Download, FileImage, FileText, FileVideo, Paperclip, ShieldAlert } from 'lucide-svelte'
   import { scoreAttachmentSafety, type AttachmentSafetyScore } from '$lib/mail-attachments'
+  import { interceptMailContentLinks } from '$lib/mail-content-links'
+  import { sanitizeRemoteContent } from '$lib/remote-content'
 
   type SharedMessage = {
     messageId: string
@@ -75,9 +77,7 @@
     return words.map((w) => w[0]?.toUpperCase() ?? '').join('') || 'NA'
   }
 
-  const ogDescription = $derived(
-    data.messages[0]?.preview?.slice(0, 200) || 'Shared email'
-  )
+  const ogDescription = $derived(data.messages[0]?.preview?.slice(0, 200) || 'Shared email')
 
   const SCROLLBAR_STYLE = `<style>
 *{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,0.18) transparent}
@@ -88,21 +88,19 @@
 :root{padding:12px}
 </style>`
 
-  const LINK_SCRIPT =
-    `<script>document.addEventListener('click',function(e){var a=e.target.closest('a');if(a&&a.href&&a.protocol!=='javascript:'){e.preventDefault();window.open(a.href,'_blank','noopener,noreferrer');}});</scr` +
-    `ipt>`
-
   function injectScrollbarStyle(html: string): string {
-    const headClose = html.indexOf('</head>')
+    const sanitized = sanitizeRemoteContent(html).html
+    const headClose = sanitized.indexOf('</head>')
     if (headClose !== -1)
-      return html.slice(0, headClose) + SCROLLBAR_STYLE + LINK_SCRIPT + html.slice(headClose)
-    return SCROLLBAR_STYLE + LINK_SCRIPT + html
+      return sanitized.slice(0, headClose) + SCROLLBAR_STYLE + sanitized.slice(headClose)
+    return SCROLLBAR_STYLE + sanitized
   }
 
   function setupEmailIframe(iframe: HTMLIFrameElement) {
     try {
       const doc = iframe.contentDocument || iframe.contentWindow?.document
       if (!doc) return
+      interceptMailContentLinks(doc, (url) => window.open(url, '_blank', 'noopener,noreferrer'))
       const height = Math.max(doc.documentElement?.scrollHeight || 0, doc.body?.scrollHeight || 0)
       if (height > 50) {
         iframe.style.height = `${height + 24}px`
@@ -222,7 +220,7 @@
         <div class="flex grow overflow-hidden rounded border border-white/8 bg-white">
           <iframe
             title={`Email body for ${msg.subject}`}
-            sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts"
+            sandbox="allow-same-origin"
             {srcdoc}
             class="block w-full grow"
             onload={(e) => setupEmailIframe(e.currentTarget as HTMLIFrameElement)}
@@ -354,9 +352,10 @@
                 <div class="flex h-96 overflow-hidden rounded border border-white/8 bg-white">
                   <iframe
                     title={`Email body for ${msg.subject}`}
-                    sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts"
+                    sandbox="allow-same-origin"
                     {srcdoc}
                     class="block h-full w-full"
+                    onload={(e) => setupEmailIframe(e.currentTarget as HTMLIFrameElement)}
                   ></iframe>
                 </div>
               {:else}

@@ -93,6 +93,12 @@ export const openPgpKey = pgTable(
     passphrase: text('passphrase'),
     isOwn: boolean('is_own').notNull().default(false),
     isDefault: boolean('is_default').notNull().default(false),
+    encryptionEmail: text('encryption_email'),
+    encryptionConfirmedAt: timestamp('encryption_confirmed_at', {
+      withTimezone: true,
+      mode: 'date'
+    }),
+    encryptionSource: text('encryption_source'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .defaultNow()
@@ -244,7 +250,8 @@ export const mailMessage = pgTable(
   'mail_message',
   {
     id: serial('id').primaryKey(),
-    messageId: text('message_id').notNull().unique(),
+    configId: text('config_id').notNull().default('primary'),
+    messageId: text('message_id').notNull(),
     subject: text('subject').notNull().default(''),
     from: text('from').notNull().default(''),
     to: text('to').notNull().default(''),
@@ -267,11 +274,14 @@ export const mailMessage = pgTable(
       withTimezone: true,
       mode: 'date'
     }),
-    receivedAt: timestamp('received_at', { withTimezone: true, mode: 'date' })
+    receivedAt: timestamp('received_at', { withTimezone: true, mode: 'date' }),
+    orphanedAt: timestamp('orphaned_at', { withTimezone: true, mode: 'date' })
   },
   (table) => [
     index('mail_message_thread_id_idx').on(table.threadId),
-    index('mail_message_thread_key_idx').on(table.threadKey)
+    index('mail_message_thread_key_idx').on(table.threadKey),
+    uniqueIndex('mail_message_config_message_id_idx').on(table.configId, table.messageId),
+    index('mail_message_orphaned_at_idx').on(table.orphanedAt)
   ]
 )
 
@@ -279,6 +289,10 @@ export const mailMessageMailbox = pgTable(
   'mail_message_mailbox',
   {
     id: serial('id').primaryKey(),
+    configId: text('config_id').notNull().default('primary'),
+    mailMessageId: integer('mail_message_id')
+      .notNull()
+      .references(() => mailMessage.id, { onDelete: 'cascade' }),
     messageId: text('message_id').notNull(),
     mailbox: text('mailbox').notNull(),
     uid: bigint('uid', { mode: 'number' }).notNull(),
@@ -310,6 +324,7 @@ export const mailMessageMailbox = pgTable(
   (table) => [
     uniqueIndex('mail_message_mailbox_mailbox_uid_idx').on(table.mailbox, table.uid),
     index('mail_message_mailbox_message_id_idx').on(table.messageId),
+    index('mail_message_mailbox_mail_message_id_idx').on(table.mailMessageId),
     index('mail_message_mailbox_mailbox_received_at_uid_idx').on(
       table.mailbox,
       table.receivedAt,
@@ -381,7 +396,9 @@ export const mailShare = pgTable(
     messageId: text('message_id').notNull(),
     messageIds: text('message_ids'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-    readAt: timestamp('read_at', { withTimezone: true, mode: 'date' })
+    readAt: timestamp('read_at', { withTimezone: true, mode: 'date' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' })
   },
   (table) => [index('mail_share_message_id_idx').on(table.messageId)]
 )
@@ -390,13 +407,19 @@ export const mailAttachment = pgTable(
   'mail_attachment',
   {
     id: serial('id').primaryKey(),
+    mailMessageId: integer('mail_message_id')
+      .notNull()
+      .references(() => mailMessage.id, { onDelete: 'cascade' }),
     messageId: text('message_id').notNull(),
     filename: text('filename').notNull().default(''),
     contentType: text('content_type').notNull().default('application/octet-stream'),
     size: integer('size').notNull().default(0),
     content: bytea('content').notNull()
   },
-  (table) => [index('mail_attachment_message_id_idx').on(table.messageId)]
+  (table) => [
+    index('mail_attachment_message_id_idx').on(table.messageId),
+    index('mail_attachment_mail_message_id_idx').on(table.mailMessageId)
+  ]
 )
 
 export const publicAttachment = pgTable('public_attachment', {
@@ -406,7 +429,9 @@ export const publicAttachment = pgTable('public_attachment', {
   size: integer('size').notNull(),
   content: bytea('content'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
-  committedAt: timestamp('committed_at', { withTimezone: true, mode: 'date' })
+  committedAt: timestamp('committed_at', { withTimezone: true, mode: 'date' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' })
 })
 
 export const mailAttachmentSummary = pgTable('mail_attachment_summary', {

@@ -19,6 +19,7 @@ import {
   backfillOpenPgpFromWorker,
   getMailboxSyncPollMs,
   repairThreadKeys,
+  purgeOrphanedMessages,
   runMailboxSyncOnce,
   touchSyncWorkerHeartbeat
 } from './lib/server/mail'
@@ -27,6 +28,7 @@ import {
   recoverInterruptedSmtpJobs,
   waitForSmtpOperations
 } from './lib/server/smtp-worker'
+import { cleanupStalePublicAttachments } from './lib/server/public-attachments'
 
 const WORKER_TICK_MS = 1_000
 const HEARTBEAT_MS = 30_000
@@ -35,6 +37,7 @@ let stopping = false
 let lastHeartbeatAt = 0
 let lastSyncAttemptAt = 0
 let lastBackfillAt = 0
+let lastAttachmentCleanupAt = 0
 let syncRequested = false
 const dirtyMailboxes = new Map<string, Set<string>>()
 const workerActions = new Map<string, Promise<void>>()
@@ -79,6 +82,13 @@ function maybeRunBackfills() {
   startWorkerAction('OpenPGP backfill', backfillOpenPgpFromWorker)
 }
 
+async function maybeCleanupPublicAttachments() {
+  if (Date.now() - lastAttachmentCleanupAt < 60 * 60 * 1000) return
+  lastAttachmentCleanupAt = Date.now()
+  await cleanupStalePublicAttachments()
+  await purgeOrphanedMessages()
+}
+
 function tick() {
   if (stopping) return
   startWorkerAction('heartbeat', heartbeat)
@@ -88,6 +98,7 @@ function tick() {
   startWorkerAction('cleanup rules', maybeRunCleanupRulesFromWorker)
   startWorkerAction('mailbox sync', maybeRunSync)
   startWorkerAction('importance classification', maybeClassifyPendingMailFromWorker)
+  startWorkerAction('public attachment cleanup', maybeCleanupPublicAttachments)
   maybeRunBackfills()
 }
 

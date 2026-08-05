@@ -3,8 +3,8 @@ import type { PageServerLoad } from './$types'
 import {
   countSharedMessageReads,
   getStoredMessageById,
-  markMessageAsRead,
-  getMailboxRole
+  getMailboxRole,
+  resolveMailboxScope
 } from '$lib/server/mail'
 import { db } from '$lib/server/db'
 import { mailAttachment } from '$lib/server/db/schema'
@@ -60,13 +60,13 @@ function serializeMessage(
 
 export const load: PageServerLoad = async ({ params }) => {
   const startedAt = perfNow()
+  if (!/^-?[1-9]\d*$/.test(params.id)) error(404, 'Message not found')
+  const scope = await resolveMailboxScope(params.mailbox)
   const message = await getStoredMessageById(params.id)
 
-  if (!message) {
+  if (!message || (!scope.paths.includes(message.mailbox) && Number(params.id) > 0)) {
     error(404, 'Message not found')
   }
-
-  await markMessageAsRead(message)
 
   // Load attachment metadata (no content blobs — served via /api/attachments/[id])
   const attachments = isDemoModeEnabled()
@@ -79,12 +79,12 @@ export const load: PageServerLoad = async ({ params }) => {
           size: mailAttachment.size
         })
         .from(mailAttachment)
-        .where(eq(mailAttachment.messageId, message.messageId))
+        .where(eq(mailAttachment.mailMessageId, message.contentId!))
 
   const preferences = await getStoredPreferences()
   const shareReadCount = await countSharedMessageReads(message.messageId)
   const body = {
-    message: serializeMessage(message, true),
+    message: serializeMessage(message),
     mailboxRole: getMailboxRole(message.mailbox),
     density: preferences.density,
     shareClickAction: preferences.shareClickAction,
