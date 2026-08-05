@@ -348,7 +348,12 @@
     }))
   )
 
+  // Keep SSR's initial width while the effect below syncs later load data.
+  // svelte-ignore state_referenced_locally
   let sidebarWidth = $state(data.sidebarWidth)
+  $effect(() => {
+    sidebarWidth = data.sidebarWidth
+  })
   let resizing = $state(false)
   let sync = $state<SyncStatus | null>(null)
   let syncStatusHovered = $state(false)
