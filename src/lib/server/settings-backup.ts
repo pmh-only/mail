@@ -79,6 +79,7 @@ export type SettingsBackup = {
     mailboxPreferences?: { order?: string[]; hidden?: string[]; collapsedAccounts?: string[] }
     listRatio?: number
     sidebarWidth?: number
+    defaultMailbox?: string
   }
   filters?: Array<{
     field: string
@@ -437,6 +438,11 @@ export function validateSettingsBackup(value: unknown): {
       sidebarWidth: optionalNumber(
         preferencesObject.sidebarWidth,
         'preferences.sidebarWidth',
+        errors
+      ),
+      defaultMailbox: optionalString(
+        preferencesObject.defaultMailbox,
+        'preferences.defaultMailbox',
         errors
       )
     }

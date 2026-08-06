@@ -14,6 +14,7 @@
   import { normalizeAllowedSenders } from '$lib/remote-content'
   import type { ShareAction } from '$lib/share-action'
   import type { ComposedMailboxIcon } from '$lib/composed-mailbox'
+  import { pathToSlug } from '$lib/mailbox'
   import { pushNotifications } from '$lib/push-notifications.svelte'
   import {
     applyThemeStyle,
@@ -238,6 +239,7 @@
         allowedSenders: string[]
       }
       mailboxPreferences: MailboxPreferences
+      defaultMailbox: string
     }
   }
 
@@ -316,6 +318,7 @@
       hidden: [],
       collapsedAccounts: []
     })
+    defaultMailbox = $state('inbox')
     quietHours = $state({ enabled: false, start: '22:00', end: '07:00', timezone: 'UTC' })
 
     constructor(
@@ -330,7 +333,8 @@
       shareShiftClickAction: ShareAction,
       translationTargetLanguage: string,
       remoteContent: Props['data']['remoteContent'],
-      mailboxPreferences: MailboxPreferences
+      mailboxPreferences: MailboxPreferences,
+      defaultMailbox: string
     ) {
       this.imap = { ...config.imap, password: '' }
       this.imapServers = config.imapServers.slice(1).map((server) => ({
@@ -381,6 +385,7 @@
         hidden: [...mailboxPreferences.hidden],
         collapsedAccounts: [...mailboxPreferences.collapsedAccounts]
       }
+      this.defaultMailbox = defaultMailbox
       this.quietHours = { ...config.quietHours }
     }
   }
@@ -407,7 +412,8 @@
           data.shareShiftClickAction,
           data.translationTargetLanguage,
           data.remoteContent,
-          data.mailboxPreferences
+          data.mailboxPreferences,
+          data.defaultMailbox
         )
     )
   )
@@ -431,6 +437,7 @@
   let blockRemoteContent = $derived(form.blockRemoteContent)
   let remoteContentAllowedSenders = $derived(form.remoteContentAllowedSenders)
   let mailboxPreferences = $derived(form.mailboxPreferences)
+  let defaultMailbox = $derived(form.defaultMailbox)
   let signatureProfiles = $derived(form.signatureProfiles)
   let quietHours = $derived(form.quietHours)
   let imapPrimaryUsesLegacyFields = $derived(
@@ -1496,7 +1503,8 @@
             data.shareShiftClickAction,
             data.translationTargetLanguage,
             data.remoteContent,
-            data.mailboxPreferences
+            data.mailboxPreferences,
+            data.defaultMailbox
           )
       )
       form.github = unsavedProviders.github
@@ -1681,6 +1689,7 @@
       blockRemoteContent,
       remoteContentAllowedSenders,
       mailboxPreferences,
+      defaultMailbox,
       quietHours,
       openai,
       clearOpenAIApiKey
@@ -1714,6 +1723,22 @@
       return row ? [row] : []
     })
   })
+
+  const defaultMailboxOptions = $derived.by<SelectOption[]>(() => [
+    ...data.imapMailboxes.map((mailbox) => ({
+      value: pathToSlug(mailbox.path),
+      label: mailbox.name || mailbox.path
+    })),
+    ...composedMailboxes.map((mailbox) => ({
+      value: mailbox.slug,
+      label: mailbox.name
+    }))
+  ])
+
+  function setDefaultMailbox(value: string) {
+    form.defaultMailbox = value
+    scheduleAutosave(0)
+  }
 
   function mailboxVisible(key: string) {
     return !mailboxPreferences.hidden.includes(key)
@@ -2002,6 +2027,7 @@
             allowedSenders: normalizeAllowedSenders(remoteContentAllowedSenders)
           },
           mailboxPreferences,
+          defaultMailbox,
           quietHours
         })
       })
@@ -3218,6 +3244,32 @@
             >
               Reset order
             </button>
+          </div>
+
+          <div class="rounded-xl border border-white/8 bg-white/3 p-4">
+            <label for="default-mailbox" class="mb-1 block text-sm font-medium text-zinc-200">
+              Default mailbox
+            </label>
+            <p class="mb-3 text-sm text-zinc-500">
+              Opens automatically when you load the app without a specific mailbox in the URL.
+            </p>
+            {#if defaultMailboxOptions.length === 0}
+              <div
+                class="rounded-lg border border-dashed border-white/10 bg-black/10 p-3 text-sm text-zinc-500"
+              >
+                Mailboxes will appear here after the first sync.
+              </div>
+            {:else}
+              <CustomSelect
+                id="default-mailbox"
+                value={defaultMailbox}
+                options={defaultMailboxOptions}
+                onchange={(value) => setDefaultMailbox(String(value))}
+                ariaLabel="Default mailbox"
+                class="w-full sm:max-w-xs"
+                buttonClass="px-3 py-2 text-sm"
+              />
+            {/if}
           </div>
 
           {#if mailboxPreferenceRows.length === 0}

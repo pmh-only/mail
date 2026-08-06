@@ -17,6 +17,7 @@ import {
 import { sql } from 'drizzle-orm'
 
 const DEFAULT_TRANSLATION_TARGET_LANGUAGE = 'Korean'
+export const DEFAULT_MAILBOX = 'inbox'
 export const DENSITY_VALUES = ['comfortable', 'compact', 'condensed'] as const
 export type DensityPreference = (typeof DENSITY_VALUES)[number]
 
@@ -36,6 +37,7 @@ export type Preferences = {
   mailboxPreferences: MailboxPreferences
   listRatio: number
   sidebarWidth: number
+  defaultMailbox: string
 }
 
 let demoPreferences: Preferences | undefined
@@ -53,6 +55,11 @@ export function normalizeDensityPreference(value: unknown): DensityPreference | 
   return typeof value === 'string' && DENSITY_VALUES.includes(value as DensityPreference)
     ? (value as DensityPreference)
     : null
+}
+
+export function normalizeDefaultMailbox(value: unknown) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase().slice(0, 80) : ''
+  return normalized || DEFAULT_MAILBOX
 }
 
 export function normalizeRemoteContentAllowedSenders(value: unknown) {
@@ -96,7 +103,8 @@ export function normalizePreferences(value: unknown): Preferences {
     sidebarWidth: Math.min(
       400,
       Math.max(150, typeof record.sidebarWidth === 'number' ? record.sidebarWidth : 260)
-    )
+    ),
+    defaultMailbox: normalizeDefaultMailbox(record.defaultMailbox)
   }
 }
 

@@ -623,7 +623,8 @@ export const POST: RequestHandler = async (event) => {
       typeof body.translationTargetLanguage === 'string' ? 'translationTargetLanguage' : null,
       body.mailboxPreferences && typeof body.mailboxPreferences === 'object'
         ? 'mailboxPreferences'
-        : null
+        : null,
+      typeof body.defaultMailbox === 'string' ? 'defaultMailbox' : null
     ].filter(Boolean)
 
     if (changedSettings.length > 0 || preferenceChanges.length > 0) {
