@@ -184,7 +184,7 @@
   <meta name="twitter:description" content={ogDescription} />
 </svelte:head>
 
-<div class="flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
+<div class="flex min-h-screen flex-col bg-transparent text-zinc-100">
   <div class="mx-auto flex w-full max-w-3xl grow flex-col p-4 sm:p-6">
     {#if data.messages.length === 1}
       {@const msg = data.messages[0]}
