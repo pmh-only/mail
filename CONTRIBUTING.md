@@ -1,8 +1,4 @@
-## Project Configuration
-
-- **Language**: TypeScript
-- **Package Manager**: pnpm
-- **Add-ons**: oxfmt, oxlint, tailwindcss, drizzle, better-auth
+# CONTRIBUTING
 
 ## Git Hooks
 
@@ -14,13 +10,11 @@ git config --get core.hooksPath   # must print .husky/_
 pnpm exec husky                   # re-installs it when missing or pointing elsewhere
 ```
 
-Never commit with `--no-verify`, and never repoint `core.hooksPath` away from `.husky/_`.
-
 ## Commits
 
 All commits must follow the Conventional Commits format and include a brief description.
 For the braking changes including api change or require full mailbox re-sync must include `!` mark like `feat(something)!:`
-Use only `fix`, `feat`, `docs` and `chore`. Always include scope in commit message.
+Use only `fix`, `feat` and `chore`. Always include scope in commit message.
 
 Before committing, formatting, linting, tests, coverage checks, type checks, and builds must succeed.
 Coverage must stay at 100% for statements, branches, functions, and lines; the `pre-commit` hook fails below that.
