@@ -21,6 +21,6 @@ Coverage must stay at 100% for statements, branches, functions, and lines; the `
 
 ## Pull Requests
 
-All agents must complete the pull request template when creating a pull request.
+All contributor must complete the pull request template when creating a pull request.
 The pull request title must match the primary commit message.
-Pull requests must contain only user-requested changes and exclude personal environment changes.
+Pull requests must exclude personal environment changes.
