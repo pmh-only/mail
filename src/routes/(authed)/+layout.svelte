@@ -1135,15 +1135,15 @@
       })
 
       if (!response.ok) {
-        throw new Error(await readErrorMessage(response, 'Failed to update simplified view.'))
+        throw new Error(await readErrorMessage(response, 'Failed to update card mode.'))
       }
 
       await sidebarSimplifiedModeAction?.(nextValue)
       await invalidateAll()
-      toast(nextValue ? 'Simplified view enabled' : 'Simplified view disabled')
+      toast(nextValue ? 'Card mode enabled' : 'Card mode disabled')
     } catch (error) {
       simplifiedViewEnabled = previousValue
-      draftsError = errorMessageFromUnknown(error, 'Failed to update simplified view.')
+      draftsError = errorMessageFromUnknown(error, 'Failed to update card mode.')
     } finally {
       savingSimplifiedView = false
     }
@@ -1469,7 +1469,7 @@
         >
           <span class="flex items-center gap-2.5">
             <Layers size={15} />
-            Simplified mode
+            Card mode
           </span>
           <span class="relative inline-flex items-center">
             <span
