@@ -3915,11 +3915,39 @@
             <div>
               <p class="text-sm font-medium text-zinc-200">Color theme</p>
               <p class="mt-1 text-sm text-zinc-500">
-                Choose a preset or combine your own colors into a gradient.
+                Turn themes off for a solid background, choose a preset, or combine your own colors.
               </p>
             </div>
 
             <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <button
+                type="button"
+                aria-pressed={themeStyle.preset === 'off'}
+                onclick={() => selectThemeStyle('off')}
+                class={[
+                  'overflow-hidden rounded-xl border bg-black/20 text-left transition',
+                  themeStyle.preset === 'off'
+                    ? 'border-blue-400/70 ring-2 ring-blue-500/20'
+                    : 'border-white/10 hover:border-white/20'
+                ].join(' ')}
+              >
+                <span class="block h-16 bg-black"></span>
+                <span class="block px-3 py-2.5">
+                  <span class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-medium text-zinc-200">Off</span>
+                    <span
+                      class={[
+                        'h-2 w-2 rounded-full',
+                        themeStyle.preset === 'off' ? 'bg-blue-400' : 'bg-zinc-700'
+                      ].join(' ')}
+                    ></span>
+                  </span>
+                  <span class="mt-0.5 block truncate text-xs text-zinc-500">
+                    Solid black or white
+                  </span>
+                </span>
+              </button>
+
               {#each THEME_PRESETS as preset (preset.id)}
                 <button
                   type="button"

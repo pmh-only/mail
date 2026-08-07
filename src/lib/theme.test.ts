@@ -32,6 +32,10 @@ test('keeps two to five valid custom colors', () => {
 
 test('uses preset colors and custom colors for their respective gradients', () => {
   assert.equal(
+    getThemeGradient({ preset: 'off', colors: ['#000000', '#ffffff'], angle: 20 }),
+    'none'
+  )
+  assert.equal(
     getThemeGradient({ preset: 'ocean', colors: ['#000000', '#ffffff'], angle: 20 }),
     'linear-gradient(145deg, #0c4a6e, #2563eb, #06b6d4)'
   )
@@ -42,6 +46,10 @@ test('uses preset colors and custom colors for their respective gradients', () =
 })
 
 test('validates persisted theme style input', () => {
+  assert.equal(
+    isValidThemeStyle({ preset: 'off', colors: ['#123456', '#abcdef'], angle: 90 }),
+    true
+  )
   assert.equal(
     isValidThemeStyle({ preset: 'custom', colors: ['#123456', '#abcdef'], angle: 90 }),
     true
@@ -85,4 +93,9 @@ test('normalizes non-object, invalid colors, and applies a custom theme', () => 
 
   assert.equal(root.dataset.themePreset, 'custom')
   assert.equal(properties.get('--app-theme-gradient'), 'linear-gradient(30deg, #000000, #ffffff)')
+
+  applyThemeStyle({ preset: 'off', colors: ['#000000', '#ffffff'], angle: 30 }, root)
+
+  assert.equal(root.dataset.themePreset, 'off')
+  assert.equal(properties.get('--app-theme-gradient'), 'none')
 })

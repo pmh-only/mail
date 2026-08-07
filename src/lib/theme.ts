@@ -61,7 +61,7 @@ export const THEME_PRESETS = [
 ] as const
 
 export type ThemePresetId = (typeof THEME_PRESETS)[number]['id']
-export type ThemeStyleId = ThemePresetId | 'custom'
+export type ThemeStyleId = ThemePresetId | 'custom' | 'off'
 export type ThemeStyle = {
   preset: ThemeStyleId
   colors: string[]
@@ -69,7 +69,7 @@ export type ThemeStyle = {
 }
 
 export const DEFAULT_THEME_STYLE: ThemeStyle = {
-  preset: 'midnight',
+  preset: 'off',
   colors: ['#2563eb', '#7c3aed', '#ec4899'],
   angle: 135
 }
@@ -77,7 +77,8 @@ export const DEFAULT_THEME_STYLE: ThemeStyle = {
 const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
 const THEME_PRESET_IDS = new Set<ThemeStyleId>([
   ...THEME_PRESETS.map((preset) => preset.id),
-  'custom'
+  'custom',
+  'off'
 ])
 
 function normalizeColor(value: unknown) {
@@ -129,6 +130,7 @@ export function normalizeThemeStyle(value: unknown): ThemeStyle {
 
 export function getThemeGradient(style: ThemeStyle) {
   const normalized = normalizeThemeStyle(style)
+  if (normalized.preset === 'off') return 'none'
   const preset = THEME_PRESETS.find((candidate) => candidate.id === normalized.preset)
   const colors = preset?.colors ?? normalized.colors
   const angle = preset?.angle ?? normalized.angle

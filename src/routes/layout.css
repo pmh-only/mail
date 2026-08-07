@@ -47,6 +47,25 @@
   --app-themed-glass-opacity: 0.16;
 }
 
+:root[data-theme-preset='off'] {
+  --app-bg: #000000;
+  --app-sidebar-bg: #000000;
+  --app-mobile-header-bg: #000000;
+  --app-theme-wash: transparent;
+  --app-sidebar-wash: transparent;
+  --app-themed-content-bg: rgb(0 0 0 / 82%);
+  --app-themed-glass-bg: rgb(0 0 0 / 72%);
+  --app-themed-glass-opacity: 0;
+}
+
+:root[data-theme='light'][data-theme-preset='off'] {
+  --app-bg: #ffffff;
+  --app-sidebar-bg: #ffffff;
+  --app-mobile-header-bg: #ffffff;
+  --app-themed-content-bg: rgb(255 255 255 / 84%);
+  --app-themed-glass-bg: rgb(255 255 255 / 72%);
+}
+
 html {
   scroll-behavior: smooth;
   text-size-adjust: 100%;

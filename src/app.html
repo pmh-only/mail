@@ -43,9 +43,11 @@
           style = null
         }
         const preset =
-          style?.preset === 'custom' || Object.hasOwn(presets, style?.preset)
+          style?.preset === 'off' ||
+          style?.preset === 'custom' ||
+          Object.hasOwn(presets, style?.preset)
             ? style.preset
-            : 'midnight'
+            : 'off'
         const customColors = Array.isArray(style?.colors)
           ? style.colors
               .filter((color) => typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color))
@@ -55,15 +57,19 @@
           Number.isFinite(style?.angle) && style.angle >= 0 && style.angle <= 360
             ? Math.round(style.angle)
             : 135
-        const [angle, colors] =
-          preset === 'custom' && customColors.length >= 2
-            ? [`${customAngle}deg`, customColors.join(', ')]
-            : presets[preset === 'custom' ? 'midnight' : preset]
         document.documentElement.dataset.themePreset = preset
-        document.documentElement.style.setProperty(
-          '--app-theme-gradient',
-          `linear-gradient(${angle}, ${colors})`
-        )
+        if (preset === 'off') {
+          document.documentElement.style.setProperty('--app-theme-gradient', 'none')
+        } else {
+          const [angle, colors] =
+            preset === 'custom' && customColors.length >= 2
+              ? [`${customAngle}deg`, customColors.join(', ')]
+              : presets[preset === 'custom' ? 'midnight' : preset]
+          document.documentElement.style.setProperty(
+            '--app-theme-gradient',
+            `linear-gradient(${angle}, ${colors})`
+          )
+        }
       })()
     </script>
     <link rel="manifest" href="/manifest.json" />
