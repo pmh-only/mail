@@ -6,8 +6,9 @@
   --app-sidebar-bg: #0a0a0d;
   --app-mobile-header-bg: #0b0b0e;
   --app-popover-bg: rgba(9, 9, 11, 0.95);
+  --app-banner-bg: rgba(9, 9, 11, 0.85);
   --app-surface-bg: rgba(255, 255, 255, 0.03);
-  --app-field-bg: rgb(24 24 27);
+  --app-field-bg: rgb(24 24 27 / 50%);
   --app-field-text: rgb(228 228 231);
   --app-field-placeholder: rgb(113 113 122);
   --app-focus-ring: rgba(59, 130, 246, 0.28);
@@ -19,6 +20,8 @@
   --app-theme-wash: rgba(7, 7, 10, 0.78);
   --app-sidebar-wash: rgba(6, 6, 9, 0.86);
   --app-themed-content-bg: rgba(13, 13, 16, 0.82);
+  --app-themed-glass-bg: rgba(13, 13, 16, 0.72);
+  --app-themed-glass-opacity: 0.24;
 }
 
 :root[data-theme='light'] {
@@ -27,8 +30,9 @@
   --app-sidebar-bg: #ffffff;
   --app-mobile-header-bg: rgba(255, 255, 255, 0.94);
   --app-popover-bg: rgba(255, 255, 255, 0.96);
+  --app-banner-bg: rgba(255, 255, 255, 0.85);
   --app-surface-bg: rgba(15, 23, 42, 0.03);
-  --app-field-bg: #ffffff;
+  --app-field-bg: rgb(255 255 255 / 50%);
   --app-field-text: rgb(24 24 27);
   --app-field-placeholder: rgb(113 113 122);
   --app-focus-ring: rgba(37, 99, 235, 0.22);
@@ -39,6 +43,8 @@
   --app-theme-wash: rgba(244, 246, 251, 0.82);
   --app-sidebar-wash: rgba(255, 255, 255, 0.88);
   --app-themed-content-bg: rgba(255, 255, 255, 0.84);
+  --app-themed-glass-bg: rgba(255, 255, 255, 0.72);
+  --app-themed-glass-opacity: 0.16;
 }
 
 html {
@@ -210,6 +216,30 @@ textarea::placeholder {
 input:focus::placeholder,
 textarea:focus::placeholder {
   color: color-mix(in srgb, var(--app-field-placeholder), transparent 35%);
+}
+
+.app-transparent-field {
+  background-color: transparent !important;
+}
+
+.app-glass-field {
+  background-color: color-mix(in srgb, var(--app-field-text), transparent 94%) !important;
+  backdrop-filter: blur(18px);
+}
+
+.app-themed-glass {
+  isolation: isolate;
+  background-color: var(--app-themed-glass-bg) !important;
+}
+
+.app-themed-glass::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: var(--app-theme-gradient);
+  content: '';
+  opacity: var(--app-themed-glass-opacity);
+  pointer-events: none;
 }
 
 button,
@@ -615,9 +645,31 @@ section[aria-label^='Notifications'] {
 :root[data-theme='light'] .bg-black\/30,
 :root[data-theme='light'] .bg-black\/40,
 :root[data-theme='light'] .bg-zinc-950\/70,
-:root[data-theme='light'] .bg-zinc-950\/85,
 :root[data-theme='light'] .bg-zinc-950\/95 {
   background-color: #ffffff !important;
+}
+
+:root[data-theme='light'] .bg-\[\#101116\]\/70,
+:root[data-theme='light'] .bg-\[\#16161a\]\/70,
+:root[data-theme='light'] .bg-\[\#202027\]\/70 {
+  background-color: rgb(255 255 255 / 70%) !important;
+}
+
+:root[data-theme='light'] .bg-\[\#101116\]\/75 {
+  background-color: rgb(255 255 255 / 75%) !important;
+}
+
+:root[data-theme='light'] .bg-\[\#1e1e24\]\/80 {
+  background-color: rgb(255 255 255 / 80%) !important;
+}
+
+:root[data-theme='light'] .bg-\[\#0d0d10\]\/85,
+:root[data-theme='light'] .bg-\[\#15161b\]\/85,
+:root[data-theme='light'] .bg-\[\#18181c\]\/85,
+:root[data-theme='light'] .bg-\[\#1e1e24\]\/85,
+:root[data-theme='light'] .bg-zinc-900\/85,
+:root[data-theme='light'] .bg-zinc-950\/85 {
+  background-color: rgb(255 255 255 / 85%) !important;
 }
 
 :root[data-theme='light'] .bg-zinc-700,
@@ -993,6 +1045,15 @@ section[aria-label^='Notifications'] {
 
 :root[data-theme][data-theme-preset] .app-themed-content {
   background-color: var(--app-themed-content-bg) !important;
+}
+
+.app-global-banner {
+  background-color: rgb(245 158 11 / 10%) !important;
+  backdrop-filter: blur(18px);
+}
+
+:root[data-theme='light'] .app-global-banner {
+  background-color: rgb(245 158 11 / 14%) !important;
 }
 
 @keyframes route-loading-bar {

@@ -141,8 +141,8 @@
   )
   const messageSectionClass = $derived(
     density === 'condensed'
-      ? 'border-b border-white/8 bg-[#101116] p-3 sm:p-4'
-      : 'border-b border-white/8 bg-[#101116] p-4 sm:p-5'
+      ? 'border-b border-white/8 bg-[#101116]/70 p-3 backdrop-blur-xl sm:p-4'
+      : 'border-b border-white/8 bg-[#101116]/70 p-4 backdrop-blur-xl sm:p-5'
   )
   const attachmentsClass = $derived(
     density === 'condensed'
@@ -1047,7 +1047,7 @@
   onscroll={handleMessageScroll}
 >
   <div
-    class={[messageHeaderClass, 'sticky top-0 z-30 bg-[#101116]/95 backdrop-blur-xl'].join(' ')}
+    class={[messageHeaderClass, 'sticky top-0 z-30'].join(' ')}
     role="presentation"
     onmouseenter={() => (messageToolbarHovered = true)}
     onmouseleave={() => (messageToolbarHovered = false)}
@@ -1570,7 +1570,7 @@
     {/if}
 
     {#if remoteContentBody.blockedCount > 0}
-      <section class="border-b border-amber-500/20 bg-amber-500/10 p-4 sm:p-5">
+      <section class="border-b border-amber-500/20 bg-amber-500/10 p-4 backdrop-blur-xl sm:p-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-sm font-semibold text-amber-100">Remote content blocked</p>
@@ -1722,7 +1722,7 @@
       }}
     >
       <div
-        class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/8 bg-[#0d0d10]"
+        class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/8 bg-[#0d0d10]/85 backdrop-blur-xl"
       >
         <div class="flex shrink-0 items-center justify-between border-b border-white/8 px-5 py-4">
           <div>

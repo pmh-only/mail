@@ -1194,7 +1194,7 @@
 
 <div
   class={[
-    'fixed z-50 flex flex-col overflow-x-hidden overflow-y-auto border border-white/10 bg-[#18181c] shadow-2xl',
+    'app-themed-glass fixed z-50 flex flex-col overflow-x-hidden overflow-y-auto border border-white/10 shadow-2xl backdrop-blur-xl',
     useFullscreenLayout
       ? 'inset-0 rounded-none sm:inset-4 sm:rounded-xl'
       : composer.minimized
@@ -1214,7 +1214,9 @@
   ondrop={handleAttachmentDrop}
 >
   <!-- Title bar -->
-  <div class="flex shrink-0 items-center justify-between gap-3 bg-[#1e1e24] px-4 py-3 select-none">
+  <div
+    class="app-glass-field flex shrink-0 items-center justify-between gap-3 px-4 py-3 select-none"
+  >
     <span class="hidden text-sm font-medium text-zinc-200 sm:block">{titleLabel()}</span>
     {#if !composer.minimized}
       <div
@@ -1288,7 +1290,7 @@
 
   {#if !composer.minimized}
     <!-- Fields -->
-    <div class="shrink-0 border-b border-white/8">
+    <div class="app-glass-field shrink-0 border-b border-white/8">
       <!-- From -->
       {#if isAdvancedLayout}
         <div class="flex flex-wrap items-center gap-2 border-b border-white/8 px-4 py-2">
@@ -1298,7 +1300,7 @@
             bind:value={composer.fromName}
             placeholder="Display name"
             aria-label="From display name"
-            class="min-w-0 flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+            class="app-transparent-field min-w-0 flex-1 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
           />
           {#if composer.smtpServers.length > 0}
             <CustomSelect
@@ -1382,7 +1384,7 @@
           bind:value={composer.subject}
           placeholder="Subject"
           aria-label="Subject"
-          class="flex-1 bg-transparent py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+          class="app-transparent-field flex-1 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
         />
       </div>
 
@@ -1396,7 +1398,7 @@
             id="composer-pgp-signing"
             bind:value={composer.openPgpSigning}
             disabled={!openPgpSenderAvailable}
-            class="rounded border border-white/10 bg-[#202027] px-2 py-1 text-zinc-300 disabled:opacity-40"
+            class="app-glass-field rounded border border-white/10 px-2 py-1 text-zinc-300 disabled:opacity-40"
             title="OpenPGP signing method"
           >
             <option value="none">Not signed</option>
@@ -1436,7 +1438,7 @@
 
     <!-- Toolbar -->
     <div
-      class="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-white/8 bg-[#16161a] px-2 py-1.5"
+      class="app-glass-field flex shrink-0 flex-wrap items-center gap-0.5 border-b border-white/8 px-2 py-1.5"
     >
       {#if !markdownMode}
         <!-- Undo / Redo -->
@@ -1639,7 +1641,7 @@
     <!-- Link input bar -->
     {#if showLinkInput}
       <div
-        class="flex shrink-0 items-center gap-2 border-b border-white/8 bg-[#16161a] px-3 py-1.5"
+        class="app-glass-field flex shrink-0 items-center gap-2 border-b border-white/8 px-3 py-1.5"
       >
         <LinkIcon size={13} class="shrink-0 text-zinc-500" />
         <input
@@ -1653,7 +1655,7 @@
               linkInputValue = ''
             }
           }}
-          class="flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+          class="app-transparent-field flex-1 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
         />
         <button
           type="button"
@@ -1674,7 +1676,9 @@
     {/if}
 
     <!-- Editor -->
-    <div class="composer-editor-wrap relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+    <div
+      class="app-glass-field composer-editor-wrap relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+    >
       {#if markdownMode}
         <div
           class="border-b border-amber-400/15 bg-amber-400/8 px-4 py-2 text-xs text-amber-100/85"
@@ -1685,7 +1689,7 @@
         <textarea
           bind:value={markdownSource}
           aria-label="Markdown message body"
-          class="min-h-[180px] w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+          class="app-transparent-field min-h-[180px] w-full resize-none p-4 font-mono text-sm leading-6 text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
           placeholder="Write markdown, e.g. **bold**, [link](https://example.com), - lists, > quotes"
         ></textarea>
       {/if}
@@ -1769,7 +1773,7 @@
     {/if}
 
     {#if composer.attachments.length > 0}
-      <div class="border-t border-white/8 bg-[#16161a] px-4 py-3">
+      <div class="app-glass-field border-t border-white/8 px-4 py-3">
         <div class="flex flex-wrap gap-2">
           {#each composer.attachments as attachment, index (`${attachment.name}-${attachment.size}-${index}`)}
             <div
@@ -1800,7 +1804,7 @@
 
     <!-- Footer -->
     <div
-      class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-white/8 bg-[#16161a] px-4 py-2.5"
+      class="app-glass-field flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-white/8 px-4 py-2.5"
     >
       <div class="flex min-w-0 flex-wrap items-center gap-2">
         <button
@@ -1838,7 +1842,7 @@
 
           {#if showSendLaterMenu}
             <div
-              class="absolute bottom-full left-0 z-20 mb-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/40"
+              class="absolute bottom-full left-0 z-20 mb-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/85 shadow-2xl shadow-black/40 backdrop-blur-xl"
             >
               <div class="p-1">
                 <button
@@ -1881,7 +1885,7 @@
                   id="composer-send-later-custom"
                   type="datetime-local"
                   bind:value={sendLaterAt}
-                  class="mt-1 w-full rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-sm text-zinc-200 outline-none focus:border-blue-400/40"
+                  class="app-glass-field mt-1 w-full rounded-lg border border-white/10 px-2 py-1.5 text-sm text-zinc-200 outline-none focus:border-blue-400/40"
                 />
               </div>
             </div>
@@ -1902,7 +1906,7 @@
 
           {#if showAttachmentModeMenu}
             <div
-              class="absolute bottom-full left-0 z-20 mb-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-zinc-950 p-1 shadow-2xl shadow-black/40"
+              class="absolute bottom-full left-0 z-20 mb-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/85 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
               role="menu"
               aria-label="Attachment delivery mode"
             >
@@ -1951,7 +1955,7 @@
 
           {#if showTemplateMenu}
             <div
-              class="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-white/10 bg-zinc-950 p-1 shadow-2xl shadow-black/40"
+              class="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/85 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
             >
               {#if templates.length === 0}
                 <p class="px-3 py-2 text-sm text-zinc-500">
@@ -2006,7 +2010,7 @@
             </button>
             {#if showAiMenu}
               <div
-                class="absolute right-0 bottom-full z-20 mb-2 w-40 rounded-xl border border-white/10 bg-zinc-950 p-1 shadow-xl shadow-black/30"
+                class="absolute right-0 bottom-full z-20 mb-2 w-40 rounded-xl border border-white/10 bg-zinc-950/85 p-1 shadow-xl shadow-black/30 backdrop-blur-xl"
               >
                 <button
                   type="button"
@@ -2107,7 +2111,7 @@
 
 {#if pendingUndoSend}
   <div
-    class="fixed right-4 bottom-4 z-[60] max-w-sm rounded-xl border border-blue-400/20 bg-zinc-950 p-4 shadow-2xl shadow-black/40"
+    class="fixed right-4 bottom-4 z-[60] max-w-sm rounded-xl border border-blue-400/20 bg-zinc-950/85 p-4 shadow-2xl shadow-black/40 backdrop-blur-xl"
   >
     <p class="text-sm font-medium text-zinc-100">Message scheduled</p>
     <p class="mt-1 text-sm text-zinc-400">

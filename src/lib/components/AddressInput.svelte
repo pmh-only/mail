@@ -192,7 +192,7 @@
     aria-controls={listboxId}
     aria-haspopup="listbox"
     aria-invalid={invalidPills.length > 0}
-    class="min-w-[120px] flex-1 basis-[180px] bg-transparent py-1 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+    class="app-transparent-field min-w-[120px] flex-1 basis-[180px] py-1 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
   />
 
   {#if invalidPills.length > 0}
@@ -205,7 +205,7 @@
     <ul
       id={listboxId}
       role="listbox"
-      class="absolute top-full left-0 z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-white/10 bg-[#1e1e24] shadow-xl"
+      class="absolute top-full left-0 z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-white/10 bg-[#1e1e24]/85 shadow-xl backdrop-blur-xl"
     >
       {#each suggestions as suggestion, i (`${suggestion.type === 'group' ? `group-${suggestion.id}` : suggestion.email}-${i}`)}
         <li

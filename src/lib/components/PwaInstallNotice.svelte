@@ -138,7 +138,7 @@
     z-index: 45;
     padding-top: env(safe-area-inset-top, 0px);
     border-bottom: 1px solid color-mix(in srgb, var(--app-field-text), transparent 84%);
-    background: var(--app-popover-bg);
+    background: var(--app-banner-bg);
     color: var(--app-field-text);
     box-shadow: 0 8px 30px rgb(0 0 0 / 18%);
     backdrop-filter: blur(18px);

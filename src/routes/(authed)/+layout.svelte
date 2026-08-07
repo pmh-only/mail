@@ -1166,7 +1166,10 @@
   class:select-none={resizing}
 >
   {#if data.hasLegacyApiKey}
-    <div role="alert" class="border-b border-amber-400/20 bg-amber-500/10 px-4 py-2.5 sm:px-6">
+    <div
+      role="alert"
+      class="app-global-banner border-b border-amber-400/20 px-4 py-2.5 sm:px-6"
+    >
       <div class="mx-auto flex max-w-6xl items-start gap-3">
         <AlertTriangle size={17} class="mt-0.5 shrink-0 text-amber-300" />
         <div class="min-w-0 text-sm text-amber-100">

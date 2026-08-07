@@ -32,7 +32,7 @@
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      class="w-full max-w-md rounded-2xl border border-white/10 bg-[#15161b] p-5 shadow-2xl shadow-black/50"
+      class="w-full max-w-md rounded-2xl border border-white/10 bg-[#15161b]/85 p-5 shadow-2xl shadow-black/50 backdrop-blur-xl"
     >
       <div class="flex items-start gap-3">
         <div

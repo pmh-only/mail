@@ -114,7 +114,7 @@
     aria-modal="true"
     aria-labelledby="raw-message-title"
     tabindex="-1"
-    class="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-white/8 bg-[#0d0d10] shadow-2xl shadow-black/40"
+    class="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-white/8 bg-[#0d0d10]/85 shadow-2xl shadow-black/40 backdrop-blur-xl"
   >
     <div
       class="flex shrink-0 items-center justify-between gap-3 border-b border-white/8 px-4 py-3 sm:px-5 sm:py-4"

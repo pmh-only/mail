@@ -2355,8 +2355,8 @@
   )
   const listSearchInputClass = $derived(
     density === 'condensed'
-      ? 'w-full rounded-l-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500 md:border-white/10'
-      : 'w-full rounded-l-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500 md:border-white/10'
+      ? 'w-full rounded-l-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 backdrop-blur-xl focus:border-blue-500 md:border-white/10'
+      : 'w-full rounded-l-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 backdrop-blur-xl focus:border-blue-500 md:border-white/10'
   )
   const listContainerClass = $derived(
     density === 'condensed'
@@ -2585,13 +2585,13 @@
             onclick={() => (showSavedSearchMenu = !showSavedSearchMenu)}
             aria-label="Saved searches"
             title="Saved searches"
-            class="grid w-11 place-items-center rounded-r-xl border border-transparent border-l-white/8 bg-black/30 text-zinc-300 hover:bg-white/8 md:w-9 md:border-white/8"
+            class="grid w-11 place-items-center rounded-r-xl border border-transparent border-l-white/8 bg-white/[0.03] text-zinc-300 backdrop-blur-xl hover:bg-white/8 md:w-9 md:border-white/8"
           >
             <Bookmark size={15} />
           </button>
           {#if showSavedSearchMenu}
             <div
-              class="absolute top-full right-0 z-30 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-zinc-950 shadow-xl shadow-black/30"
+              class="absolute top-full right-0 z-30 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/85 shadow-xl shadow-black/30 backdrop-blur-xl"
             >
               <div class="border-b border-white/8 px-3 py-2 text-xs font-medium text-zinc-500">
                 Saved searches
@@ -3042,13 +3042,13 @@
               onclick={() => (showSavedSearchMenu = !showSavedSearchMenu)}
               aria-label="Saved searches"
               title="Saved searches"
-              class="grid w-11 place-items-center rounded-r-xl border border-transparent border-l-white/8 bg-black/30 text-zinc-300 hover:bg-white/8 md:border-white/8"
+              class="grid w-11 place-items-center rounded-r-xl border border-transparent border-l-white/8 bg-white/[0.03] text-zinc-300 backdrop-blur-xl hover:bg-white/8 md:border-white/8"
             >
               <Bookmark size={15} />
             </button>
             {#if showSavedSearchMenu}
               <div
-                class="absolute top-full right-0 z-30 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-zinc-950 shadow-xl shadow-black/30"
+                class="absolute top-full right-0 z-30 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/85 shadow-xl shadow-black/30 backdrop-blur-xl"
               >
                 <div class="border-b border-white/8 px-3 py-2 text-xs font-medium text-zinc-500">
                   Saved searches

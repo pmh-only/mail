@@ -1324,7 +1324,7 @@
           rows="3"
           maxlength="10000"
           placeholder="Add a private note for this thread. It stays in this mail app and is never sent."
-          class="w-full resize-y rounded-lg border border-white/8 bg-black/20 px-3 py-2 text-sm leading-6 text-zinc-200 transition outline-none placeholder:text-zinc-600 focus:border-amber-300/40 focus:ring-2 focus:ring-amber-300/10"
+          class="w-full resize-y rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm leading-6 text-zinc-200 transition outline-none placeholder:text-zinc-600 backdrop-blur-xl focus:border-amber-300/40 focus:ring-2 focus:ring-amber-300/10"
         ></textarea>
       {/if}
     </div>
@@ -1474,7 +1474,7 @@
               </div>
               {#if remoteContentBody.blockedCount > 0}
                 <div
-                  class="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100"
+                  class="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100 backdrop-blur-xl"
                 >
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <p>
@@ -1624,7 +1624,7 @@
     }}
   >
     <div
-      class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/8 bg-[#0d0d10]"
+      class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-white/8 bg-[#0d0d10]/85 backdrop-blur-xl"
     >
       <div class="flex shrink-0 items-center justify-between border-b border-white/8 px-5 py-4">
         <div>
@@ -1713,7 +1713,7 @@
 {#if showShareModal}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
     <div
-      class="w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl"
+      class="w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/85 shadow-2xl backdrop-blur-xl"
     >
       <!-- Header -->
       <div class="flex items-center justify-between border-b border-white/8 px-6 py-4">
@@ -1804,7 +1804,7 @@
                 type="text"
                 readonly
                 value={generatedShareUrl}
-                class="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 font-mono text-xs text-zinc-200 focus:outline-none"
+                class="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 font-mono text-xs text-zinc-200 backdrop-blur-xl focus:outline-none"
               />
               <button
                 type="button"

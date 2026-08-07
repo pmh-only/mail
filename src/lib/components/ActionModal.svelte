@@ -34,7 +34,7 @@
 
 <div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
   <div
-    class="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/40"
+    class="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950/85 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl"
   >
     <h2 class="text-base font-semibold text-zinc-100">{title}</h2>
     {#if message}
