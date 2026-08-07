@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:web": "vite dev",
-    "dev:worker": "dotenv run node scripts/dev-worker.mjs",
+    "dev:worker": "dotenv -- node scripts/dev-worker.mjs",
     "dev:worker:build": "vite build --config vite.worker.config.ts --watch",
     "build": "pnpm build:web && pnpm build:worker",
     "build:web": "vite build",
@@ -66,6 +66,7 @@
     "@types/ws": "^8.18.1",
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitest/coverage-v8": "^4.1.10",
+    "dotenv-cli": "^11.0.0",
     "drizzle-kit": "^0.31.10",
     "husky": "^9.1.7",
     "oxfmt": "^0.62.0",
