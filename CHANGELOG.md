@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.2.0](https://github.com/pmh-only/mail/compare/v1.1.1...v1.2.0) (2026-08-07)
+
+
+### Features
+
+* **mailbox:** add configurable default mailbox for pageload without a mailbox hint ([c010fd2](https://github.com/pmh-only/mail/commit/c010fd2bcfcfd03ed74c403ef91be54db7d9f639))
+* **mailbox:** open simplified cards on double click ([4317578](https://github.com/pmh-only/mail/commit/43175789a33433591388137a7928d19e5efa5b9a))
+* **theme:** add solid off preset ([7de8696](https://github.com/pmh-only/mail/commit/7de8696a8b26ebcb6396668cdcb27c47ef01db22))
+
+
+### Bug Fixes
+
+* **dev:** run worker through dotenv cli ([eb16c02](https://github.com/pmh-only/mail/commit/eb16c0241db58a45af93c04f6cbc9cf53050dc55))
+* **mailbox:** raise search suggestion layer ([9fb4927](https://github.com/pmh-only/mail/commit/9fb4927f20c4f7cf6473eafd468c6a63e897bf5e))
+* **mailbox:** rename simplified mode to card mode ([bd65808](https://github.com/pmh-only/mail/commit/bd658087b967db53365626be2b1f83e54d11b1d7))
+* **mail:** fill message content pane ([7095349](https://github.com/pmh-only/mail/commit/7095349017b3b00b4907412fed46f6d0671b352f))
+* **mail:** make mail list and content panes transparent like settings ([c0e1125](https://github.com/pmh-only/mail/commit/c0e112588b05220e70464358b86da4e713c7f393))
+* **share:** let the shared mail screen follow the theme setting ([1189f18](https://github.com/pmh-only/mail/commit/1189f1888271fca4c69c3c09071f9f7a522c672c))
+* **test:** pin quiet-hours malformed-config test to a fixed timestamp ([ba94843](https://github.com/pmh-only/mail/commit/ba948437f802a44582fde03049ace02bb63d7470))
+* **theme:** add translucent themed surfaces ([392a3fc](https://github.com/pmh-only/mail/commit/392a3fccb5a36472cd10e2f37c6ad9fc4bb98431))
+
 ## [1.1.1](https://github.com/pmh-only/mail/compare/v1.1.0...v1.1.1) (2026-08-05)
 
 
