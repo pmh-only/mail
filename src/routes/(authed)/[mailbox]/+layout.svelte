@@ -2567,7 +2567,7 @@
       </p>
 
       {#if isDesktop || mobileSearchOpen || searchQuery.trim().length > 0}
-        <div class="relative mt-3 flex md:absolute md:top-4 md:right-5 md:mt-0 md:w-56 lg:w-64">
+        <div class="relative z-40 mt-3 flex md:absolute md:top-4 md:right-5 md:mt-0 md:w-56 lg:w-64">
           <label class="min-w-0 flex-1">
             <span class="sr-only">Search messages</span>
             <input
@@ -3024,7 +3024,7 @@
         </div>
 
         {#if isDesktop || mobileSearchOpen || searchQuery.trim().length > 0}
-          <div class="relative mt-3 flex md:mt-4">
+          <div class="relative z-40 mt-3 flex md:mt-4">
             <label class="min-w-0 flex-1">
               <span class="sr-only">Search messages</span>
               <input
