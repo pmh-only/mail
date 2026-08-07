@@ -1297,6 +1297,12 @@
     if (message) selectMessage(message)
   }
 
+  function handleSimplifiedCardDoubleClick(event: MouseEvent) {
+    if (!shouldStartSimplifiedCardDrag(event)) return
+
+    openSimplifiedMessage()
+  }
+
   function enableSimplifiedMode() {
     clearSelection()
     simplifiedCardIndex = 0
@@ -1333,7 +1339,7 @@
     }
   })
 
-  function shouldStartSimplifiedCardDrag(event: PointerEvent) {
+  function shouldStartSimplifiedCardDrag(event: Pick<Event, 'target'>) {
     const target = event.target
 
     if (!(target instanceof Element)) return true
@@ -2751,6 +2757,7 @@
                 onpointermove={offset === 0 ? handleSimplifiedCardPointerMove : undefined}
                 onpointerup={offset === 0 ? handleSimplifiedCardPointerUp : undefined}
                 onpointercancel={offset === 0 ? handleSimplifiedCardPointerCancel : undefined}
+                ondblclick={offset === 0 ? handleSimplifiedCardDoubleClick : undefined}
               >
                 {#if offset === 0 && activeSimplifiedMessageUnread}
                   <div
