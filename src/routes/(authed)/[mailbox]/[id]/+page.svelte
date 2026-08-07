@@ -1616,7 +1616,7 @@
         title={`Email body for ${subjectLabel(message.subject)}`}
         sandbox="allow-same-origin"
         {srcdoc}
-        class="block h-24 w-full grow bg-white"
+        class="block h-24 w-full shrink-0 grow bg-white"
         onload={(e) => {
           const iframe = e.currentTarget as HTMLIFrameElement
           setupMessageFrame(iframe)
