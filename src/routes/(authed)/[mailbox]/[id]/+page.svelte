@@ -244,11 +244,17 @@
     return segments
   }
 
+  const MESSAGE_FRAME_MIN_HEIGHT = 96
+
   function syncMessageFrameHeight(frame = messageFrame) {
     const doc = frame?.contentDocument
     if (!doc || !frame) return
-    frame.style.height = '400px'
-    const height = Math.max(400, doc.documentElement.scrollHeight)
+    frame.style.height = '0px'
+    const height = Math.max(
+      MESSAGE_FRAME_MIN_HEIGHT,
+      doc.documentElement.scrollHeight,
+      doc.body?.scrollHeight ?? 0
+    )
     frame.style.height = `${height}px`
   }
 
@@ -256,7 +262,7 @@
     messageContentScrolled = false
     messageToolbarHovered = false
     scrollContainer?.scrollTo({ top: 0 })
-    if (messageFrame) messageFrame.style.height = '400px'
+    if (messageFrame) messageFrame.style.height = `${MESSAGE_FRAME_MIN_HEIGHT}px`
   }
 
   function applyTranslationsToMessageFrame(translations: string[] | null) {
@@ -1523,7 +1529,7 @@
     </div>
   </div>
 
-  <div class="flex flex-col">
+  <div class="flex min-h-0 flex-1 flex-col">
     {#if sendStatus}
       <section class="border-b border-white/8 bg-white/[0.025] p-4 sm:p-5">
         <p class={['text-sm font-semibold', sendStatusClass(sendStatus)]}>
@@ -1610,7 +1616,7 @@
         title={`Email body for ${subjectLabel(message.subject)}`}
         sandbox="allow-same-origin"
         {srcdoc}
-        class="block min-h-[400px] w-full bg-white"
+        class="block h-24 w-full grow bg-white"
         onload={(e) => {
           const iframe = e.currentTarget as HTMLIFrameElement
           setupMessageFrame(iframe)
