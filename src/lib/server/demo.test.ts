@@ -191,9 +191,9 @@ describe('demo mode configuration and mailbox data', () => {
     assert.equal(getDemoUnreadCounts().Inbox, 5)
     assert.equal(getDemoUnreadCount('Sent'), 0)
     assert.equal(getDemoUnreadCount(), 5)
-    assert.equal(countDemoStoredMessages('Inbox'), 7)
+    assert.equal(countDemoStoredMessages('Inbox'), 8)
     assert.equal(countDemoStoredMessages('Inbox', true), 5)
-    assert.equal(countDemoStoredThreads('Inbox'), 5)
+    assert.equal(countDemoStoredThreads('Inbox'), 6)
     assert.equal(countDemoStoredThreads('Inbox', true), 5)
     assert.equal(listDemoStoredMessages('Sent')[0].flags, '["\\\\Seen"]')
     assert.equal(listDemoStoredMessages('Sent', 10, 0, true).length, 0)
@@ -209,6 +209,8 @@ describe('demo mode configuration and mailbox data', () => {
     assert.equal(searchDemoMessagesByRegex('customer|\\[M\\]etrics', 10).length, 3)
     assert.equal(countDemoSearchMessages('pilot'), 1)
     assert.equal(getDemoStoredMessageById('101')?.subject, 'Welcome to demo mode')
+    assert.ok((getDemoStoredMessageById('112')?.textContent.length ?? 0) > 5_000)
+    assert.match(getDemoStoredMessageById('112')?.htmlContent ?? '', /<h2>The next morning<\/h2>/)
     assert.equal(getDemoStoredMessageById('missing'), null)
 
     assert.equal(markDemoMessagesSeen([101, 110], true), 1)
@@ -223,7 +225,7 @@ describe('demo mode configuration and mailbox data', () => {
     assert.equal(markDemoMailboxMessagesSeen(['Inbox']), 0)
 
     assert.equal(snoozeDemoMessages([101, 999], new Date(Date.now() + 60_000)), 1)
-    assert.equal(countDemoStoredMessages('Inbox'), 6)
+    assert.equal(countDemoStoredMessages('Inbox'), 7)
     assert.equal(snoozeDemoMessages([101], null), 1)
     assert.equal(snoozeDemoMessages([101], new Date(Date.now() + 60_000)), 1)
     assert.equal(
@@ -259,7 +261,7 @@ describe('demo mode configuration and mailbox data', () => {
       'errorMessage',
       'progress'
     ])
-    assert.equal(getDemoMailboxSyncStatus('Inbox').storedCount, 7)
+    assert.equal(getDemoMailboxSyncStatus('Inbox').storedCount, 8)
     assert.equal(getDemoMailboxSyncStatus('Unknown').reason, 'Demo data is preloaded.')
     assert.match(generateDemoRecentSummary('Inbox', 'English', 2), /latest 2 messages/)
     assert.match(generateDemoRecentSummary('Unknown', 'English', 2), /No recent mail/)

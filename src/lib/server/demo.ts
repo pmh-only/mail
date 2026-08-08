@@ -283,6 +283,96 @@ const demoMailboxes: DemoMailbox[] = [
   { path: 'Spam', name: 'Spam', delimiter: '/' }
 ]
 
+const longDemoMailSections = [
+  {
+    heading: 'Why this guide exists',
+    paragraphs: [
+      'A calm launch is usually the result of many small decisions made before anyone opens the control room. This field guide collects the routines that helped our team stay focused during a week of rehearsals, handoffs, and production changes. It is intentionally detailed so that a new teammate can follow the reasoning instead of memorizing a sequence of buttons.',
+      'Treat the guide as a map rather than a script. Every release has its own constraints, and the person closest to a problem should still use judgment. The useful habit is to make the current state visible, name the next decision, and leave enough context that another person can continue without starting over.'
+    ]
+  },
+  {
+    heading: 'The day before',
+    paragraphs: [
+      'Begin with the boring checks while there is still time to correct them. Confirm that the release artifact is immutable, the migration plan has been rehearsed, the rollback version is available, and the people responsible for infrastructure can reach the systems they may need. Open every dashboard from the same network and account that will be used during the release.',
+      'Write down the expected shape of normal traffic. Record request volume, queue depth, error rate, database load, and delivery latency for an ordinary period. A graph without a baseline encourages guesswork, especially when normal daily variation happens at the same time as the release.'
+    ]
+  },
+  {
+    heading: 'Opening the room',
+    paragraphs: [
+      'Start the working session fifteen minutes early. Pin one message containing the release version, links to observability tools, the decision log, and the rollback command. Assign a coordinator, an operator, and an observer. The coordinator protects the sequence of work, the operator makes changes, and the observer watches signals without being distracted by the mechanics.',
+      'Use plain language in status updates. Say what changed, when it changed, what signal should respond, and when the team will evaluate it. Avoid a stream of screenshots without interpretation. A concise written timeline becomes invaluable if the team later needs to understand why a decision looked reasonable at that moment.'
+    ]
+  },
+  {
+    heading: 'First production step',
+    paragraphs: [
+      'Prefer the smallest production change that can prove the path works. Route a narrow slice of traffic, process a limited batch, or enable the feature for internal accounts. Hold that state long enough to observe delayed work as well as immediate requests. Fast endpoints can look healthy while queues, notifications, or scheduled tasks quietly accumulate failures.',
+      'Compare the new slice with an unchanged slice whenever possible. Relative differences are easier to interpret than isolated numbers. If both groups slow down together, the cause may be unrelated to the release. If only the changed group moves, the team has a stronger signal and can investigate with less speculation.'
+    ]
+  },
+  {
+    heading: 'Reading the signals',
+    paragraphs: [
+      'No single dashboard can declare a release healthy. Combine technical signals with the experience of a person completing the primary workflow. Watch logs for unfamiliar patterns, but also send a message, open the resulting conversation, download a file, and repeat the flow on a narrow screen. Synthetic probes often miss the friction introduced between individually healthy endpoints.',
+      'Pay attention to absence as well as spikes. A drop in background activity may mean workers stopped polling. A perfectly flat latency chart may mean no requests are reaching the new instances. Ask what evidence should exist if the system is working, then verify that evidence directly.'
+    ]
+  },
+  {
+    heading: 'When something looks wrong',
+    paragraphs: [
+      'Pause expansion before beginning a broad investigation. Preserve the current traffic split and note the exact time. Decide whether the system is safe to observe for another few minutes or whether users are accumulating harm. This distinction keeps the team from rolling back harmless visual noise while also preventing a prolonged debate during a real incident.',
+      'Choose one hypothesis at a time and state what would disprove it. Gather the smallest piece of evidence needed, then update the decision log. Parallel investigation is useful only when ownership is explicit; otherwise several people repeat the same query while an important subsystem receives no attention.'
+    ]
+  },
+  {
+    heading: 'Rollback is a normal operation',
+    paragraphs: [
+      'A rollback is not a verdict on the quality of the work. It is a tool for reducing uncertainty and restoring a known state. Define rollback thresholds before the release so the team does not negotiate them under pressure. Include both hard limits, such as sustained failed requests, and softer limits, such as an unexplained change that cannot be bounded quickly.',
+      'After initiating rollback, continue observing until the system has drained delayed work and returned to baseline. Reverting application instances may not reverse data already written or jobs already queued. Confirm each layer separately, communicate what remains in flight, and resist closing the room merely because the deployment interface is green.'
+    ]
+  },
+  {
+    heading: 'Communication during uncertainty',
+    paragraphs: [
+      'Separate the working channel from broad updates. The working channel can contain hypotheses and raw evidence; the update channel should contain confirmed impact, current mitigation, and the time of the next report. This protects stakeholders from having to distinguish investigation notes from conclusions while allowing engineers to think in public.',
+      'Use specific timestamps and avoid vague phrases such as recently or for a while. If impact is not known, say that it is being measured rather than calling it minor. Trust grows when updates distinguish facts, estimates, and open questions.'
+    ]
+  },
+  {
+    heading: 'Completing the rollout',
+    paragraphs: [
+      'Expand in deliberate stages and keep the observation window consistent. At each stage, record the traffic level, the important signals, and the decision to continue. Do not compress the final stages simply because the early ones were quiet; capacity effects and uneven data distribution often appear only near full volume.',
+      'Once all traffic is on the new version, run the primary workflow again and check delayed systems one final time. Confirm that temporary overrides, muted alerts, and elevated permissions have been removed. A release is complete when the operating environment is normal, not merely when the newest code is serving requests.'
+    ]
+  },
+  {
+    heading: 'The next morning',
+    paragraphs: [
+      'Review overnight trends before declaring lasting success. Look for retries, storage growth, slow periodic jobs, and changes in support volume. Some regressions need a full cycle before becoming visible. Capture these observations while the release timeline is still easy to reconstruct.',
+      'Hold a short review focused on improving the system of work. Keep what reduced uncertainty, remove steps that produced no useful evidence, and assign owners to follow-up tasks. The goal is not to produce a ceremonial document; it is to make the next release less dependent on memory and heroics.'
+    ]
+  },
+  {
+    heading: 'A note for the next operator',
+    paragraphs: [
+      'If you are reading this while preparing a release, take a breath and simplify the room. Make the current version and traffic state obvious. Ensure one person is making changes and another is watching outcomes. Write down the next decision before collecting more data.',
+      'Good operations work can feel uneventful. That is not a lack of progress. A sequence of reversible changes, patient observation, and clear handoffs is exactly what allows a team to move quickly without turning every release into an emergency.'
+    ]
+  }
+]
+
+const longDemoMailText = longDemoMailSections
+  .map(({ heading, paragraphs }) => `${heading}\n\n${paragraphs.join('\n\n')}`)
+  .join('\n\n')
+const longDemoMailHtml = longDemoMailSections
+  .map(
+    ({ heading, paragraphs }) =>
+      `<section><h2>${heading}</h2>${paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join('')}</section>`
+  )
+  .join('')
+
 let demoMessages: DemoMailRow[] = [
   {
     id: 101,
@@ -516,6 +606,26 @@ let demoMessages: DemoMailRow[] = [
     replyTo: 'infra@example.com',
     inReplyTo: null,
     references: null
+  },
+  {
+    id: 112,
+    messageId: '<demo-12@mail.local>',
+    mailbox: 'Inbox',
+    uid: 112,
+    flags: '["\\\\Seen"]',
+    subject: 'A field guide to calm release days',
+    from: 'Sam Reliability <sam@example.com>',
+    to: 'Demo User <demo@example.com>',
+    cc: 'Release Crew <release@example.com>',
+    preview:
+      'A detailed field guide covering preparation, observation, rollback, communication, and the morning after a production release.',
+    receivedAt: new Date(now - 20 * 60 * 60 * 1000),
+    threadId: 'thread-demo-long-read',
+    textContent: longDemoMailText,
+    htmlContent: longDemoMailHtml,
+    replyTo: 'sam@example.com',
+    inReplyTo: null,
+    references: null
   }
 ]
 
@@ -632,7 +742,7 @@ let demoMessageTemplates: DemoMessageTemplate[] = [
 let demoSenderRules: DemoSenderRule[] = []
 
 const demoShares = new SharedMessageReads()
-let nextMessageId = 112
+let nextMessageId = 113
 let nextAttachmentId = 203
 let nextContactId = 303
 let nextDraftId = 402

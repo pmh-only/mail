@@ -1297,11 +1297,11 @@
               <SendStatusIndicator status={sendStatus} {openedAt} size={12} />
             {/if}
           </p>
-          <p class="truncate text-xs text-zinc-500">{senderName(message.from)}</p>
+          <p class="truncate text-xs text-zinc-300">{senderName(message.from)}</p>
         </div>
       </div>
       {#if message.id > 0}
-        <p class="hidden shrink-0 text-xs text-zinc-600 sm:block">Hover for actions</p>
+        <p class="hidden shrink-0 text-xs text-zinc-400 sm:block">Hover for actions</p>
       {/if}
     </div>
     {#if !online && messageToolbarExpanded}
