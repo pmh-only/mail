@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ChevronDown, Reply, ReplyAll, Sparkles } from 'lucide-svelte'
-  import { onMount } from 'svelte'
+  import { dismissOnOutside } from '$lib/dismiss-on-outside'
 
   let {
     onReply,
@@ -19,16 +19,6 @@
   } = $props()
 
   let open = $state(false)
-  let container = $state<HTMLDivElement>()
-
-  onMount(() => {
-    function closeOnOutsidePointer(event: PointerEvent) {
-      if (!container?.contains(event.target as Node)) open = false
-    }
-
-    document.addEventListener('pointerdown', closeOnOutsidePointer)
-    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer)
-  })
 
   function select(action: () => void) {
     open = false
@@ -36,7 +26,10 @@
   }
 </script>
 
-<div bind:this={container} class="relative inline-flex">
+<div
+  class="relative inline-flex"
+  use:dismissOnOutside={{ enabled: open, onDismiss: () => (open = false) }}
+>
   <button
     type="button"
     aria-label="Reply options"
@@ -56,7 +49,8 @@
   {#if open}
     <div
       role="menu"
-      class="absolute right-0 z-20 mt-1 min-w-40 rounded-lg border border-white/10 bg-[#1a1b22] p-1 shadow-xl"
+      aria-label="Reply options"
+      class="app-popover absolute top-full right-0 z-[100] mt-1 min-w-40 rounded-lg border border-white/10 p-1 shadow-xl"
     >
       <button
         type="button"

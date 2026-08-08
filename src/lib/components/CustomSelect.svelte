@@ -1,5 +1,7 @@
 <script lang="ts">
   import { ChevronDown, Check } from 'lucide-svelte'
+  import { dismissOnOutside } from '$lib/dismiss-on-outside'
+  import { tick } from 'svelte'
 
   export type SelectValue = string | number
 
@@ -38,6 +40,8 @@
   let typeahead = ''
   let typeaheadTimer: ReturnType<typeof setTimeout> | null = null
   let buttonEl = $state<HTMLButtonElement | undefined>(undefined)
+  let menuEl = $state<HTMLDivElement | undefined>(undefined)
+  let openAbove = $state(false)
   const fallbackId = $derived(
     `custom-select-${(ariaLabel ?? 'select').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
   )
@@ -55,7 +59,16 @@
   function openMenu() {
     if (disabled || enabledOptions.length === 0) return
     activeIndex = selectedIndex()
+    openAbove = false
     open = true
+    void tick().then(() => {
+      if (!buttonEl || !menuEl) return
+      const buttonRect = buttonEl.getBoundingClientRect()
+      const menuRect = menuEl.getBoundingClientRect()
+      const roomAbove = buttonRect.top - 8
+      const roomBelow = window.innerHeight - buttonRect.bottom - 8
+      openAbove = roomBelow < menuRect.height && roomAbove > roomBelow
+    })
   }
 
   function closeMenu() {
@@ -149,9 +162,10 @@
   }
 </script>
 
-<svelte:window onclick={closeMenu} onkeydown={(event) => event.key === 'Escape' && closeMenu()} />
-
-<div class={['relative', className]}>
+<div
+  class={['relative', className]}
+  use:dismissOnOutside={{ enabled: open, onDismiss: closeMenu }}
+>
   <button
     {id}
     bind:this={buttonEl}
@@ -170,7 +184,7 @@
       buttonClass
     ]}
   >
-    <span class="min-w-0 truncate" title={selectedOption?.label ?? ''}
+    <span class="min-w-0 truncate" data-app-tooltip={selectedOption?.label ?? ''}
       >{selectedOption?.label ?? ''}</span
     >
     <ChevronDown
@@ -183,11 +197,13 @@
 
   {#if open}
     <div
+      bind:this={menuEl}
       id={listboxId}
       role="listbox"
       tabindex="-1"
       class={[
-        'app-popover absolute z-[90] mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-white/10 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl',
+        'app-popover absolute z-[100] max-h-64 w-full overflow-y-auto rounded-xl border border-white/10 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl',
+        openAbove ? 'bottom-full mb-1' : 'top-full mt-1',
         menuClass
       ]}
     >
@@ -212,7 +228,9 @@
                 : 'text-zinc-300 hover:bg-white/8 hover:text-zinc-100'
           ]}
         >
-          <span class="min-w-0 flex-1 truncate" title={option.label}>{option.label}</span>
+          <span class="min-w-0 flex-1 truncate" data-app-tooltip={option.label}
+            >{option.label}</span
+          >
           {#if option.value === value}
             <Check size={13} class="shrink-0" />
           {/if}

@@ -80,7 +80,7 @@
 
     <div class="mt-4 rounded-xl border border-white/10 bg-black/30 p-4">
       <p class="text-xs font-medium tracking-wide text-zinc-500 uppercase">Destination</p>
-      <p class="mt-1 truncate text-base font-semibold text-zinc-100" title={destination}>
+      <p class="mt-1 truncate text-base font-semibold text-zinc-100" data-app-tooltip={destination}>
         {destination}
       </p>
       <p class="mt-2 max-h-24 overflow-y-auto font-mono text-xs leading-5 break-all text-zinc-400">

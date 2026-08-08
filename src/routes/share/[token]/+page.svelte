@@ -258,7 +258,7 @@
                     target="_blank"
                     rel="noreferrer"
                     class="block h-40 w-full overflow-hidden bg-black/20 sm:h-32"
-                    title="Open image"
+                    data-app-tooltip="Open image"
                   >
                     <img
                       src={attachmentUrl(att.id, true)}
@@ -289,7 +289,7 @@
                     {#if safety.level !== 'low'}
                       <span
                         class={`mt-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${attachmentSafetyClass(safety)}`}
-                        title={safety.reasons.join('; ')}
+                        data-app-tooltip={safety.reasons.join('; ')}
                       >
                         <ShieldAlert size={10} />
                         {safety.label}
@@ -301,7 +301,7 @@
                     download={att.filename || 'attachment'}
                     onclick={(event) => confirmHighRiskDownload(event, att)}
                     class="shrink-0 text-zinc-500 hover:text-zinc-300"
-                    title="Download"
+                    data-app-tooltip="Download"
                   >
                     <Download size={13} />
                   </a>
@@ -391,7 +391,7 @@
                           target="_blank"
                           rel="noreferrer"
                           class="block h-40 w-full overflow-hidden bg-black/20 sm:h-32"
-                          title="Open image"
+                          data-app-tooltip="Open image"
                         >
                           <img
                             src={attachmentUrl(att.id, true)}
@@ -422,7 +422,7 @@
                           {#if safety.level !== 'low'}
                             <span
                               class={`mt-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${attachmentSafetyClass(safety)}`}
-                              title={safety.reasons.join('; ')}
+                              data-app-tooltip={safety.reasons.join('; ')}
                             >
                               <ShieldAlert size={10} />
                               {safety.label}
@@ -434,7 +434,7 @@
                           download={att.filename || 'attachment'}
                           onclick={(event) => confirmHighRiskDownload(event, att)}
                           class="shrink-0 text-zinc-500 hover:text-zinc-300"
-                          title="Download"
+                          data-app-tooltip="Download"
                         >
                           <Download size={13} />
                         </a>

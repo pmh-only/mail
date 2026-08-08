@@ -27,7 +27,7 @@
   class={['inline-flex shrink-0 items-center justify-center rounded-full border p-1', tone]}
   role="img"
   aria-label={label}
-  title={label}
+  data-app-tooltip={label}
 >
   {#if status === 'sending'}
     <LoaderCircle {size} class="animate-spin" aria-hidden="true" />

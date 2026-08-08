@@ -5,6 +5,7 @@
   import ActionModal from '$lib/components/ActionModal.svelte'
   import ErrorDialog from '$lib/components/ErrorDialog.svelte'
   import SendStatusIndicator from '$lib/components/SendStatusIndicator.svelte'
+  import { dismissOnOutside } from '$lib/dismiss-on-outside'
   import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
   import { trackAppLoading } from '$lib/loading.svelte'
   import { pathToSlug } from '$lib/mailbox'
@@ -2470,7 +2471,7 @@
                 threadedMode ? 'text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
               ]}
               aria-pressed={threadedMode}
-              title={threadedMode ? 'Show individual messages' : 'Show threads'}
+              data-app-tooltip={threadedMode ? 'Show individual messages' : 'Show threads'}
               aria-label={threadedMode ? 'Show individual messages' : 'Show threads'}
             >
               <Mails size={15} />
@@ -2496,7 +2497,7 @@
                 'transition',
                 refreshing ? 'animate-spin text-zinc-400' : 'text-zinc-600 hover:text-zinc-400'
               ]}
-              title="Refresh"
+              data-app-tooltip="Refresh"
             >
               <RefreshCw size={15} />
             </button>
@@ -2509,7 +2510,7 @@
                   'transition disabled:cursor-not-allowed disabled:opacity-40',
                   recentSummary || summarizing ? 'text-sky-300' : 'text-zinc-600 hover:text-zinc-400'
                 ]}
-                title="Summarize recent mail"
+                data-app-tooltip="Summarize recent mail"
                 aria-label="Summarize recent mail"
               >
                 <Sparkles size={15} />
@@ -2520,8 +2521,8 @@
             >
               <button
                 type="button"
-                title="Show starred"
-                aria-label="Show starred"
+                data-app-tooltip="Show all mail"
+                aria-label="Show all mail"
                 class={[
                   'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 transition sm:px-3',
                   activeFilter === 'all' ? 'bg-white/8 text-white' : 'text-zinc-400'
@@ -2533,8 +2534,8 @@
               </button>
               <button
                 type="button"
-                title="Show pinned"
-                aria-label="Show pinned"
+                data-app-tooltip="Show unread"
+                aria-label="Show unread"
                 class={[
                   'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 transition sm:px-3',
                   activeFilter === 'unread' ? 'bg-white/8 text-white' : 'text-zinc-400'
@@ -2545,6 +2546,8 @@
               </button>
               <button
                 type="button"
+                data-app-tooltip="Show starred"
+                aria-label="Show starred"
                 class={[
                   'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 transition sm:px-3',
                   activeFilter === 'starred' ? 'bg-white/8 text-white' : 'text-zinc-400'
@@ -2555,6 +2558,8 @@
               </button>
               <button
                 type="button"
+                data-app-tooltip="Show pinned"
+                aria-label="Show pinned"
                 class={[
                   'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 transition sm:px-3',
                   activeFilter === 'pinned' ? 'bg-white/8 text-white' : 'text-zinc-400'
@@ -2573,7 +2578,13 @@
       </p>
 
       {#if isDesktop || mobileSearchOpen || searchQuery.trim().length > 0}
-        <div class="relative z-40 mt-3 flex md:absolute md:top-4 md:right-5 md:mt-0 md:w-56 lg:w-64">
+        <div
+          class="relative z-40 mt-3 flex md:absolute md:top-4 md:right-5 md:mt-0 md:w-56 lg:w-64"
+          use:dismissOnOutside={{
+            enabled: showSavedSearchMenu,
+            onDismiss: () => (showSavedSearchMenu = false)
+          }}
+        >
           <label class="min-w-0 flex-1">
             <span class="sr-only">Search messages</span>
             <input
@@ -2590,14 +2601,14 @@
             type="button"
             onclick={() => (showSavedSearchMenu = !showSavedSearchMenu)}
             aria-label="Saved searches"
-            title="Saved searches"
+            data-app-tooltip="Saved searches"
             class="grid w-11 place-items-center rounded-r-xl border border-transparent border-l-white/8 bg-white/[0.03] text-zinc-300 backdrop-blur-xl hover:bg-white/8 md:w-9 md:border-white/8"
           >
             <Bookmark size={15} />
           </button>
           {#if showSavedSearchMenu}
             <div
-              class="absolute top-full right-0 z-30 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/85 shadow-xl shadow-black/30 backdrop-blur-xl"
+              class="app-popover absolute top-full right-0 z-[100] mt-2 w-64 overflow-hidden rounded-xl border border-white/10 shadow-xl shadow-black/30 backdrop-blur-xl"
             >
               <div class="border-b border-white/8 px-3 py-2 text-xs font-medium text-zinc-500">
                 Saved searches
@@ -2609,7 +2620,7 @@
                       type="button"
                       onclick={() => selectSavedSearch(savedSearch)}
                       class="min-w-0 flex-1 rounded-lg px-2 py-1 text-left"
-                      title={savedSearch.query}
+                      data-app-tooltip={savedSearch.query}
                     >
                       <span class="block truncate text-sm font-medium text-zinc-200">
                         {savedSearch.name}
@@ -2644,7 +2655,7 @@
           {/if}
           {#if showSearchAutocomplete}
             <div
-              class="absolute top-full right-0 left-0 z-20 mt-2 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/95 shadow-xl shadow-black/20"
+              class="app-popover absolute top-full right-0 left-0 z-[90] mt-2 overflow-hidden rounded-xl border border-white/10 shadow-xl shadow-black/20"
             >
               {#if searchInputFocused && syntaxSuggestions.length > 0}
                 <div class="border-b border-white/8 px-3 py-2 text-xs font-medium text-zinc-500">
@@ -2801,7 +2812,7 @@
                         {#if message.hasThreadNote}
                           <span
                             class="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-400/10 px-2 py-0.5 text-xs font-medium text-amber-200"
-                            title="Private note"
+                            data-app-tooltip="Private note"
                           >
                             <StickyNote size={12} />
                             Note
@@ -2934,7 +2945,7 @@
                   threadedMode ? 'text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
                 ]}
                 aria-pressed={threadedMode}
-                title={threadedMode ? 'Show individual messages' : 'Show threads'}
+                data-app-tooltip={threadedMode ? 'Show individual messages' : 'Show threads'}
                 aria-label={threadedMode ? 'Show individual messages' : 'Show threads'}
               >
                 <Mails size={15} />
@@ -2960,7 +2971,7 @@
                   'transition',
                   refreshing ? 'animate-spin text-zinc-400' : 'text-zinc-600 hover:text-zinc-400'
                 ]}
-                title="Refresh"
+                data-app-tooltip="Refresh"
               >
                 <RefreshCw size={15} />
               </button>
@@ -2975,7 +2986,7 @@
                       ? 'text-sky-300'
                       : 'text-zinc-600 hover:text-zinc-400'
                   ]}
-                  title="Summarize recent mail"
+                  data-app-tooltip="Summarize recent mail"
                   aria-label="Summarize recent mail"
                 >
                   <Sparkles size={15} />
@@ -2986,6 +2997,8 @@
               >
                 <button
                   type="button"
+                  data-app-tooltip="Show all mail"
+                  aria-label="Show all mail"
                   class={[
                     'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 transition sm:px-3',
                     activeFilter === 'all' ? 'bg-white/8 text-white' : 'text-zinc-400'
@@ -2997,6 +3010,8 @@
                 </button>
                 <button
                   type="button"
+                  data-app-tooltip="Show unread"
+                  aria-label="Show unread"
                   class={[
                     'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 transition sm:px-3',
                     activeFilter === 'unread' ? 'bg-white/8 text-white' : 'text-zinc-400'
@@ -3007,6 +3022,8 @@
                 </button>
                 <button
                   type="button"
+                  data-app-tooltip="Show starred"
+                  aria-label="Show starred"
                   class={[
                     'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 transition sm:px-3',
                     activeFilter === 'starred' ? 'bg-white/8 text-white' : 'text-zinc-400'
@@ -3017,6 +3034,8 @@
                 </button>
                 <button
                   type="button"
+                  data-app-tooltip="Show pinned"
+                  aria-label="Show pinned"
                   class={[
                     'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 transition sm:px-3',
                     activeFilter === 'pinned' ? 'bg-white/8 text-white' : 'text-zinc-400'
@@ -3031,7 +3050,13 @@
         </div>
 
         {#if isDesktop || mobileSearchOpen || searchQuery.trim().length > 0}
-          <div class="relative z-40 mt-3 flex md:mt-4">
+          <div
+            class="relative z-40 mt-3 flex md:mt-4"
+            use:dismissOnOutside={{
+              enabled: showSavedSearchMenu,
+              onDismiss: () => (showSavedSearchMenu = false)
+            }}
+          >
             <label class="min-w-0 flex-1">
               <span class="sr-only">Search messages</span>
               <input
@@ -3048,14 +3073,14 @@
               type="button"
               onclick={() => (showSavedSearchMenu = !showSavedSearchMenu)}
               aria-label="Saved searches"
-              title="Saved searches"
+              data-app-tooltip="Saved searches"
               class="grid w-11 place-items-center rounded-r-xl border border-transparent border-l-white/8 bg-white/[0.03] text-zinc-300 backdrop-blur-xl hover:bg-white/8 md:border-white/8"
             >
               <Bookmark size={15} />
             </button>
             {#if showSavedSearchMenu}
               <div
-                class="absolute top-full right-0 z-30 mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/85 shadow-xl shadow-black/30 backdrop-blur-xl"
+                class="app-popover absolute top-full right-0 z-[100] mt-2 w-64 overflow-hidden rounded-xl border border-white/10 shadow-xl shadow-black/30 backdrop-blur-xl"
               >
                 <div class="border-b border-white/8 px-3 py-2 text-xs font-medium text-zinc-500">
                   Saved searches
@@ -3067,7 +3092,7 @@
                         type="button"
                         onclick={() => selectSavedSearch(savedSearch)}
                         class="min-w-0 flex-1 rounded-lg px-2 py-1 text-left"
-                        title={savedSearch.query}
+                        data-app-tooltip={savedSearch.query}
                       >
                         <span class="block truncate text-sm font-medium text-zinc-200">
                           {savedSearch.name}
@@ -3103,7 +3128,7 @@
             {/if}
             {#if showSearchAutocomplete}
               <div
-                class="absolute top-full right-0 left-0 z-20 mt-2 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/95 shadow-xl shadow-black/20"
+                class="app-popover absolute top-full right-0 left-0 z-[90] mt-2 overflow-hidden rounded-xl border border-white/10 shadow-xl shadow-black/20"
               >
                 {#if searchInputFocused && syntaxSuggestions.length > 0}
                   <div class="border-b border-white/8 px-3 py-2 text-xs font-medium text-zinc-500">
@@ -3186,7 +3211,7 @@
           <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <button
               type="button"
-              title="Archive"
+              data-app-tooltip="Archive"
               onclick={() => void bulkAction('archive')}
               disabled={bulkActionPending}
               class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
@@ -3195,7 +3220,7 @@
             </button>
             <button
               type="button"
-              title="Trash"
+              data-app-tooltip="Trash"
               onclick={() => void bulkAction('trash')}
               disabled={bulkActionPending}
               class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
@@ -3205,7 +3230,7 @@
             {#if currentMailboxRole !== 'spam'}
               <button
                 type="button"
-                title="Move to spam"
+                data-app-tooltip="Move to spam"
                 onclick={() => void bulkAction('spam')}
                 disabled={bulkActionPending}
                 class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
@@ -3215,7 +3240,7 @@
             {/if}
             <button
               type="button"
-              title="Snooze"
+              data-app-tooltip="Snooze"
               onclick={() => void bulkAction('snooze')}
               disabled={bulkActionPending}
               class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
@@ -3224,7 +3249,7 @@
             </button>
             <button
               type="button"
-              title="Mark read"
+              data-app-tooltip="Mark read"
               onclick={() => void bulkAction('mark_read')}
               disabled={bulkActionPending}
               class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
@@ -3233,7 +3258,7 @@
             </button>
             <button
               type="button"
-              title="Mark unread"
+              data-app-tooltip="Mark unread"
               onclick={() => void bulkAction('mark_unread')}
               disabled={bulkActionPending}
               class="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-300 hover:bg-white/8 disabled:opacity-50"
@@ -3245,7 +3270,7 @@
             type="button"
             onclick={clearSelection}
             class="text-zinc-500 hover:text-zinc-300"
-            title="Clear selection"
+            data-app-tooltip="Clear selection"
           >
             <X size={14} />
           </button>
@@ -3326,7 +3351,7 @@
                     <button
                       type="button"
                       aria-label={message.threadStarred ? 'Unstar thread' : 'Star thread'}
-                      title={message.threadStarred ? 'Unstar thread' : 'Star thread'}
+                      data-app-tooltip={message.threadStarred ? 'Unstar thread' : 'Star thread'}
                       onclick={(event) =>
                         void toggleThreadMetadata(event, message, 'threadStarred')}
                       class={[
@@ -3341,7 +3366,7 @@
                     <button
                       type="button"
                       aria-label={message.threadPinned ? 'Unpin thread' : 'Pin thread'}
-                      title={message.threadPinned ? 'Unpin thread' : 'Pin thread'}
+                      data-app-tooltip={message.threadPinned ? 'Unpin thread' : 'Pin thread'}
                       onclick={(event) => void toggleThreadMetadata(event, message, 'threadPinned')}
                       class={[
                         'rounded-md p-1 transition hover:bg-white/8',
@@ -3391,7 +3416,7 @@
                           {#if message.hasThreadNote}
                             <span
                               class="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-300/20 bg-amber-400/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-200"
-                              title="Private note"
+                              data-app-tooltip="Private note"
                               aria-label="Thread has a private note"
                             >
                               <StickyNote size={11} />
@@ -3512,7 +3537,7 @@
                   <button
                     type="button"
                     aria-label={message.threadStarred ? 'Unstar thread' : 'Star thread'}
-                    title={message.threadStarred ? 'Unstar thread' : 'Star thread'}
+                    data-app-tooltip={message.threadStarred ? 'Unstar thread' : 'Star thread'}
                     onclick={(event) => void toggleThreadMetadata(event, message, 'threadStarred')}
                     class={[
                       'rounded-md p-1 transition hover:bg-white/8',
@@ -3524,7 +3549,7 @@
                   <button
                     type="button"
                     aria-label={message.threadPinned ? 'Unpin thread' : 'Pin thread'}
-                    title={message.threadPinned ? 'Unpin thread' : 'Pin thread'}
+                    data-app-tooltip={message.threadPinned ? 'Unpin thread' : 'Pin thread'}
                     onclick={(event) => void toggleThreadMetadata(event, message, 'threadPinned')}
                     class={[
                       'rounded-md p-1 transition hover:bg-white/8',
@@ -3569,7 +3594,7 @@
                         {#if threadedMode && message.threadCount && message.threadCount > 1}
                           <span
                             class="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/8 bg-transparent px-1.5 py-0.5 text-[11px] font-medium text-zinc-500"
-                            title={`${message.threadCount} messages in thread`}
+                            data-app-tooltip={`${message.threadCount} messages in thread`}
                             aria-label={`${message.threadCount} messages in thread`}
                           >
                             <Mails size={11} />
@@ -3579,7 +3604,7 @@
                         {#if message.hasThreadNote}
                           <span
                             class="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-300/20 bg-amber-400/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-200"
-                            title="Private note"
+                            data-app-tooltip="Private note"
                             aria-label="Thread has a private note"
                           >
                             <StickyNote size={11} />

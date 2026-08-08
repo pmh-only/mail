@@ -1600,7 +1600,7 @@
                   type="button"
                   onclick={() => openPreview(att)}
                   class="block h-40 w-full overflow-hidden bg-black/20 focus:outline-none sm:h-32"
-                  title="Click to preview"
+                  data-app-tooltip="Click to preview"
                 >
                   <img
                     src="/api/attachments/{att.id}?inline=1"
@@ -1613,7 +1613,7 @@
                   type="button"
                   onclick={() => openPreview(att)}
                   class="flex h-40 w-full min-w-0 flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none sm:h-32"
-                  title="Click to preview"
+                  data-app-tooltip="Click to preview"
                 >
                   <FileText size={36} />
                   <span class="text-xs">Preview PDF</span>
@@ -1623,7 +1623,7 @@
                   type="button"
                   onclick={() => openPreview(att)}
                   class="flex h-40 w-full flex-col items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 focus:outline-none sm:h-32"
-                  title="Click to preview"
+                  data-app-tooltip="Click to preview"
                 >
                   <FileVideo size={36} />
                   <span class="text-xs">Play video</span>
@@ -1643,7 +1643,7 @@
                   {#if safety.level !== 'low'}
                     <span
                       class={`mt-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${attachmentSafetyClass(safety)}`}
-                      title={safety.reasons.join('; ')}
+                      data-app-tooltip={safety.reasons.join('; ')}
                     >
                       <ShieldAlert size={10} />
                       {safety.label}
@@ -1655,7 +1655,8 @@
                   download={att.filename}
                   onclick={(event) => confirmHighRiskDownload(event, att)}
                   class="shrink-0 text-zinc-600 hover:text-zinc-300"
-                  title="Download"
+                  data-app-tooltip="Download"
+                  aria-label={`Download ${att.filename}`}
                 >
                   <Download size={13} />
                 </a>
@@ -1815,7 +1816,7 @@
         {#if safety.level !== 'low'}
           <span
             class={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${attachmentSafetyClass(safety)}`}
-            title={safety.reasons.join('; ')}
+            data-app-tooltip={safety.reasons.join('; ')}
           >
             <ShieldAlert size={12} />
             {safety.label}

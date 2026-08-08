@@ -53,6 +53,7 @@
   import AddressInput from '$lib/components/AddressInput.svelte'
   import CustomSelect, { type SelectValue } from '$lib/components/CustomSelect.svelte'
   import ErrorDialog from '$lib/components/ErrorDialog.svelte'
+  import { dismissOnOutside } from '$lib/dismiss-on-outside'
   import { errorMessageFromUnknown, readErrorMessage } from '$lib/http'
   import { markdownToHtml } from '$lib/markdown'
   import { notifyMailboxStateChanged } from '$lib/mailbox-state'
@@ -251,7 +252,7 @@
       errorDialogMessage = null
       attachmentError = null
       attachmentDragDepth = 0
-      showAttachmentModeMenu = false
+      closeComposerMenus()
       droppedAttachmentFiles = null
       pendingSendWarnings = []
       void loadTemplates()
@@ -262,7 +263,7 @@
     if (!composer.open && prevOpen) {
       lastSavedContent = ''
       attachmentDragDepth = 0
-      showAttachmentModeMenu = false
+      closeComposerMenus()
       droppedAttachmentFiles = null
       pendingSendWarnings = []
       markdownMode = false
@@ -403,6 +404,26 @@
     showSendLaterMenu = false
   }
 
+  function closeComposerMenus() {
+    showSendLaterMenu = false
+    showAttachmentModeMenu = false
+    showTemplateMenu = false
+    showAiMenu = false
+    droppedAttachmentFiles = null
+  }
+
+  function toggleSendLaterMenu() {
+    const shouldOpen = !showSendLaterMenu
+    closeComposerMenus()
+    showSendLaterMenu = shouldOpen
+  }
+
+  function toggleAiMenu() {
+    const shouldOpen = !showAiMenu
+    closeComposerMenus()
+    showAiMenu = shouldOpen
+  }
+
   function sendLaterLabel() {
     if (!sendLaterAt) return 'Send later'
 
@@ -532,8 +553,11 @@
   }
 
   async function toggleTemplateMenu() {
-    if (!showTemplateMenu) await loadTemplates()
-    showTemplateMenu = !showTemplateMenu
+    const shouldOpen = !showTemplateMenu
+    closeComposerMenus()
+    if (!shouldOpen) return
+    await loadTemplates()
+    showTemplateMenu = true
   }
 
   function insertTemplate(template: MessageTemplate) {
@@ -569,11 +593,7 @@
     composeLayout = layout
     if (layout === 'advanced') void loadOpenPgpStatus()
     showLinkInput = false
-    showTemplateMenu = false
-    showAiMenu = false
-    showSendLaterMenu = false
-    showAttachmentModeMenu = false
-    droppedAttachmentFiles = null
+    closeComposerMenus()
   }
 
   function splitQuotedHtml(html: string) {
@@ -662,6 +682,7 @@
 
   async function send() {
     if (!editor || sending) return
+    closeComposerMenus()
     if (processingAttachmentCount > 0) {
       showAttachmentError('Wait for attachments to finish uploading before sending.')
       return
@@ -855,6 +876,7 @@
   }
 
   function discard() {
+    closeComposerMenus()
     if (processingAttachmentCount > 0) {
       showAttachmentError('Wait for attachments to finish uploading before closing this message.')
       return
@@ -902,6 +924,7 @@
   }
 
   function toggleMinimized() {
+    closeComposerMenus()
     pendingSendWarnings = []
     if (composer.minimized) {
       composer.minimized = false
@@ -913,6 +936,7 @@
   }
 
   function toggleFullscreen() {
+    closeComposerMenus()
     composer.minimized = false
     composer.fullscreen = !composer.fullscreen
   }
@@ -1100,10 +1124,8 @@
       droppedAttachmentFiles = null
       return
     }
+    closeComposerMenus()
     droppedAttachmentFiles = files
-    showSendLaterMenu = false
-    showTemplateMenu = false
-    showAiMenu = false
     showAttachmentModeMenu = true
   }
 
@@ -1399,7 +1421,7 @@
             bind:value={composer.openPgpSigning}
             disabled={!openPgpSenderAvailable}
             class="app-glass-field rounded border border-white/10 px-2 py-1 text-zinc-300 disabled:opacity-40"
-            title="OpenPGP signing method"
+            data-app-tooltip="OpenPGP signing method"
           >
             <option value="none">Not signed</option>
             <option value="cleartext">Cleartext signature</option>
@@ -1408,7 +1430,7 @@
           </select>
           <label
             class="flex items-center gap-1.5 text-zinc-400"
-            title="Encrypt for every recipient with a known public key"
+            data-app-tooltip="Encrypt for every recipient with a known public key"
           >
             <input
               type="checkbox"
@@ -1632,7 +1654,7 @@
         aria-pressed={markdownMode}
         onclick={toggleMarkdownMode}
         class={btnClass(markdownMode)}
-        title="Markdown mode"
+        data-app-tooltip="Markdown mode"
       >
         <Braces size={14} />
       </button>
@@ -1823,11 +1845,16 @@
           class="hidden"
           onchange={handleAttachmentChange}
         />
-        <div class:hidden={!isAdvancedLayout} class="relative">
+        <div
+          class:hidden={!isAdvancedLayout}
+          class="relative"
+          use:dismissOnOutside={{ enabled: showSendLaterMenu, onDismiss: closeComposerMenus }}
+        >
           <button
             type="button"
             disabled={sending}
-            onclick={() => (showSendLaterMenu = !showSendLaterMenu)}
+            aria-expanded={showSendLaterMenu}
+            onclick={toggleSendLaterMenu}
             class={[
               'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-40',
               sendLaterAt
@@ -1842,7 +1869,7 @@
 
           {#if showSendLaterMenu}
             <div
-              class="absolute bottom-full left-0 z-20 mb-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/85 shadow-2xl shadow-black/40 backdrop-blur-xl"
+              class="app-popover absolute bottom-full left-0 z-[100] mb-2 w-56 overflow-hidden rounded-xl border border-white/10 shadow-2xl shadow-black/40 backdrop-blur-xl"
             >
               <div class="p-1">
                 <button
@@ -1891,7 +1918,10 @@
             </div>
           {/if}
         </div>
-        <div class="relative">
+        <div
+          class="relative"
+          use:dismissOnOutside={{ enabled: showAttachmentModeMenu, onDismiss: closeComposerMenus }}
+        >
           <button
             type="button"
             disabled={sending}
@@ -1906,7 +1936,7 @@
 
           {#if showAttachmentModeMenu}
             <div
-              class="absolute bottom-full left-0 z-20 mb-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-zinc-950/85 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
+              class="app-popover absolute bottom-full left-0 z-[100] mb-2 w-64 overflow-hidden rounded-xl border border-white/10 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
               role="menu"
               aria-label="Attachment delivery mode"
             >
@@ -1941,7 +1971,11 @@
             </div>
           {/if}
         </div>
-        <div class:hidden={!isAdvancedLayout} class="relative">
+        <div
+          class:hidden={!isAdvancedLayout}
+          class="relative"
+          use:dismissOnOutside={{ enabled: showTemplateMenu, onDismiss: closeComposerMenus }}
+        >
           <button
             type="button"
             disabled={sending || loadingTemplates}
@@ -1955,7 +1989,7 @@
 
           {#if showTemplateMenu}
             <div
-              class="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/85 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
+              class="app-popover absolute bottom-full left-0 z-[100] mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-white/10 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
             >
               {#if templates.length === 0}
                 <p class="px-3 py-2 text-sm text-zinc-500">
@@ -1998,10 +2032,15 @@
           />
         {/if}
         {#if page.data.hasOpenAiKey}
-          <div class:hidden={!isAdvancedLayout} class="relative">
+          <div
+            class:hidden={!isAdvancedLayout}
+            class="relative"
+            use:dismissOnOutside={{ enabled: showAiMenu, onDismiss: closeComposerMenus }}
+          >
             <button
               type="button"
-              onclick={() => (showAiMenu = !showAiMenu)}
+              aria-expanded={showAiMenu}
+              onclick={toggleAiMenu}
               class="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-white/10 hover:text-sky-300 disabled:cursor-wait disabled:opacity-40"
             >
               <Sparkles size={14} class={composingAi ? 'animate-pulse' : ''} />
@@ -2010,7 +2049,7 @@
             </button>
             {#if showAiMenu}
               <div
-                class="absolute right-0 bottom-full z-20 mb-2 w-40 rounded-xl border border-white/10 bg-zinc-950/85 p-1 shadow-xl shadow-black/30 backdrop-blur-xl"
+                class="app-popover absolute right-0 bottom-full z-[100] mb-2 w-40 rounded-xl border border-white/10 p-1 shadow-xl shadow-black/30 backdrop-blur-xl"
               >
                 <button
                   type="button"
@@ -2047,7 +2086,7 @@
 
   {#if pendingSendWarnings.length > 0}
     <div
-      class="app-popover absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 p-6"
+      class="app-popover absolute inset-0 z-[110] flex flex-col items-center justify-center gap-4 p-6"
     >
       <div
         class="max-w-md rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100"
@@ -2080,7 +2119,7 @@
 
   <!-- Discard dialog -->
   {#if showDiscardDialog}
-    <div class="app-popover absolute inset-0 z-10 flex flex-col items-center justify-center gap-4">
+    <div class="app-popover absolute inset-0 z-[110] flex flex-col items-center justify-center gap-4">
       <p class="text-sm text-zinc-300">Save this draft?</p>
       <div class="flex flex-wrap justify-center gap-3">
         <button

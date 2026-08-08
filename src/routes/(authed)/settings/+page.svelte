@@ -2296,6 +2296,8 @@
   }
 </script>
 
+<svelte:head><title>Settings · Mail</title></svelte:head>
+
 <div class="h-full min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-10">
   <div class="mx-auto max-w-6xl space-y-8">
     <div>
@@ -2451,7 +2453,7 @@
                   <div
                     id={translationLanguageListboxId}
                     role="listbox"
-                    class="absolute top-full left-0 z-20 mt-2 w-full overflow-hidden rounded-xl border border-white/10 bg-[#1a1b20] shadow-2xl"
+                    class="app-popover absolute top-full left-0 z-[100] mt-2 w-full overflow-hidden rounded-xl border border-white/10 shadow-2xl"
                   >
                     {#each filteredTranslationLanguages as language, index (`${language}-${index}`)}
                       <button
@@ -4048,7 +4050,7 @@
                       <button
                         type="button"
                         aria-label={`Remove gradient color ${index + 1}`}
-                        title={themeStyle.colors.length <= MIN_THEME_COLORS
+                        data-app-tooltip={themeStyle.colors.length <= MIN_THEME_COLORS
                           ? `A gradient needs at least ${MIN_THEME_COLORS} colors`
                           : 'Remove color'}
                         disabled={themeStyle.colors.length <= MIN_THEME_COLORS}

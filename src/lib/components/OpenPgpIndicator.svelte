@@ -52,7 +52,7 @@
     {#if signed}
       <span
         class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs {signatureClass}"
-        title={[
+        data-app-tooltip={[
           signatureLabel,
           signer,
           fingerprint ? `Fingerprint: ${fingerprint}` : null,
@@ -87,7 +87,7 @@
         class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs {decrypted
           ? 'border-sky-500/25 bg-sky-500/10 text-sky-300'
           : 'border-amber-500/25 bg-amber-500/10 text-amber-200'}"
-        title={decrypted
+        data-app-tooltip={decrypted
           ? 'OpenPGP message decrypted successfully'
           : error || 'Unable to decrypt OpenPGP message'}
       >

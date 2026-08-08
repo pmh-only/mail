@@ -6,10 +6,13 @@ import {
   importOpenPgpKey,
   listOpenPgpKeys
 } from '$lib/server/openpgp-keys'
+import { isDemoModeEnabled } from '$lib/server/demo'
 
-export const GET: RequestHandler = async () => json({ keys: await listOpenPgpKeys() })
+export const GET: RequestHandler = async () =>
+  json({ keys: isDemoModeEnabled() ? [] : await listOpenPgpKeys() })
 
 export const POST: RequestHandler = async ({ request }) => {
+  if (isDemoModeEnabled()) return error(403, 'OpenPGP key management is disabled in demo mode')
   const body = (await request.json()) as Record<string, unknown>
   try {
     if (body.action === 'generate') {

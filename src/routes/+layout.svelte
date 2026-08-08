@@ -5,6 +5,7 @@
   import type { Snippet } from 'svelte'
   import { onMount } from 'svelte'
   import { Toaster } from '$lib/components/ui/sonner'
+  import GlobalTooltip from '$lib/components/GlobalTooltip.svelte'
   import PwaInstallNotice from '$lib/components/PwaInstallNotice.svelte'
   import WindowControlsOverlay from '$lib/components/WindowControlsOverlay.svelte'
   import { applyThemeStyle, type ThemeStyle } from '$lib/theme'
@@ -60,6 +61,8 @@
 <div aria-hidden="true" class={['route-loading-bar', isLoading && 'active']}></div>
 
 <Toaster position="top-center" theme={data.themePreference} />
+
+<GlobalTooltip />
 
 <PwaInstallNotice />
 

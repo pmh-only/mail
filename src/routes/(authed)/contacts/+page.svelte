@@ -396,7 +396,7 @@
         <button
           type="button"
           aria-label="Import CSV"
-          title="Import CSV"
+          data-app-tooltip="Import CSV"
           onclick={() => csvInput?.click()}
           disabled={importingCsv}
           class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-200 transition hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-50"
@@ -410,7 +410,7 @@
         <button
           type="button"
           aria-label="Export CSV"
-          title="Export CSV"
+          data-app-tooltip="Export CSV"
           onclick={() => void exportCsv()}
           disabled={exportingCsv}
           class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-200 transition hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-50"
@@ -424,7 +424,7 @@
         <button
           type="button"
           aria-label="Import from mail"
-          title="Import from mail"
+          data-app-tooltip="Import from mail"
           onclick={() => void importFromMail()}
           disabled={importing}
           class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-200 transition hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-50"
@@ -438,7 +438,7 @@
         <button
           type="button"
           aria-label="Add group"
-          title="Add group"
+          data-app-tooltip="Add group"
           onclick={startAddGroup}
           class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-200 transition hover:bg-white/8"
         >

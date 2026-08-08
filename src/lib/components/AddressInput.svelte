@@ -161,7 +161,7 @@
           ? 'border border-rose-400/30 bg-rose-500/15 text-rose-100'
           : 'border border-white/10 bg-white/10 text-zinc-200'
       ].join(' ')}
-      title={parsedPill?.valid === false ? parsedPill.reason : undefined}
+      data-app-tooltip={parsedPill?.valid === false ? parsedPill.reason : undefined}
     >
       {pill}
       <button
@@ -205,7 +205,7 @@
     <ul
       id={listboxId}
       role="listbox"
-      class="absolute top-full left-0 z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-white/10 bg-[#1e1e24]/85 shadow-xl backdrop-blur-xl"
+      class="app-popover absolute top-full left-0 z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-white/10 shadow-xl backdrop-blur-xl"
     >
       {#each suggestions as suggestion, i (`${suggestion.type === 'group' ? `group-${suggestion.id}` : suggestion.email}-${i}`)}
         <li

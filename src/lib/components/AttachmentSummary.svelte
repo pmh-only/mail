@@ -85,7 +85,11 @@
       onclick={summarize}
       disabled={loading}
       aria-label={loading ? 'Summarizing attachment' : summary ? 'Refresh summary' : 'Summarize attachment'}
-      title={loading ? 'Summarizing attachment' : summary ? 'Refresh summary' : 'Summarize attachment'}
+      data-app-tooltip={loading
+        ? 'Summarizing attachment'
+        : summary
+          ? 'Refresh summary'
+          : 'Summarize attachment'}
       class={iconOnly
         ? 'shrink-0 text-zinc-500 transition hover:text-sky-300 disabled:cursor-wait disabled:opacity-60'
         : 'inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/4 px-2 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/8 hover:text-white disabled:cursor-wait disabled:opacity-60'}

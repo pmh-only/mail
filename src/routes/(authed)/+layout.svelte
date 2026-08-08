@@ -1426,7 +1426,7 @@
                 >
                   <a
                     {href}
-                    title={savedSearch.query}
+                    data-app-tooltip={savedSearch.query}
                     onclick={() => {
                       mobileNavOpen = false
                       keyboard.panel = 'list'
@@ -1681,11 +1681,12 @@
                 <button
                   type="button"
                   onclick={handleRefresh}
+                  aria-label="Refresh"
                   class={[
                     'ml-auto transition',
                     refreshing ? 'animate-spin text-zinc-400' : 'text-zinc-600 hover:text-zinc-400'
                   ]}
-                  title="Refresh"
+                  data-app-tooltip="Refresh"
                 >
                   <RefreshCw size={11} />
                 </button>

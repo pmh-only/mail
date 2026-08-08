@@ -934,7 +934,7 @@
           <button
             type="button"
             aria-label="Move to inbox"
-            title="Move to inbox"
+            data-app-tooltip="Move to inbox"
             disabled={acting}
             onclick={() => performThreadAction('inbox')}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -945,7 +945,7 @@
           <button
             type="button"
             aria-label="Not spam"
-            title="Not spam"
+            data-app-tooltip="Not spam"
             disabled={acting}
             onclick={() => performThreadAction('inbox')}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -956,7 +956,7 @@
           <button
             type="button"
             aria-label="Archive thread"
-            title="Archive thread"
+            data-app-tooltip="Archive thread"
             disabled={acting}
             onclick={() => performThreadAction('archive')}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -966,7 +966,7 @@
           <button
             type="button"
             aria-label="Trash thread"
-            title="Trash thread"
+            data-app-tooltip="Trash thread"
             disabled={acting}
             onclick={() => performThreadAction('trash')}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -976,7 +976,7 @@
           <button
             type="button"
             aria-label="Mark as spam"
-            title="Mark as spam"
+            data-app-tooltip="Mark as spam"
             disabled={acting}
             onclick={() => performThreadAction('spam')}
             class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-amber-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
@@ -995,7 +995,7 @@
         <button
           type="button"
           aria-label="Share thread"
-          title="Share thread"
+          data-app-tooltip="Share thread"
           onclick={() => openThreadShareModal()}
           class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 md:border-white/8"
         >
@@ -1328,7 +1328,7 @@
                             {#if safety.level !== 'low'}
                               <span
                                 class={`mt-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${attachmentSafetyClass(safety)}`}
-                                title={safety.reasons.join('; ')}
+                                data-app-tooltip={safety.reasons.join('; ')}
                               >
                                 <ShieldAlert size={10} />
                                 {safety.label}
@@ -1385,7 +1385,9 @@
             onclick={toggleNotesCollapsed}
             aria-expanded={notesExpanded}
             disabled={noteDirty}
-            title={noteDirty ? 'Save or clear changes before collapsing notes' : undefined}
+            data-app-tooltip={noteDirty
+              ? 'Save or clear changes before collapsing notes'
+              : undefined}
             class="min-w-0 flex-1 text-left disabled:cursor-default"
           >
             <div class="min-w-0">

@@ -7,6 +7,9 @@
   --app-mobile-header-bg: #0b0b0e;
   --app-popover-bg: rgba(9, 9, 11, 0.95);
   --app-banner-bg: rgba(9, 9, 11, 0.85);
+  --app-tooltip-bg: #27272a;
+  --app-tooltip-text: #f4f4f5;
+  --app-tooltip-border: rgba(255, 255, 255, 0.12);
   --app-surface-bg: rgba(255, 255, 255, 0.03);
   --app-field-bg: rgb(24 24 27 / 50%);
   --app-field-text: rgb(228 228 231);
@@ -30,7 +33,10 @@
   --app-sidebar-bg: #ffffff;
   --app-mobile-header-bg: rgba(255, 255, 255, 0.94);
   --app-popover-bg: rgba(255, 255, 255, 0.96);
-  --app-banner-bg: rgba(255, 255, 255, 0.85);
+  --app-banner-bg: #ffffff;
+  --app-tooltip-bg: #ffffff;
+  --app-tooltip-text: #0f172a;
+  --app-tooltip-border: rgba(15, 23, 42, 0.14);
   --app-surface-bg: rgba(15, 23, 42, 0.03);
   --app-field-bg: rgb(255 255 255 / 50%);
   --app-field-text: rgb(24 24 27);
@@ -138,9 +144,17 @@ html[data-theme='light'] body {
 
 .app-popover {
   background: var(--app-popover-bg);
+  color: var(--app-field-text);
   box-shadow:
     0 18px 60px rgba(0, 0, 0, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.app-tooltip {
+  border-color: var(--app-tooltip-border);
+  background: var(--app-tooltip-bg);
+  color: var(--app-tooltip-text);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
 }
 
 .app-surface {
@@ -466,9 +480,10 @@ section[aria-label^='Notifications'] {
   width: max-content;
   margin-top: 0.5rem;
   border-radius: 0.375rem;
-  background: #27272a;
+  border: 1px solid var(--app-tooltip-border);
+  background: var(--app-tooltip-bg);
   padding: 0.25rem 0.5rem;
-  color: #e4e4e7;
+  color: var(--app-tooltip-text);
   font-size: 0.75rem;
   line-height: 1rem;
   white-space: nowrap;
@@ -908,9 +923,10 @@ section[aria-label^='Notifications'] {
 
 :root[data-theme='light'] [role='tooltip'],
 :root[data-theme='light'] .tooltip {
-  background-color: #0f172a !important;
-  color: #ffffff !important;
-  border-color: rgba(15, 23, 42, 0.2) !important;
+  background-color: var(--app-tooltip-bg) !important;
+  color: var(--app-tooltip-text) !important;
+  border-color: var(--app-tooltip-border) !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18) !important;
 }
 
 :root[data-theme='light'] .border-white\/8,

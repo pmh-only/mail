@@ -10,6 +10,7 @@
   :global(.toaster[data-sonner-toaster] [data-sonner-toast]) {
     border-color: color-mix(in srgb, var(--app-field-text), transparent 84%) !important;
     background: var(--app-banner-bg) !important;
+    color: var(--app-field-text) !important;
     backdrop-filter: blur(18px);
     scale: 0.96;
     filter: blur(3px);

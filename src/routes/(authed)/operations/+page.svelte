@@ -563,7 +563,7 @@
                     class="w-72 shrink-0 rounded-xl bg-white/[0.04] px-3 py-2 text-xs text-zinc-400"
                   >
                     {#if operation.mailbox}
-                      <div class="truncate" title={operation.mailbox}>
+                      <div class="truncate" data-app-tooltip={operation.mailbox}>
                         Mailbox: <span class="text-zinc-200">{operation.mailbox}</span>
                       </div>
                     {/if}
