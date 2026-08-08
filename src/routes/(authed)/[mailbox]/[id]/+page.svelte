@@ -17,6 +17,15 @@
     ChevronDown,
     Languages,
     WifiOff,
+    Reply,
+    ReplyAll,
+    Sparkles,
+    Mail,
+    Star,
+    Pin,
+    Clock,
+    Code2,
+    Info,
   } from 'lucide-svelte'
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
@@ -25,6 +34,9 @@
   import ErrorDialog from '$lib/components/ErrorDialog.svelte'
   import AttachmentSummary from '$lib/components/AttachmentSummary.svelte'
   import MarkActions from '$lib/components/MarkActions.svelte'
+  import MobileMailActions, {
+    type MobileMailAction
+  } from '$lib/components/MobileMailActions.svelte'
   import ReplyActions from '$lib/components/ReplyActions.svelte'
   import MailAuthenticationIndicators from '$lib/components/MailAuthenticationIndicators.svelte'
   import OpenPgpIndicator from '$lib/components/OpenPgpIndicator.svelte'
@@ -178,6 +190,161 @@
   let translationResolvedCount = $state(0)
   let translationSegmentCount = $state(0)
   let activeMessageId = $state<number | null>(null)
+
+  const mobileActions = $derived.by(() => {
+    const actions: MobileMailAction[] = []
+
+    if (role === 'archive') {
+      actions.push({
+        label: 'Move to inbox',
+        icon: Archive,
+        onSelect: () => void performAction('inbox'),
+        disabled: acting,
+        group: 'mailbox'
+      })
+    } else if (role === 'trash') {
+      actions.push({
+        label: 'Restore',
+        icon: Trash2,
+        onSelect: () => void performAction('inbox'),
+        disabled: acting,
+        group: 'mailbox'
+      })
+    } else if (role === 'spam') {
+      actions.push({
+        label: 'Not spam',
+        icon: ShieldAlert,
+        onSelect: () => void performAction('inbox'),
+        disabled: acting,
+        group: 'mailbox'
+      })
+    } else {
+      actions.push(
+        {
+          label: 'Archive',
+          icon: Archive,
+          onSelect: () => void performAction('archive'),
+          disabled: acting,
+          group: 'mailbox'
+        },
+        {
+          label: 'Delete',
+          icon: Trash2,
+          iconClass: 'text-rose-400',
+          onSelect: () => void performAction('trash'),
+          disabled: acting,
+          group: 'mailbox'
+        },
+        {
+          label: 'Move to spam',
+          icon: ShieldAlert,
+          iconClass: 'text-amber-300',
+          onSelect: () => void performAction('spam'),
+          disabled: acting,
+          group: 'mailbox'
+        }
+      )
+    }
+
+    actions.push(
+      {
+        label: 'Reply',
+        icon: Reply,
+        onSelect: () => openReply(message),
+        group: 'respond'
+      },
+      {
+        label: 'Reply all',
+        icon: ReplyAll,
+        onSelect: () => openReplyAll(message),
+        group: 'respond'
+      }
+    )
+    if (page.data.hasOpenAiKey) {
+      actions.push({
+        label: draftingReply ? 'Drafting...' : 'AI reply draft',
+        icon: Sparkles,
+        iconClass: draftingReply ? 'animate-pulse text-sky-300' : 'text-sky-300',
+        onSelect: () => void generateReplyDraft(),
+        disabled: draftingReply,
+        group: 'respond'
+      })
+    }
+    actions.push({
+      label: 'Forward',
+      icon: Forward,
+      onSelect: () => openForward(message),
+      group: 'respond'
+    })
+    if (page.data.hasOpenAiKey) {
+      actions.push({
+        label: translating ? 'Translating...' : 'Translate message',
+        icon: Languages,
+        iconClass: translating ? 'animate-pulse text-sky-300' : '',
+        onSelect: () => void translateMessage(),
+        disabled: translating,
+        group: 'respond'
+      })
+    }
+
+    actions.push(
+      {
+        label: 'Mark as unread',
+        icon: Mail,
+        onSelect: () => void markUnread(),
+        disabled: acting,
+        group: 'mark'
+      },
+      {
+        label: threadMetadata.starred ? 'Mark as unstarred' : 'Mark as starred',
+        icon: Star,
+        iconClass: threadMetadata.starred ? 'text-amber-300' : '',
+        onSelect: () => void toggleThreadMetadata('starred'),
+        disabled: acting,
+        group: 'mark'
+      },
+      {
+        label: threadMetadata.pinned ? 'Mark as unpinned' : 'Mark as pinned',
+        icon: Pin,
+        iconClass: threadMetadata.pinned ? 'text-sky-300' : '',
+        onSelect: () => void toggleThreadMetadata('pinned'),
+        disabled: acting,
+        group: 'mark'
+      },
+      {
+        label: 'Snooze',
+        icon: Clock,
+        onSelect: () => void snoozeMessage(),
+        disabled: acting,
+        group: 'mark'
+      },
+      {
+        label: message.rawSourceAvailable ? 'View raw message' : 'Raw unavailable',
+        icon: Code2,
+        onSelect: () => (rawSourceOpen = true),
+        disabled: !message.rawSourceAvailable,
+        group: 'details'
+      },
+      {
+        label: 'View metadata',
+        icon: Info,
+        onSelect: () => (metadataOpen = true),
+        group: 'details'
+      },
+      {
+        label: shareCopied
+          ? 'Share link copied'
+          : `Share (${data.shareReadCount} read${data.shareReadCount === 1 ? '' : 's'})`,
+        icon: shareCopied ? Check : Share2,
+        iconClass: shareCopied ? 'text-emerald-400' : '',
+        onSelect: () => void shareMessage(false),
+        disabled: sharing,
+        group: 'share'
+      }
+    )
+
+    return actions
+  })
   let translationAbortController: AbortController | null = null
   let translationRequestId = 0
   let messageFrame = $state<HTMLIFrameElement | undefined>(undefined)
@@ -1161,6 +1328,8 @@
           <ChevronLeft size={16} />
           Back to list
         </button>
+        <MobileMailActions actions={mobileActions} />
+        <div class="hidden md:contents">
         {#if role === 'archive'}
           <div class="group relative">
             <button
@@ -1230,57 +1399,6 @@
             <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Delete </span>
           </div>
         {/if}
-        <div class="md:hidden">
-          <ReplyActions
-            onReply={() => openReply(message)}
-            onReplyAll={() => openReplyAll(message)}
-            onAiReply={() => void generateReplyDraft()}
-            aiEnabled={page.data.hasOpenAiKey}
-            drafting={draftingReply}
-            iconOnly
-          />
-        </div>
-        <div class="md:hidden">
-          <MarkActions
-            onMarkUnread={() => void markUnread()}
-            onToggleStar={() => void toggleThreadMetadata('starred')}
-            onTogglePin={() => void toggleThreadMetadata('pinned')}
-            onSnooze={() => void snoozeMessage()}
-            onViewRaw={() => (rawSourceOpen = true)}
-            onViewMetadata={() => (metadataOpen = true)}
-            rawSourceAvailable={message.rawSourceAvailable}
-            starred={threadMetadata.starred}
-            pinned={threadMetadata.pinned}
-            disabled={acting}
-          />
-        </div>
-        <div class="group relative inline-flex md:hidden">
-          <button
-            type="button"
-            aria-label="Forward"
-            onclick={() => openForward(message)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
-          >
-            <Forward size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Forward </span>
-        </div>
-        {#if page.data.hasOpenAiKey}
-          <div class="group relative inline-flex md:hidden">
-            <button
-              type="button"
-              aria-label="Translate message"
-              disabled={translating}
-              onclick={() => void translateMessage()}
-              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60"
-            >
-              <Languages size={16} class={translating ? 'animate-pulse' : ''} />
-            </button>
-            <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
-              Translate message
-            </span>
-          </div>
-        {/if}
         {#if role !== 'archive' && role !== 'trash' && role !== 'spam'}
           <div class="group relative inline-flex">
             <button
@@ -1317,6 +1435,7 @@
           <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
             {data.shareReadCount} shared email{data.shareReadCount === 1 ? '' : 's'} read
           </span>
+        </div>
         </div>
       </div>
 

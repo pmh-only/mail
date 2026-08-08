@@ -14,7 +14,15 @@
     Copy,
     Check,
     CheckSquare,
-    Square
+    Square,
+    Reply,
+    ReplyAll,
+    Sparkles,
+    ListChecks,
+    Mail,
+    Star,
+    Pin,
+    Clock
   } from 'lucide-svelte'
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
@@ -25,6 +33,9 @@
   import MarkActions from '$lib/components/MarkActions.svelte'
   import ReplyActions from '$lib/components/ReplyActions.svelte'
   import ThreadAiActions from '$lib/components/ThreadAiActions.svelte'
+  import MobileMailActions, {
+    type MobileMailAction
+  } from '$lib/components/MobileMailActions.svelte'
   import OpenPgpIndicator from '$lib/components/OpenPgpIndicator.svelte'
   import RawMessageDialog from '$lib/components/RawMessageDialog.svelte'
   import SendStatusIndicator from '$lib/components/SendStatusIndicator.svelte'
@@ -816,6 +827,143 @@
   }
 
   const lastMessage = $derived(messages[messages.length - 1])
+  const mobileActions = $derived.by(() => {
+    const actions: MobileMailAction[] = []
+
+    if (role === 'archive' || role === 'trash') {
+      actions.push({
+        label: 'Move to inbox',
+        icon: Archive,
+        onSelect: () => void performThreadAction('inbox'),
+        disabled: acting,
+        group: 'mailbox'
+      })
+    } else if (role === 'spam') {
+      actions.push({
+        label: 'Not spam',
+        icon: ShieldAlert,
+        iconClass: 'text-amber-400',
+        onSelect: () => void performThreadAction('inbox'),
+        disabled: acting,
+        group: 'mailbox'
+      })
+    } else {
+      actions.push(
+        {
+          label: 'Archive thread',
+          icon: Archive,
+          onSelect: () => void performThreadAction('archive'),
+          disabled: acting,
+          group: 'mailbox'
+        },
+        {
+          label: 'Trash thread',
+          icon: Trash2,
+          iconClass: 'text-rose-400',
+          onSelect: () => void performThreadAction('trash'),
+          disabled: acting,
+          group: 'mailbox'
+        },
+        {
+          label: 'Mark as spam',
+          icon: ShieldAlert,
+          iconClass: 'text-amber-400',
+          onSelect: () => void performThreadAction('spam'),
+          disabled: acting,
+          group: 'mailbox'
+        }
+      )
+    }
+
+    if (page.data.hasOpenAiKey) {
+      actions.push(
+        {
+          label: summarizingThread ? 'Summarizing...' : 'Summarize thread',
+          icon: Sparkles,
+          iconClass: 'text-sky-300',
+          onSelect: () => void summarizeThread(),
+          disabled: summarizingThread,
+          group: 'thread'
+        },
+        {
+          label: extractingThreadActions ? 'Extracting...' : 'Extract thread actions',
+          icon: ListChecks,
+          iconClass: 'text-emerald-300',
+          onSelect: () => void extractThreadActions(),
+          disabled: extractingThreadActions,
+          group: 'thread'
+        }
+      )
+    }
+    actions.push({
+      label: 'Share thread',
+      icon: Share2,
+      iconClass: 'text-sky-300',
+      onSelect: openThreadShareModal,
+      group: 'thread'
+    })
+
+    if (lastMessage) {
+      actions.push(
+        {
+          label: 'Reply',
+          icon: Reply,
+          onSelect: () => openReply(lastMessage),
+          group: 'respond'
+        },
+        {
+          label: 'Reply all',
+          icon: ReplyAll,
+          onSelect: () => openReplyAll(lastMessage),
+          group: 'respond'
+        }
+      )
+      if (page.data.hasOpenAiKey) {
+        actions.push({
+          label: draftingReplyMessageId === lastMessage.id ? 'Drafting...' : 'AI reply draft',
+          icon: Sparkles,
+          iconClass: 'text-sky-300',
+          onSelect: () => void generateReplyDraft(lastMessage),
+          disabled: draftingReplyMessageId === lastMessage.id,
+          group: 'respond'
+        })
+      }
+      actions.push(
+        {
+          label: 'Mark as unread',
+          icon: Mail,
+          onSelect: () => void markThreadUnread(),
+          disabled: acting,
+          group: 'mark'
+        },
+        {
+          label: threadMetadata.starred ? 'Mark as unstarred' : 'Mark as starred',
+          icon: Star,
+          iconClass: threadMetadata.starred ? 'text-amber-300' : '',
+          onSelect: () => void toggleThreadMetadata('starred'),
+          disabled: acting,
+          group: 'mark'
+        },
+        {
+          label: threadMetadata.pinned ? 'Mark as unpinned' : 'Mark as pinned',
+          icon: Pin,
+          iconClass: threadMetadata.pinned ? 'text-sky-300' : '',
+          onSelect: () => void toggleThreadMetadata('pinned'),
+          disabled: acting,
+          group: 'mark'
+        },
+        {
+          label: 'Snooze',
+          icon: Clock,
+          onSelect: () => void snoozeThread(),
+          disabled: acting,
+          group: 'mark'
+        }
+      )
+    }
+
+    return actions
+  })
 
   let scrollContainer = $state<HTMLDivElement | undefined>(undefined)
 
@@ -930,6 +1078,8 @@
           <ChevronLeft size={16} />
           Back to list
         </button>
+        <MobileMailActions actions={mobileActions} />
+        <div class="hidden md:contents">
         {#if role === 'archive' || role === 'trash'}
           <button
             type="button"
@@ -1001,29 +1151,7 @@
         >
           <Share2 size={16} />
         </button>
-        {#if lastMessage}
-          <div class="md:hidden">
-            <ReplyActions
-              onReply={() => openReply(lastMessage)}
-              onReplyAll={() => openReplyAll(lastMessage)}
-              onAiReply={() => void generateReplyDraft(lastMessage)}
-              aiEnabled={page.data.hasOpenAiKey}
-              drafting={draftingReplyMessageId === lastMessage.id}
-              iconOnly
-            />
-          </div>
-          <div class="md:hidden">
-            <MarkActions
-              onMarkUnread={() => void markThreadUnread()}
-              onToggleStar={() => void toggleThreadMetadata('starred')}
-              onTogglePin={() => void toggleThreadMetadata('pinned')}
-              onSnooze={() => void snoozeThread()}
-              starred={threadMetadata.starred}
-              pinned={threadMetadata.pinned}
-              disabled={acting}
-            />
-          </div>
-        {/if}
+        </div>
       </div>
 
       <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
