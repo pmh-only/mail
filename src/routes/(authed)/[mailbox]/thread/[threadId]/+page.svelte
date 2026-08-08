@@ -1474,34 +1474,33 @@
               </div>
               {#if remoteContentBody.blockedCount > 0}
                 <div
-                  class="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100 backdrop-blur-xl"
+                  class="mb-3 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-100 backdrop-blur-xl"
                 >
-                  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p>
-                      {remoteContentBody.blockedCount} external resource{remoteContentBody.blockedCount ===
-                      1
-                        ? ''
-                        : 's'} blocked to protect your privacy.
-                    </p>
-                    <div class="flex flex-wrap gap-2">
+                  <p class="min-w-0 flex-1 truncate text-amber-100/80">
+                    <span class="font-semibold text-amber-100">Remote content blocked.</span>
+                    {remoteContentBody.blockedCount} external resource{remoteContentBody.blockedCount ===
+                    1
+                      ? ''
+                      : 's'} blocked to protect your privacy.
+                  </p>
+                  <div class="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      onclick={() => showRemoteContentIds.add(msg.id)}
+                      class="rounded-md border border-amber-300/20 bg-amber-300/10 px-2 py-1 text-xs font-medium text-amber-50 transition hover:bg-amber-300/20"
+                    >
+                      Show this time
+                    </button>
+                    {#if normalizeSenderAddress(msg.from)}
                       <button
                         type="button"
-                        onclick={() => showRemoteContentIds.add(msg.id)}
-                        class="rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-xs font-medium text-amber-50 transition hover:bg-amber-300/20"
+                        disabled={trustingRemoteSenderId !== null}
+                        onclick={() => void trustRemoteContentSender(msg)}
+                        class="rounded-md bg-amber-300 px-2 py-1 text-xs font-medium text-zinc-950 transition hover:bg-amber-200 disabled:opacity-60"
                       >
-                        Show this time
+                        {trustingRemoteSenderId === msg.id ? 'Saving...' : 'Always trust sender'}
                       </button>
-                      {#if normalizeSenderAddress(msg.from)}
-                        <button
-                          type="button"
-                          disabled={trustingRemoteSenderId !== null}
-                          onclick={() => void trustRemoteContentSender(msg)}
-                          class="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-medium text-zinc-950 transition hover:bg-amber-200 disabled:opacity-60"
-                        >
-                          {trustingRemoteSenderId === msg.id ? 'Saving...' : 'Always trust sender'}
-                        </button>
-                      {/if}
-                    </div>
+                    {/if}
                   </div>
                 </div>
               {/if}

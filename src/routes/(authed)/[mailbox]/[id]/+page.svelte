@@ -1595,32 +1595,29 @@
     {/if}
 
     {#if remoteContentBody.blockedCount > 0}
-      <section class="border-b border-amber-500/20 bg-amber-500/10 p-4 backdrop-blur-xl sm:p-5">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p class="text-sm font-semibold text-amber-100">Remote content blocked</p>
-            <p class="mt-1 text-sm text-amber-100/70">
-              {remoteContentBody.blockedCount} external resource{remoteContentBody.blockedCount ===
-              1
-                ? ''
-                : 's'} were blocked to protect your privacy.
-            </p>
-          </div>
-          <div class="flex flex-wrap gap-2">
+      <section class="border-b border-amber-500/20 bg-amber-500/10 px-3 py-2 backdrop-blur-xl sm:px-4">
+        <div class="flex items-center gap-2">
+          <p class="min-w-0 flex-1 truncate text-xs text-amber-100/80">
+            <span class="font-semibold text-amber-100">Remote content blocked.</span>
+            {remoteContentBody.blockedCount} external resource{remoteContentBody.blockedCount === 1
+              ? ''
+              : 's'} were blocked to protect your privacy.
+          </p>
+          <div class="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onclick={() => showRemoteContentIds.add(message.id)}
-              class="rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-sm font-medium text-amber-50 transition hover:bg-amber-300/20"
+              class="rounded-md border border-amber-300/20 bg-amber-300/10 px-2 py-1 text-xs font-medium text-amber-50 transition hover:bg-amber-300/20"
             >
               Show this time
             </button>
             {#if remoteContentSender}
               <button
-                type="button"
-                disabled={trustingRemoteSender}
-                onclick={() => void trustRemoteContentSender()}
-                class="rounded-lg bg-amber-300 px-3 py-1.5 text-sm font-medium text-zinc-950 transition hover:bg-amber-200 disabled:opacity-60"
-              >
+              type="button"
+              disabled={trustingRemoteSender}
+              onclick={() => void trustRemoteContentSender()}
+              class="rounded-md bg-amber-300 px-2 py-1 text-xs font-medium text-zinc-950 transition hover:bg-amber-200 disabled:opacity-60"
+            >
                 {trustingRemoteSender ? 'Saving...' : 'Always trust sender'}
               </button>
             {/if}
