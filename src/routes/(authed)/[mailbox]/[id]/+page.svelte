@@ -18,6 +18,7 @@
     X,
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
     Languages,
     Clock,
     Sparkles,
@@ -155,6 +156,7 @@
   let shareCopied = $state(false)
   let metadataOpen = $state(false)
   let rawSourceOpen = $state(false)
+  let headerDetailsExpanded = $state(false)
   let translating = $state(false)
   let draftingReply = $state(false)
   let translationText = $state<string | null>(null)
@@ -1461,54 +1463,71 @@
               <p class="truncate text-sm text-zinc-500">&lt;{senderAddress(message.from)}&gt;</p>
             {/if}
           </div>
-          <div class={messageMetaClass}>
-            {#if compactAddress(message.to)}
-              <p class="truncate">
-                <span class="mr-1 font-medium text-zinc-400">To</span>
-                <span>{compactAddress(message.to)}</span>
-              </p>
-            {/if}
-            {#if compactAddress(message.cc)}
-              <p class="truncate">
-                <span class="mr-1 font-medium text-zinc-400">Cc</span>
-                <span>{compactAddress(message.cc)}</span>
-              </p>
-            {/if}
-            {#if compactAddress(message.replyTo)}
-              <p class="truncate">
-                <span class="mr-1 font-medium text-zinc-400">Reply-To</span>
-                <span>{compactAddress(message.replyTo)}</span>
-              </p>
-            {/if}
-          </div>
+          <button
+            type="button"
+            onclick={() => (headerDetailsExpanded = !headerDetailsExpanded)}
+            aria-expanded={headerDetailsExpanded}
+            aria-controls="message-header-details"
+            class="mt-2 flex items-center gap-1 text-xs font-medium text-zinc-500 transition hover:text-zinc-200"
+          >
+            {headerDetailsExpanded ? 'Hide details' : 'Show details'}
+            <ChevronDown
+              size={14}
+              class="transition-transform {headerDetailsExpanded ? 'rotate-180' : ''}"
+            />
+          </button>
+          {#if headerDetailsExpanded}
+            <div id="message-header-details" class={messageMetaClass}>
+              {#if compactAddress(message.to)}
+                <p class="truncate">
+                  <span class="mr-1 font-medium text-zinc-400">To</span>
+                  <span>{compactAddress(message.to)}</span>
+                </p>
+              {/if}
+              {#if compactAddress(message.cc)}
+                <p class="truncate">
+                  <span class="mr-1 font-medium text-zinc-400">Cc</span>
+                  <span>{compactAddress(message.cc)}</span>
+                </p>
+              {/if}
+              {#if compactAddress(message.replyTo)}
+                <p class="truncate">
+                  <span class="mr-1 font-medium text-zinc-400">Reply-To</span>
+                  <span>{compactAddress(message.replyTo)}</span>
+                </p>
+              {/if}
+              <div class="flex flex-wrap items-center gap-1.5 pt-1">
+                <MailAuthenticationIndicators
+                  spfStatus={message.spfStatus}
+                  dkimStatus={message.dkimStatus}
+                  dmarcStatus={message.dmarcStatus}
+                  authenticationTrusted={message.authenticationTrusted}
+                />
+                {#if message.tracingCodeCount > 0}
+                  <div class="group relative inline-flex">
+                    <button
+                      type="button"
+                      class="inline-flex items-center rounded-full border border-rose-400/20 bg-rose-400/10 px-2 py-0.5 text-[10px] font-medium text-rose-300 uppercase"
+                      aria-describedby="tracing-code-tooltip"
+                    >
+                      Tracing code detected
+                    </button>
+                    <span
+                      id="tracing-code-tooltip"
+                      role="tooltip"
+                      class="pointer-events-none absolute top-full left-1/2 z-20 mt-2 hidden w-max max-w-64 -translate-x-1/2 rounded-md border border-white/10 bg-zinc-800 px-2 py-1 text-xs font-normal text-zinc-200 normal-case shadow-xl group-hover:block"
+                    >
+                      {message.tracingCodeCount} tracing code{message.tracingCodeCount === 1
+                        ? ''
+                        : 's'} found in this email's HTML content.
+                    </span>
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/if}
           <div class="mt-2">
             <div class="flex flex-wrap items-center gap-1.5">
-              <MailAuthenticationIndicators
-                spfStatus={message.spfStatus}
-                dkimStatus={message.dkimStatus}
-                dmarcStatus={message.dmarcStatus}
-                authenticationTrusted={message.authenticationTrusted}
-              />
-              {#if message.tracingCodeCount > 0}
-                <div class="group relative inline-flex">
-                  <button
-                    type="button"
-                    class="inline-flex items-center rounded-full border border-rose-400/20 bg-rose-400/10 px-2 py-0.5 text-[10px] font-medium text-rose-300 uppercase"
-                    aria-describedby="tracing-code-tooltip"
-                  >
-                    Tracing code detected
-                  </button>
-                  <span
-                    id="tracing-code-tooltip"
-                    role="tooltip"
-                    class="pointer-events-none absolute top-full left-1/2 z-20 mt-2 hidden w-max max-w-64 -translate-x-1/2 rounded-md border border-white/10 bg-zinc-800 px-2 py-1 text-xs font-normal text-zinc-200 normal-case shadow-xl group-hover:block"
-                  >
-                    {message.tracingCodeCount} tracing code{message.tracingCodeCount === 1
-                      ? ''
-                      : 's'} found in this email's HTML content.
-                  </span>
-                </div>
-              {/if}
               <OpenPgpIndicator
                 signed={message.openPgpSigned}
                 signatureStatus={message.openPgpSignatureStatus}
