@@ -1438,7 +1438,22 @@
         </div>
       </div>
 
-      <MobileMailActions actions={mobileActions} />
+      <div class="flex items-center gap-1 md:hidden">
+        <button
+          type="button"
+          onclick={() => (headerDetailsExpanded = !headerDetailsExpanded)}
+          aria-label={headerDetailsExpanded ? 'Hide details' : 'Show details'}
+          aria-expanded={headerDetailsExpanded}
+          aria-controls="message-header-details"
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+        >
+          <ChevronDown
+            size={16}
+            class="transition-transform {headerDetailsExpanded ? 'rotate-180' : ''}"
+          />
+        </button>
+        <MobileMailActions actions={mobileActions} />
+      </div>
       <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
         <ReplyActions
           onReply={() => openReply(message)}
@@ -1491,7 +1506,7 @@
     </div>
   </div>
 
-  <div class={messageHeaderClass}>
+  <div class={[messageHeaderClass, !headerDetailsExpanded && 'hidden md:block'].join(' ')}>
     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div class="flex min-w-0 gap-3">
         <div
@@ -1517,10 +1532,11 @@
           </div>
           <button
             type="button"
+            aria-label={headerDetailsExpanded ? 'Hide details' : 'Show details'}
             onclick={() => (headerDetailsExpanded = !headerDetailsExpanded)}
             aria-expanded={headerDetailsExpanded}
             aria-controls="message-header-details"
-            class="mt-2 flex items-center gap-1 text-xs font-medium text-zinc-500 transition hover:text-zinc-200"
+            class="mt-2 hidden items-center gap-1 text-xs font-medium text-zinc-500 transition hover:text-zinc-200 md:flex"
           >
             {headerDetailsExpanded ? 'Hide details' : 'Show details'}
             <ChevronDown
@@ -1529,7 +1545,7 @@
             />
           </button>
           {#if headerDetailsExpanded}
-            <div id="message-header-details" class={messageMetaClass}>
+            <div id="message-header-details" class="{messageMetaClass} px-2 md:px-0">
               {#if compactAddress(message.to)}
                 <p class="truncate">
                   <span class="mr-1 font-medium text-zinc-400">To</span>
