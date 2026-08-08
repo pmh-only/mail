@@ -1,6 +1,8 @@
 <script lang="ts">
   import { ChevronDown, Reply, ReplyAll, Sparkles } from 'lucide-svelte'
   import { dismissOnOutside } from '$lib/dismiss-on-outside'
+  import { shouldOpenPopoverAbove } from '$lib/popover'
+  import { tick } from 'svelte'
 
   let {
     onReply,
@@ -19,6 +21,25 @@
   } = $props()
 
   let open = $state(false)
+  let openAbove = $state(false)
+  let buttonElement = $state<HTMLButtonElement>()
+  let menuElement = $state<HTMLDivElement>()
+
+  function toggleMenu() {
+    if (open) {
+      open = false
+      return
+    }
+
+    openAbove = false
+    open = true
+    void tick().then(() => {
+      if (!open || !buttonElement || !menuElement) return
+      const buttonRect = buttonElement.getBoundingClientRect()
+      const menuRect = menuElement.getBoundingClientRect()
+      openAbove = shouldOpenPopoverAbove(buttonRect, menuRect.height, window.innerHeight)
+    })
+  }
 
   function select(action: () => void) {
     open = false
@@ -31,11 +52,12 @@
   use:dismissOnOutside={{ enabled: open, onDismiss: () => (open = false) }}
 >
   <button
+    bind:this={buttonElement}
     type="button"
     aria-label="Reply options"
     aria-haspopup="menu"
     aria-expanded={open}
-    onclick={() => (open = !open)}
+    onclick={toggleMenu}
     onkeydown={(event) => event.key === 'Escape' && (open = false)}
     class={[
       'flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8',
@@ -48,9 +70,14 @@
   </button>
   {#if open}
     <div
+      bind:this={menuElement}
       role="menu"
       aria-label="Reply options"
-      class="app-popover absolute top-full right-0 z-[100] mt-1 min-w-40 rounded-lg border border-white/10 p-1 shadow-xl"
+      class={[
+        'app-popover absolute z-[100] min-w-40 rounded-lg border border-white/10 p-1 shadow-xl',
+        openAbove ? 'bottom-full mb-1' : 'top-full mt-1',
+        iconOnly ? 'right-0' : 'left-0'
+      ]}
     >
       <button
         type="button"

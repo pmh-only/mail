@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ChevronDown, Check } from 'lucide-svelte'
   import { dismissOnOutside } from '$lib/dismiss-on-outside'
+  import { shouldOpenPopoverAbove } from '$lib/popover'
   import { tick } from 'svelte'
 
   export type SelectValue = string | number
@@ -65,9 +66,7 @@
       if (!buttonEl || !menuEl) return
       const buttonRect = buttonEl.getBoundingClientRect()
       const menuRect = menuEl.getBoundingClientRect()
-      const roomAbove = buttonRect.top - 8
-      const roomBelow = window.innerHeight - buttonRect.bottom - 8
-      openAbove = roomBelow < menuRect.height && roomAbove > roomBelow
+      openAbove = shouldOpenPopoverAbove(buttonRect, menuRect.height, window.innerHeight)
     })
   }
 
