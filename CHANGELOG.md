@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/pmh-only/mail/compare/v1.3.0...v1.4.0) (2026-08-08)
+
+
+### Features
+
+* **mail:** consolidate mobile reader actions ([a743ae6](https://github.com/pmh-only/mail/commit/a743ae61e744095b3eb1f3772b02f759ce6caae3))
+* **mail:** refine mobile reader headers ([8e08d21](https://github.com/pmh-only/mail/commit/8e08d213ac532151505b353ee639d69b076bffe8))
+
+
+### Bug Fixes
+
+* **mail:** align mobile actions to right ([bad6739](https://github.com/pmh-only/mail/commit/bad67398d46f8d1f7ad4b7434351c47089a0abcf))
+* **mail:** move details toggle into mobile toolbar ([61eb9d3](https://github.com/pmh-only/mail/commit/61eb9d300f93ef59fd402febedee093fb89c2f7c))
+
 ## [1.3.0](https://github.com/pmh-only/mail/compare/v1.2.0...v1.3.0) (2026-08-08)
 
 
