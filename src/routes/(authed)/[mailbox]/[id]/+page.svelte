@@ -1269,7 +1269,11 @@
   onscroll={handleMessageScroll}
 >
   <div
-    class={[messageToolbarClass, 'sticky top-0 z-30'].join(' ')}
+    class={[
+      messageToolbarClass,
+      'sticky top-0 z-30',
+      messageContentScrolled && 'bg-[#101116]/70 backdrop-blur-xl'
+    ].join(' ')}
     role="presentation"
     onmouseenter={() => (messageToolbarHovered = true)}
     onmouseleave={() => (messageToolbarHovered = false)}
