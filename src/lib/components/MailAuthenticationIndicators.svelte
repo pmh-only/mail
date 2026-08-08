@@ -10,6 +10,7 @@
     dmarcStatus?: string | null
     authenticationTrusted?: boolean
     compact?: boolean
+    showDkim?: boolean
   }
 
   let {
@@ -17,12 +18,13 @@
     dkimStatus = null,
     dmarcStatus = null,
     authenticationTrusted = false,
-    compact = false
+    compact = false,
+    showDkim = true
   }: Props = $props()
 
   const checks = $derived([
     { label: 'SPF', status: spfStatus },
-    { label: 'DKIM', status: dkimStatus },
+    ...(showDkim ? [{ label: 'DKIM', status: dkimStatus }] : []),
     { label: 'DMARC', status: dmarcStatus }
   ])
   const summary = $derived(mailAuthenticationSummary(checks.map((check) => check.status)))

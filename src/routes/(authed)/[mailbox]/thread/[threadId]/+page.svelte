@@ -3,24 +3,13 @@
     Archive,
     Trash2,
     ShieldAlert,
-    Mail,
-    Reply,
-    ReplyAll,
     ChevronDown,
     ChevronLeft,
     Paperclip,
     Download,
     FileImage,
-    FileText,
-    ListChecks,
-    Sparkles,
     X,
-    Clock,
-    Ban,
-    Star,
-    Pin,
     StickyNote,
-    Code2,
     Share2,
     Copy,
     Check,
@@ -33,7 +22,9 @@
   import ActionModal from '$lib/components/ActionModal.svelte'
   import ErrorDialog from '$lib/components/ErrorDialog.svelte'
   import AttachmentSummary from '$lib/components/AttachmentSummary.svelte'
-  import MailAuthenticationIndicators from '$lib/components/MailAuthenticationIndicators.svelte'
+  import MarkActions from '$lib/components/MarkActions.svelte'
+  import ReplyActions from '$lib/components/ReplyActions.svelte'
+  import ThreadAiActions from '$lib/components/ThreadAiActions.svelte'
   import OpenPgpIndicator from '$lib/components/OpenPgpIndicator.svelte'
   import RawMessageDialog from '$lib/components/RawMessageDialog.svelte'
   import SendStatusIndicator from '$lib/components/SendStatusIndicator.svelte'
@@ -427,41 +418,6 @@
       await gotoMailbox()
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to snooze thread.')
-    } finally {
-      acting = false
-    }
-  }
-
-  async function blockSender(msg: Message) {
-    if (acting || !msg.from) return
-    acting = true
-    try {
-      const response = await fetch('/api/sender-rules', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ type: 'block', sender: msg.from })
-      })
-
-      if (!response.ok) {
-        throw new Error(await readErrorMessage(response, 'Failed to block sender.'))
-      }
-
-      const ids = messages.filter((m) => data.mailboxPaths.includes(m.mailbox)).map((m) => m.id)
-      const trashResponse = await fetch('/api/messages/bulk', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ids, action: 'trash', mailbox: data.mailbox, threaded: true })
-      })
-
-      if (!trashResponse.ok) {
-        throw new Error(await readErrorMessage(trashResponse, 'Sender blocked, but trash failed.'))
-      }
-
-      notifyMailboxStateChanged('thread-action:block-sender')
-      toast('Sender blocked and thread moved to trash')
-      await gotoMailbox()
-    } catch (error) {
-      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to block sender.')
     } finally {
       acting = false
     }
@@ -1028,87 +984,13 @@
             <ShieldAlert size={16} />
           </button>
         {/if}
-        <button
-          type="button"
-          aria-label="Mark thread unread"
-          title="Mark thread unread"
-          disabled={acting}
-          onclick={() => markThreadUnread()}
-          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
-        >
-          <Mail size={16} />
-        </button>
-        {#if lastMessage}
-          <button
-            type="button"
-            aria-label="Block sender"
-            title="Block sender"
-            disabled={acting || !lastMessage.from}
-            onclick={() => blockSender(lastMessage)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
-          >
-            <Ban size={16} />
-          </button>
-        {/if}
-        <button
-          type="button"
-          aria-label={threadMetadata.starred ? 'Unstar thread' : 'Star thread'}
-          title={threadMetadata.starred ? 'Unstar thread' : 'Star thread'}
-          disabled={acting}
-          onclick={() => toggleThreadMetadata('starred')}
-          class={[
-            'rounded-lg border border-transparent bg-white/3 p-2 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8',
-            threadMetadata.starred ? 'text-amber-300' : 'text-zinc-400 hover:text-zinc-200'
-          ]}
-        >
-          <Star size={16} fill={threadMetadata.starred ? 'currentColor' : 'none'} />
-        </button>
-        <button
-          type="button"
-          aria-label={threadMetadata.pinned ? 'Unpin thread' : 'Pin thread'}
-          title={threadMetadata.pinned ? 'Unpin thread' : 'Pin thread'}
-          disabled={acting}
-          onclick={() => toggleThreadMetadata('pinned')}
-          class={[
-            'rounded-lg border border-transparent bg-white/3 p-2 transition hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8',
-            threadMetadata.pinned ? 'text-sky-300' : 'text-zinc-400 hover:text-zinc-200'
-          ]}
-        >
-          <Pin size={16} fill={threadMetadata.pinned ? 'currentColor' : 'none'} />
-        </button>
         {#if page.data.hasOpenAiKey}
-          <button
-            type="button"
-            aria-label="Summarize thread"
-            title="Summarize thread"
-            disabled={summarizingThread}
-            onclick={() => summarizeThread()}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
-          >
-            <Sparkles size={16} class={summarizingThread ? 'animate-pulse' : ''} />
-          </button>
-        {/if}
-        <button
-          type="button"
-          aria-label="Snooze thread"
-          title="Snooze thread"
-          disabled={acting}
-          onclick={() => snoozeThread()}
-          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
-        >
-          <Clock size={16} />
-        </button>
-        {#if page.data.hasOpenAiKey}
-          <button
-            type="button"
-            aria-label="Extract thread actions"
-            title="Extract thread actions"
-            disabled={extractingThreadActions}
-            onclick={() => extractThreadActions()}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-emerald-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
-          >
-            <ListChecks size={16} class={extractingThreadActions ? 'animate-pulse' : ''} />
-          </button>
+          <ThreadAiActions
+            onSummarize={() => void summarizeThread()}
+            onExtractActions={() => void extractThreadActions()}
+            summarizing={summarizingThread}
+            extracting={extractingThreadActions}
+          />
         {/if}
         <button
           type="button"
@@ -1119,84 +1001,50 @@
         >
           <Share2 size={16} />
         </button>
-        <span
-          class={[
-            'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs',
-            hasSavedNote
-              ? 'border-amber-300/20 bg-amber-400/10 text-amber-200'
-              : 'border-white/8 bg-white/3 text-zinc-500'
-          ].join(' ')}
-          title={hasSavedNote ? 'Thread has a private note' : 'No private note yet'}
-        >
-          <StickyNote size={13} />
-          Note
-        </span>
         {#if lastMessage}
-          <button
-            type="button"
-            aria-label="Reply"
-            onclick={() => openReply(lastMessage)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
-          >
-            <Reply size={16} />
-          </button>
-          <button
-            type="button"
-            aria-label="Reply all"
-            onclick={() => openReplyAll(lastMessage)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:hidden"
-          >
-            <ReplyAll size={16} />
-          </button>
-          {#if page.data.hasOpenAiKey}
-            <button
-              type="button"
-              aria-label="Draft reply with AI"
-              disabled={draftingReplyMessageId !== null}
-              onclick={() => void generateReplyDraft(lastMessage)}
-              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:hidden"
-            >
-              <Sparkles
-                size={16}
-                class={draftingReplyMessageId === lastMessage.id ? 'animate-pulse' : ''}
-              />
-            </button>
-          {/if}
+          <div class="md:hidden">
+            <ReplyActions
+              onReply={() => openReply(lastMessage)}
+              onReplyAll={() => openReplyAll(lastMessage)}
+              onAiReply={() => void generateReplyDraft(lastMessage)}
+              aiEnabled={page.data.hasOpenAiKey}
+              drafting={draftingReplyMessageId === lastMessage.id}
+              iconOnly
+            />
+          </div>
+          <div class="md:hidden">
+            <MarkActions
+              onMarkUnread={() => void markThreadUnread()}
+              onToggleStar={() => void toggleThreadMetadata('starred')}
+              onTogglePin={() => void toggleThreadMetadata('pinned')}
+              onSnooze={() => void snoozeThread()}
+              starred={threadMetadata.starred}
+              pinned={threadMetadata.pinned}
+              disabled={acting}
+            />
+          </div>
         {/if}
       </div>
 
       <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
         {#if lastMessage}
-          <button
-            type="button"
-            aria-label="Reply"
-            onclick={() => openReply(lastMessage)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
-          >
-            <Reply size={16} />
-          </button>
-          <button
-            type="button"
-            aria-label="Reply all"
-            onclick={() => openReplyAll(lastMessage)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
-          >
-            <ReplyAll size={16} />
-          </button>
-          {#if page.data.hasOpenAiKey}
-            <button
-              type="button"
-              aria-label="Draft reply with AI"
-              disabled={draftingReplyMessageId !== null}
-              onclick={() => void generateReplyDraft(lastMessage)}
-              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
-            >
-              <Sparkles
-                size={16}
-                class={draftingReplyMessageId === lastMessage.id ? 'animate-pulse' : ''}
-              />
-            </button>
-          {/if}
+          <ReplyActions
+            onReply={() => openReply(lastMessage)}
+            onReplyAll={() => openReplyAll(lastMessage)}
+            onAiReply={() => void generateReplyDraft(lastMessage)}
+            aiEnabled={page.data.hasOpenAiKey}
+            drafting={draftingReplyMessageId === lastMessage.id}
+            iconOnly
+          />
+          <MarkActions
+            onMarkUnread={() => void markThreadUnread()}
+            onToggleStar={() => void toggleThreadMetadata('starred')}
+            onTogglePin={() => void toggleThreadMetadata('pinned')}
+            onSnooze={() => void snoozeThread()}
+            starred={threadMetadata.starred}
+            pinned={threadMetadata.pinned}
+            disabled={acting}
+          />
         {/if}
       </div>
     </div>
@@ -1285,49 +1133,6 @@
         {/if}
       </div>
     {/if}
-    <div class="mt-3 rounded-lg border border-white/8 bg-white/[0.03] p-3">
-      <div class="flex flex-wrap items-center justify-between gap-2 {notesExpanded ? 'mb-2' : ''}">
-        <button
-          type="button"
-          onclick={toggleNotesCollapsed}
-          aria-expanded={notesExpanded}
-          class="flex items-center gap-2 rounded-md text-left transition hover:text-zinc-200 disabled:cursor-default disabled:hover:text-inherit"
-          disabled={noteDirty}
-          title={noteDirty ? 'Save or clear changes before collapsing notes' : undefined}
-        >
-          <StickyNote size={14} class={hasSavedNote ? 'text-amber-300' : 'text-zinc-500'} />
-          <p class="text-xs font-medium tracking-wide text-zinc-400 uppercase">Private Notes</p>
-          <ChevronDown
-            size={13}
-            class="text-zinc-600 transition-transform {notesExpanded ? 'rotate-180' : ''}"
-          />
-        </button>
-        <div class="flex items-center gap-2">
-          {#if savedNoteUpdatedAt && !noteDirty}
-            <p class="text-xs text-zinc-500">Saved {formatFullDate(savedNoteUpdatedAt)}</p>
-          {:else if noteDirty}
-            <p class="text-xs text-amber-300">Unsaved changes</p>
-          {/if}
-          <button
-            type="button"
-            disabled={savingNote || !noteDirty}
-            onclick={() => saveNote()}
-            class="rounded-lg bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-100 transition hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {savingNote ? 'Saving...' : noteDraft.trim() ? 'Save note' : 'Clear note'}
-          </button>
-        </div>
-      </div>
-      {#if notesExpanded}
-        <textarea
-          bind:value={noteDraft}
-          rows="3"
-          maxlength="10000"
-          placeholder="Add a private note for this thread. It stays in this mail app and is never sent."
-          class="w-full resize-y rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm leading-6 text-zinc-200 transition outline-none placeholder:text-zinc-600 backdrop-blur-xl focus:border-amber-300/40 focus:ring-2 focus:ring-amber-300/10"
-        ></textarea>
-      {/if}
-    </div>
   </div>
 
   <!-- Thread messages accordion -->
@@ -1397,27 +1202,6 @@
                 <Paperclip size={13} class="text-zinc-500" />
               {/if}
               <span class="text-xs text-zinc-500">{formatFullDate(msg.receivedAt)}</span>
-              <button
-                type="button"
-                aria-label="View metadata"
-                onclick={() => (metadataMessage = msg)}
-                class="rounded-lg p-1.5 text-zinc-500 transition hover:bg-white/6 hover:text-zinc-200"
-              >
-                <FileText size={14} />
-              </button>
-              <button
-                type="button"
-                aria-label="View raw message"
-                title={msg.rawSourceAvailable ? 'View raw message' : 'Raw source unavailable'}
-                disabled={!msg.rawSourceAvailable}
-                onclick={(event) => {
-                  event.stopPropagation()
-                  rawMessage = msg
-                }}
-                class="rounded-lg p-1.5 text-zinc-500 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-35"
-              >
-                <Code2 size={14} />
-              </button>
               <ChevronDown
                 size={14}
                 class="text-zinc-600 transition-transform {isExpanded ? 'rotate-180' : ''}"
@@ -1453,13 +1237,6 @@
               {/if}
               <div class="mb-3">
                 <div class="flex flex-wrap gap-2">
-                  <MailAuthenticationIndicators
-                    spfStatus={msg.spfStatus}
-                    dkimStatus={msg.dkimStatus}
-                    dmarcStatus={msg.dmarcStatus}
-                    authenticationTrusted={msg.authenticationTrusted}
-                    compact
-                  />
                   <OpenPgpIndicator
                     signed={msg.openPgpSigned}
                     signatureStatus={msg.openPgpSignatureStatus}
@@ -1537,7 +1314,7 @@
                       <div
                         class="flex max-w-full flex-col rounded-lg border border-transparent bg-white/3 px-3 py-2 md:border-white/8"
                       >
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
                           {#if isImage(att.contentType)}
                             <FileImage size={14} class="shrink-0 text-zinc-400" />
                           {:else}
@@ -1558,17 +1335,17 @@
                               </span>
                             {/if}
                           </div>
+                          <AttachmentSummary attachment={att} compact iconOnly />
                           <a
                             href={resolve(`/api/attachments/${att.id}`)}
                             download={att.filename || 'attachment'}
                             onclick={(event) => confirmHighRiskDownload(event, att)}
-                            class="ml-1 shrink-0 text-zinc-500 transition hover:text-zinc-300"
+                            class="shrink-0 text-zinc-500 transition hover:text-zinc-300"
                             aria-label="Download {att.filename}"
                           >
                             <Download size={14} />
                           </a>
                         </div>
-                        <AttachmentSummary attachment={att} compact />
                       </div>
                     {/each}
                   </div>
@@ -1577,39 +1354,89 @@
 
               <!-- Per-message reply -->
               <div class="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onclick={() => openReply(msg)}
-                  class="flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
-                >
-                  <Reply size={13} /> Reply
-                </button>
-                <button
-                  type="button"
-                  onclick={() => openReplyAll(msg)}
-                  class="flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
-                >
-                  <ReplyAll size={13} /> Reply all
-                </button>
-                {#if page.data.hasOpenAiKey}
-                  <button
-                    type="button"
-                    disabled={draftingReplyMessageId !== null}
-                    onclick={() => void generateReplyDraft(msg)}
-                    class="flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
-                  >
-                    <Sparkles
-                      size={13}
-                      class={draftingReplyMessageId === msg.id ? 'animate-pulse' : ''}
-                    />
-                    {draftingReplyMessageId === msg.id ? 'Drafting...' : 'AI draft'}
-                  </button>
-                {/if}
+                <ReplyActions
+                  onReply={() => openReply(msg)}
+                  onReplyAll={() => openReplyAll(msg)}
+                  onAiReply={() => void generateReplyDraft(msg)}
+                  aiEnabled={page.data.hasOpenAiKey}
+                  drafting={draftingReplyMessageId === msg.id}
+                />
               </div>
             </div>
           {/if}
         </div>
       {/each}
+
+      <div
+        class={[
+          'rounded-2xl bg-white/2 transition-colors md:rounded-none md:bg-transparent',
+          notesExpanded ? 'bg-white/4 md:bg-white/2' : 'hover:bg-white/4 md:hover:bg-white/2'
+        ].join(' ')}
+      >
+        <div class="flex w-full items-center gap-3 px-4 py-3 text-left sm:px-5">
+          <div
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-zinc-400"
+          >
+            <StickyNote size={14} class={hasSavedNote ? 'text-amber-300' : 'text-zinc-500'} />
+          </div>
+
+          <button
+            type="button"
+            onclick={toggleNotesCollapsed}
+            aria-expanded={notesExpanded}
+            disabled={noteDirty}
+            title={noteDirty ? 'Save or clear changes before collapsing notes' : undefined}
+            class="min-w-0 flex-1 text-left disabled:cursor-default"
+          >
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="truncate text-sm font-medium text-zinc-300">Private note</span>
+                <span class="truncate text-xs text-zinc-500">Only visible to you</span>
+              </div>
+              {#if !notesExpanded}
+                <p class="mt-0.5 truncate text-xs text-zinc-500">
+                  {savedNoteBody || 'Add a private note to this thread'}
+                </p>
+              {/if}
+            </div>
+          </button>
+
+          <div class="flex shrink-0 items-center gap-1.5">
+            {#if noteDirty}
+              <span class="text-xs text-amber-300">Unsaved</span>
+            {:else if savedNoteUpdatedAt}
+              <span class="text-xs text-zinc-500">{formatFullDate(savedNoteUpdatedAt)}</span>
+            {/if}
+            <ChevronDown
+              size={14}
+              class="text-zinc-600 transition-transform {notesExpanded ? 'rotate-180' : ''}"
+            />
+          </div>
+        </div>
+
+        {#if notesExpanded}
+          <div class="px-4 pb-4 sm:px-5">
+            <textarea
+              bind:value={noteDraft}
+              rows="4"
+              maxlength="10000"
+              placeholder="Add a private note for this thread. It stays in this mail app and is never sent."
+              class="w-full resize-y rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm leading-6 text-zinc-200 transition outline-none placeholder:text-zinc-600 backdrop-blur-xl focus:border-amber-300/40 focus:ring-2 focus:ring-amber-300/10"
+            ></textarea>
+            <div class="mt-3 flex items-center justify-between gap-3">
+              <p class="text-xs text-zinc-500">Private to this mail app and never sent.</p>
+              <button
+                type="button"
+                disabled={savingNote || !noteDirty}
+                onclick={() => saveNote()}
+                class="rounded-lg bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-100 transition hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {savingNote ? 'Saving...' : noteDraft.trim() ? 'Save note' : 'Clear note'}
+              </button>
+            </div>
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 </div>

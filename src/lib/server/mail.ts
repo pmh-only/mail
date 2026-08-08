@@ -264,6 +264,7 @@ export type MailListRow = {
 // Joined row returned by detail queries
 export type MailRow = MailListRow & {
   contentId?: number
+  threadKey?: string
   textContent: string
   htmlContent: string | null
   replyTo: string | null
@@ -2352,6 +2353,7 @@ function noPendingMoveCondition() {
 const detailSelect = {
   ...listSelect,
   contentId: mailMessage.id,
+  threadKey: mailMessage.threadKey,
   textContent: mailMessage.textContent,
   htmlContent: mailMessage.htmlContent,
   replyTo: mailMessage.replyTo,

@@ -3,6 +3,7 @@ import type { PageServerLoad } from './$types'
 import {
   countSharedMessageReads,
   getStoredMessageById,
+  getThreadMetadata,
   getMailboxRole,
   resolveMailboxScope
 } from '$lib/server/mail'
@@ -20,9 +21,11 @@ function serializeMessage(
   seen = false
 ) {
   const flags = JSON.parse(message.flags) as string[]
+  const threadKey = message.threadKey || message.messageId
 
   return {
     id: message.id,
+    threadKey,
     uid: message.uid,
     messageId: message.messageId,
     mailbox: message.mailbox,
@@ -67,6 +70,7 @@ export const load: PageServerLoad = async ({ params }) => {
   if (!message || (!scope.paths.includes(message.mailbox) && Number(params.id) > 0)) {
     error(404, 'Message not found')
   }
+  const threadKey = message.threadKey || message.messageId
 
   // Load attachment metadata (no content blobs — served via /api/attachments/[id])
   const attachments = isDemoModeEnabled()
@@ -81,10 +85,17 @@ export const load: PageServerLoad = async ({ params }) => {
         .from(mailAttachment)
         .where(eq(mailAttachment.mailMessageId, message.contentId!))
 
-  const preferences = await getStoredPreferences()
+  const [preferences, metadata] = await Promise.all([
+    getStoredPreferences(),
+    Promise.all(scope.paths.map((path) => getThreadMetadata(path, threadKey))).then((rows) => ({
+      starred: rows.some((row) => row.starred),
+      pinned: rows.some((row) => row.pinned)
+    }))
+  ])
   const shareReadCount = await countSharedMessageReads(message.messageId)
   const body = {
     message: serializeMessage(message),
+    metadata,
     mailboxRole: getMailboxRole(message.mailbox),
     density: preferences.density,
     shareClickAction: preferences.shareClickAction,

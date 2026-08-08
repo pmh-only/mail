@@ -3,13 +3,9 @@
     Archive,
     Trash2,
     ShieldAlert,
-    Reply,
-    ReplyAll,
     Forward,
     Share2,
     Check,
-    Info,
-    Mail,
     Paperclip,
     Download,
     FileText,
@@ -20,10 +16,7 @@
     ChevronRight,
     ChevronDown,
     Languages,
-    Clock,
-    Sparkles,
     WifiOff,
-    Code2
   } from 'lucide-svelte'
   import { goto } from '$app/navigation'
   import { resolve } from '$app/paths'
@@ -31,6 +24,8 @@
   import ActionModal from '$lib/components/ActionModal.svelte'
   import ErrorDialog from '$lib/components/ErrorDialog.svelte'
   import AttachmentSummary from '$lib/components/AttachmentSummary.svelte'
+  import MarkActions from '$lib/components/MarkActions.svelte'
+  import ReplyActions from '$lib/components/ReplyActions.svelte'
   import MailAuthenticationIndicators from '$lib/components/MailAuthenticationIndicators.svelte'
   import OpenPgpIndicator from '$lib/components/OpenPgpIndicator.svelte'
   import RawMessageDialog from '$lib/components/RawMessageDialog.svelte'
@@ -43,6 +38,7 @@
   import { openReply, openReplyAll, openForward } from '$lib/composer.svelte'
   import { setupKeyboardHandler } from '$lib/keyboard.svelte'
   import { notifyMailboxStateChanged } from '$lib/mailbox-state'
+  import { encodeThreadId } from '$lib/thread-url'
   import { sendStatusLabel } from '$lib/send-status'
   import {
     normalizeAllowedSenders,
@@ -60,6 +56,7 @@
 
   type Message = {
     id: number
+    threadKey: string
     uid: number
     messageId: string
     mailbox: string
@@ -104,6 +101,7 @@
   type Props = {
     data: {
       message: Message
+      metadata: { starred: boolean; pinned: boolean }
       composedMailbox: { id: number; name: string; slug: string; mailboxPaths: string[] } | null
       mailboxRole: 'inbox' | 'archive' | 'trash' | 'spam' | null
       attachments: Attachment[]
@@ -159,6 +157,7 @@
   let headerDetailsExpanded = $state(false)
   let translating = $state(false)
   let draftingReply = $state(false)
+  let threadMetadata = $state({ starred: false, pinned: false })
   let translationText = $state<string | null>(null)
   let translatedHtmlSegments = $state<string[] | null>(null)
   let errorDialogMessage = $state<string | null>(null)
@@ -298,6 +297,10 @@
 
   $effect(() => {
     allowedRemoteSenders = data.remoteContent.allowedSenders
+  })
+
+  $effect(() => {
+    threadMetadata = data.metadata
   })
 
   $effect(() => {
@@ -462,6 +465,44 @@
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to mark message unread.')
     } finally {
       acting = false
+    }
+  }
+
+  async function toggleThreadMetadata(field: 'starred' | 'pinned') {
+    if (acting) return
+    const nextValue = !threadMetadata[field]
+    threadMetadata = { ...threadMetadata, [field]: nextValue }
+
+    try {
+      const response = await fetch(
+        resolve(`/api/threads/${encodeThreadId(data.message.threadKey)}/metadata`),
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ mailbox: page.params.mailbox, [field]: nextValue })
+        }
+      )
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response, 'Failed to update thread metadata.'))
+      }
+
+      const payload = (await response.json()) as {
+        metadata: { starred: boolean; pinned: boolean }
+      }
+      threadMetadata = payload.metadata
+      notifyMailboxStateChanged('thread-metadata')
+      toast(
+        field === 'starred'
+          ? nextValue
+            ? 'Thread starred'
+            : 'Thread unstarred'
+          : nextValue
+            ? 'Thread pinned'
+            : 'Thread unpinned'
+      )
+    } catch (error) {
+      threadMetadata = { ...threadMetadata, [field]: !nextValue }
+      errorDialogMessage = errorMessageFromUnknown(error, 'Failed to update thread metadata.')
     }
   }
 
@@ -1189,44 +1230,30 @@
             <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Delete </span>
           </div>
         {/if}
-        <div class="group relative inline-flex md:hidden">
-          <button
-            type="button"
-            aria-label="Reply"
-            onclick={() => openReply(message)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
-          >
-            <Reply size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Reply </span>
+        <div class="md:hidden">
+          <ReplyActions
+            onReply={() => openReply(message)}
+            onReplyAll={() => openReplyAll(message)}
+            onAiReply={() => void generateReplyDraft()}
+            aiEnabled={page.data.hasOpenAiKey}
+            drafting={draftingReply}
+            iconOnly
+          />
         </div>
-        <div class="group relative inline-flex md:hidden">
-          <button
-            type="button"
-            aria-label="Reply all"
-            onclick={() => openReplyAll(message)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
-          >
-            <ReplyAll size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Reply all </span>
+        <div class="md:hidden">
+          <MarkActions
+            onMarkUnread={() => void markUnread()}
+            onToggleStar={() => void toggleThreadMetadata('starred')}
+            onTogglePin={() => void toggleThreadMetadata('pinned')}
+            onSnooze={() => void snoozeMessage()}
+            onViewRaw={() => (rawSourceOpen = true)}
+            onViewMetadata={() => (metadataOpen = true)}
+            rawSourceAvailable={message.rawSourceAvailable}
+            starred={threadMetadata.starred}
+            pinned={threadMetadata.pinned}
+            disabled={acting}
+          />
         </div>
-        {#if page.data.hasOpenAiKey}
-          <div class="group relative inline-flex md:hidden">
-            <button
-              type="button"
-              aria-label="Draft reply with AI"
-              disabled={draftingReply}
-              onclick={() => void generateReplyDraft()}
-              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60"
-            >
-              <Sparkles size={16} class={draftingReply ? 'animate-pulse' : ''} />
-            </button>
-            <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
-              AI reply draft
-            </span>
-          </div>
-        {/if}
         <div class="group relative inline-flex md:hidden">
           <button
             type="button"
@@ -1237,31 +1264,6 @@
             <Forward size={16} />
           </button>
           <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Forward </span>
-        </div>
-        <div class="group relative inline-flex md:hidden">
-          <button
-            type="button"
-            aria-label="View metadata"
-            onclick={() => (metadataOpen = true)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
-          >
-            <Info size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Metadata </span>
-        </div>
-        <div class="group relative inline-flex md:hidden">
-          <button
-            type="button"
-            aria-label="View raw message"
-            disabled={!message.rawSourceAvailable}
-            onclick={() => (rawSourceOpen = true)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-35"
-          >
-            <Code2 size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
-            {message.rawSourceAvailable ? 'View raw' : 'Raw unavailable'}
-          </span>
         </div>
         {#if page.data.hasOpenAiKey}
           <div class="group relative inline-flex md:hidden">
@@ -1298,32 +1300,6 @@
         <div class="group relative inline-flex">
           <button
             type="button"
-            aria-label="Mark unread"
-            disabled={acting}
-            onclick={() => void markUnread()}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
-          >
-            <Mail size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
-            Mark unread
-          </span>
-        </div>
-        <div class="group relative inline-flex">
-          <button
-            type="button"
-            aria-label="Snooze"
-            disabled={acting}
-            onclick={() => void snoozeMessage()}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 md:border-white/8"
-          >
-            <Clock size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Snooze </span>
-        </div>
-        <div class="group relative inline-flex">
-          <button
-            type="button"
             aria-label={`${shareCopied ? 'Copied. ' : ''}Share. ${data.shareReadCount} shared email${data.shareReadCount === 1 ? '' : 's'} read`}
             disabled={sharing}
             onclick={(event) => void shareMessage(event.shiftKey)}
@@ -1345,44 +1321,14 @@
       </div>
 
       <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
-        <div class="group relative">
-          <button
-            type="button"
-            aria-label="Reply"
-            onclick={() => openReply(message)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
-          >
-            <Reply size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Reply </span>
-        </div>
-        <div class="group relative">
-          <button
-            type="button"
-            aria-label="Reply all"
-            onclick={() => openReplyAll(message)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
-          >
-            <ReplyAll size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left"> Reply all </span>
-        </div>
-        {#if page.data.hasOpenAiKey}
-          <div class="group relative">
-            <button
-              type="button"
-              aria-label="Draft reply with AI"
-              disabled={draftingReply}
-              onclick={() => void generateReplyDraft()}
-              class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-sky-300 disabled:cursor-wait disabled:opacity-60 md:border-white/8"
-            >
-              <Sparkles size={16} class={draftingReply ? 'animate-pulse' : ''} />
-            </button>
-            <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-left">
-              AI reply draft
-            </span>
-          </div>
-        {/if}
+        <ReplyActions
+          onReply={() => openReply(message)}
+          onReplyAll={() => openReplyAll(message)}
+          onAiReply={() => void generateReplyDraft()}
+          aiEnabled={page.data.hasOpenAiKey}
+          drafting={draftingReply}
+          iconOnly
+        />
         <div class="group relative">
           <button
             type="button"
@@ -1393,31 +1339,6 @@
             <Forward size={16} />
           </button>
           <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-right"> Forward </span>
-        </div>
-        <div class="group relative">
-          <button
-            type="button"
-            aria-label="View metadata"
-            onclick={() => (metadataOpen = true)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 md:border-white/8"
-          >
-            <Info size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-right"> Metadata </span>
-        </div>
-        <div class="group relative">
-          <button
-            type="button"
-            aria-label="View raw message"
-            disabled={!message.rawSourceAvailable}
-            onclick={() => (rawSourceOpen = true)}
-            class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-35 md:border-white/8"
-          >
-            <Code2 size={16} />
-          </button>
-          <span role="tooltip" class="mail-toolbox-label mail-toolbox-label-right">
-            {message.rawSourceAvailable ? 'View raw' : 'Raw unavailable'}
-          </span>
         </div>
         {#if page.data.hasOpenAiKey}
           <div class="group relative">
@@ -1435,6 +1356,18 @@
             </span>
           </div>
         {/if}
+        <MarkActions
+          onMarkUnread={() => void markUnread()}
+          onToggleStar={() => void toggleThreadMetadata('starred')}
+          onTogglePin={() => void toggleThreadMetadata('pinned')}
+          onSnooze={() => void snoozeMessage()}
+          onViewRaw={() => (rawSourceOpen = true)}
+          onViewMetadata={() => (metadataOpen = true)}
+          rawSourceAvailable={message.rawSourceAvailable}
+          starred={threadMetadata.starred}
+          pinned={threadMetadata.pinned}
+          disabled={acting}
+        />
       </div>
     </div>
   </div>
