@@ -1078,7 +1078,6 @@
           <ChevronLeft size={16} />
           Back to list
         </button>
-        <MobileMailActions actions={mobileActions} />
         <div class="hidden md:contents">
         {#if role === 'archive' || role === 'trash'}
           <button
@@ -1154,6 +1153,7 @@
         </div>
       </div>
 
+      <MobileMailActions actions={mobileActions} />
       <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
         {#if lastMessage}
           <ReplyActions
