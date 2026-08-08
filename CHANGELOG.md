@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0](https://github.com/pmh-only/mail/compare/v1.2.0...v1.3.0) (2026-08-08)
+
+
+### Features
+
+* **mail:** collapse message header details ([5653b22](https://github.com/pmh-only/mail/commit/5653b224e7081da4209f6584e6d3bc3297d6e747))
+* **mail:** compact remote content warnings ([6efe1eb](https://github.com/pmh-only/mail/commit/6efe1eb369ba122353fb3c6aad8e7bd18b7e635f))
+* **mail:** streamline message reader actions ([7617d58](https://github.com/pmh-only/mail/commit/7617d58c8ed7a139e7bae14c600c181fd5baa98d))
+
+
+### Bug Fixes
+
+* **mail:** preserve reader scroll behavior ([5e52368](https://github.com/pmh-only/mail/commit/5e523689afd7c5502b24dcc2c39f02052316f2d9))
+* **thread:** keep reply menu within viewport ([d10fe3a](https://github.com/pmh-only/mail/commit/d10fe3adc4db8c7440d394a0caa482f556b5b162))
+* **ui:** correct overlay behavior and theming ([d80c693](https://github.com/pmh-only/mail/commit/d80c6938e0a19510841e65e31428a0f0ee0cc982))
+
 ## [1.2.0](https://github.com/pmh-only/mail/compare/v1.1.1...v1.2.0) (2026-08-07)
 
 
