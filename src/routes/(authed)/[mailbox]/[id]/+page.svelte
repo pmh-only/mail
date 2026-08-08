@@ -134,11 +134,17 @@
 
   const role = $derived(data.mailboxRole)
   const density = $derived(data.density ?? 'comfortable')
+  const backMailboxLabel = $derived(data.composedMailbox?.name ?? data.message.mailbox)
   const translationTargetLanguage = $derived(data.translationTargetLanguage || 'Korean')
   const messageHeaderClass = $derived(
     density === 'condensed'
-      ? 'mail-content-header p-3 sm:p-4 md:border-b md:border-white/8'
-      : 'mail-content-header p-4 sm:p-5 md:border-b md:border-white/8'
+      ? 'mail-content-header p-2 sm:p-3 md:border-b md:border-white/8 md:p-4'
+      : 'mail-content-header p-3 sm:p-4 md:border-b md:border-white/8 md:p-5'
+  )
+  const messageToolbarClass = $derived(
+    density === 'condensed'
+      ? 'mail-content-header p-2 md:border-b md:border-white/8 md:p-4'
+      : 'mail-content-header p-2 md:border-b md:border-white/8 md:p-5'
   )
   const messageMetaClass = $derived(
     density === 'condensed'
@@ -1263,7 +1269,7 @@
   onscroll={handleMessageScroll}
 >
   <div
-    class={[messageHeaderClass, 'sticky top-0 z-30'].join(' ')}
+    class={[messageToolbarClass, 'sticky top-0 z-30'].join(' ')}
     role="presentation"
     onmouseenter={() => (messageToolbarHovered = true)}
     onmouseleave={() => (messageToolbarHovered = false)}
@@ -1306,10 +1312,10 @@
       <button
         type="button"
         onclick={() => gotoMailbox()}
-        class="inline-flex items-center gap-2 rounded-lg border border-transparent bg-white/3 px-3 py-2 text-sm text-zinc-200 transition hover:bg-white/6 md:hidden"
+        class="inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-2 py-1.5 text-xs text-zinc-200 transition hover:bg-white/6 md:hidden"
       >
         <ChevronLeft size={16} />
-        Back to list
+        Back to {backMailboxLabel}
       </button>
     {/if}
     <div
@@ -1323,10 +1329,10 @@
         <button
           type="button"
           onclick={() => gotoMailbox()}
-          class="inline-flex items-center gap-2 rounded-lg border border-transparent bg-white/3 px-3 py-2 text-sm text-zinc-200 transition hover:bg-white/6 md:hidden"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-2 py-1.5 text-xs text-zinc-200 transition hover:bg-white/6 md:hidden"
         >
           <ChevronLeft size={16} />
-          Back to list
+          Back to {backMailboxLabel}
         </button>
         <div class="hidden md:contents">
         {#if role === 'archive'}
@@ -1507,24 +1513,24 @@
   </div>
 
   <div class={[messageHeaderClass, !headerDetailsExpanded && 'hidden md:block'].join(' ')}>
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div class="flex min-w-0 gap-3">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <div class="flex min-w-0 gap-2 sm:gap-3">
         <div
-          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/8 text-sm font-semibold text-zinc-200"
+          class="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/8 text-sm font-semibold text-zinc-200 md:flex"
         >
           {senderInitials(message.from)}
         </div>
 
         <div class="min-w-0">
-          <div class="flex min-w-0 items-center gap-2">
-            <h2 class="truncate text-xl font-semibold text-white">
+          <div class="hidden min-w-0 items-center gap-2 md:flex">
+            <h2 class="truncate text-lg font-semibold text-white sm:text-xl">
               {subjectLabel(message.subject)}
             </h2>
             {#if sendStatus}
               <SendStatusIndicator status={sendStatus} {openedAt} />
             {/if}
           </div>
-          <div class="mt-1 flex min-w-0 items-center gap-2">
+          <div class="mt-1 hidden min-w-0 items-center gap-2 md:flex">
             <p class="truncate text-sm font-medium text-zinc-200">{senderName(message.from)}</p>
             {#if senderAddress(message.from)}
               <p class="truncate text-sm text-zinc-500">&lt;{senderAddress(message.from)}&gt;</p>
@@ -1532,8 +1538,8 @@
           </div>
           <button
             type="button"
-            aria-label={headerDetailsExpanded ? 'Hide details' : 'Show details'}
             onclick={() => (headerDetailsExpanded = !headerDetailsExpanded)}
+            aria-label={headerDetailsExpanded ? 'Hide details' : 'Show details'}
             aria-expanded={headerDetailsExpanded}
             aria-controls="message-header-details"
             class="mt-2 hidden items-center gap-1 text-xs font-medium text-zinc-500 transition hover:text-zinc-200 md:flex"

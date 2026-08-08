@@ -394,6 +394,24 @@
       imapMailboxes.find((candidate) => pathToSlug(candidate.path) === mailbox)?.name ??
       'Mail'
   )
+  const mobileReaderHeader = $derived.by(() => {
+    const readerRoute =
+      page.route.id === '/(authed)/[mailbox]/[id]' ||
+      page.route.id === '/(authed)/[mailbox]/thread/[threadId]'
+    if (!readerRoute) return null
+
+    const readerData = page.data as {
+      message?: { subject: string | null; from: string | null }
+      messages?: { subject: string | null; from: string | null }[]
+    }
+    const latestMessage = readerData.messages?.[readerData.messages.length - 1]
+    const subject = readerData.message?.subject ?? readerData.messages?.[0]?.subject
+    const from = readerData.message?.from ?? latestMessage?.from
+    return {
+      title: subject?.trim() || '(no subject)',
+      subtitle: from?.trim() || 'Unknown sender'
+    }
+  })
   const utilityNavActive = $derived(
     page.url.pathname.startsWith('/settings') ||
       ['/contacts', '/operations', '/audit-log', '/manual', '/api-docs'].includes(page.url.pathname)
@@ -1797,8 +1815,12 @@
         </button>
 
         <div class="min-w-0 flex-1">
-          <p class="truncate text-sm font-medium text-white">{activeMailboxLabel}</p>
-          {#if sync}
+          <p class="truncate text-sm font-medium text-white">
+            {mobileReaderHeader?.title ?? activeMailboxLabel}
+          </p>
+          {#if mobileReaderHeader}
+            <p class="truncate text-xs text-zinc-500">{mobileReaderHeader.subtitle}</p>
+          {:else if sync}
             <p class="truncate text-xs text-zinc-500">
               {#if !sync.configured}
                 Mail not configured

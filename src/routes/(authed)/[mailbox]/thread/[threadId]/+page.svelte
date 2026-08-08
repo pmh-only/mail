@@ -141,6 +141,7 @@
   let liveOpenedAtByJob = $state<Record<number, string>>({})
   const attachments = $derived(data.attachments)
   const role = $derived(data.mailboxRole)
+  const backMailboxLabel = $derived(data.composedMailbox?.name ?? data.mailbox)
   const subject = $derived(messages[0]?.subject ?? '(no subject)')
   const defaultExpandedId = $derived(
     messages.reduce<Message | null>(
@@ -1067,16 +1068,16 @@
 
 <div class="flex h-full flex-col overflow-hidden">
   <!-- Thread header -->
-  <div class="p-4 sm:p-5 md:border-b md:border-white/8">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+  <div class="p-2 sm:p-3 md:border-b md:border-white/8 md:p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2 md:gap-3">
       <div class="flex flex-wrap items-center gap-1">
         <button
           type="button"
           onclick={() => gotoMailbox()}
-          class="inline-flex items-center gap-2 rounded-lg border border-transparent bg-white/3 px-3 py-2 text-sm text-zinc-200 transition hover:bg-white/6 md:hidden"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-white/3 px-2 py-1.5 text-xs text-zinc-200 transition hover:bg-white/6 md:hidden"
         >
           <ChevronLeft size={16} />
-          Back to list
+          Back to {backMailboxLabel}
         </button>
         <div class="hidden md:contents">
         {#if role === 'archive' || role === 'trash'}
@@ -1177,13 +1178,13 @@
       </div>
     </div>
 
-    <div class="mt-3 flex min-w-0 items-center gap-2">
-      <h1 class="truncate text-lg font-semibold text-white">{subject}</h1>
+    <div class="mt-3 hidden min-w-0 items-center gap-2 md:flex">
+      <h1 class="truncate text-base font-semibold text-white md:text-lg">{subject}</h1>
       {#if lastMessage.sendStatus}
         <SendStatusIndicator status={lastMessage.sendStatus} openedAt={openedAtFor(lastMessage)} />
       {/if}
     </div>
-    <p class="mt-0.5 text-sm text-zinc-500">
+    <p class="mt-0.5 hidden text-sm text-zinc-500 md:block">
       {messages.length} message{messages.length === 1 ? '' : 's'}
     </p>
     {#if activeAiPanel || threadSummary !== null || threadActions !== null}
