@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0](https://github.com/pmh-only/mail/compare/v1.4.0...v1.5.0) (2026-08-09)
+
+
+### Features
+
+* **demo:** add long-form sample mail ([ea8e2ef](https://github.com/pmh-only/mail/commit/ea8e2efba46ded7de434c72b42b8b1509dcc00f9))
+
+
+### Bug Fixes
+
+* **mail:** streamline mobile reader actions ([75a679c](https://github.com/pmh-only/mail/commit/75a679ca5725b045748bec247c24a9fd9a25714b))
+* **mail:** style scrolled reader toolbar ([78fbe5e](https://github.com/pmh-only/mail/commit/78fbe5e50067d6b90304a5082f6678559ee4d6bd))
+
 ## [1.4.0](https://github.com/pmh-only/mail/compare/v1.3.0...v1.4.0) (2026-08-08)
 
 
