@@ -17,9 +17,6 @@
     ChevronDown,
     Languages,
     WifiOff,
-    Reply,
-    ReplyAll,
-    Sparkles,
     Mail,
     Star,
     Pin,
@@ -252,36 +249,6 @@
       )
     }
 
-    actions.push(
-      {
-        label: 'Reply',
-        icon: Reply,
-        onSelect: () => openReply(message),
-        group: 'respond'
-      },
-      {
-        label: 'Reply all',
-        icon: ReplyAll,
-        onSelect: () => openReplyAll(message),
-        group: 'respond'
-      }
-    )
-    if (page.data.hasOpenAiKey) {
-      actions.push({
-        label: draftingReply ? 'Drafting...' : 'AI reply draft',
-        icon: Sparkles,
-        iconClass: draftingReply ? 'animate-pulse text-sky-300' : 'text-sky-300',
-        onSelect: () => void generateReplyDraft(),
-        disabled: draftingReply,
-        group: 'respond'
-      })
-    }
-    actions.push({
-      label: 'Forward',
-      icon: Forward,
-      onSelect: () => openForward(message),
-      group: 'respond'
-    })
     if (page.data.hasOpenAiKey) {
       actions.push({
         label: translating ? 'Translating...' : 'Translate message',
@@ -289,7 +256,7 @@
         iconClass: translating ? 'animate-pulse text-sky-300' : '',
         onSelect: () => void translateMessage(),
         disabled: translating,
-        group: 'respond'
+        group: 'ai'
       })
     }
 
@@ -1462,6 +1429,22 @@
             class="transition-transform {headerDetailsExpanded ? 'rotate-180' : ''}"
           />
         </button>
+        <button
+          type="button"
+          aria-label="Forward"
+          onclick={() => openForward(message)}
+          class="rounded-lg border border-transparent bg-white/3 p-2 text-zinc-400 transition hover:bg-white/6 hover:text-zinc-200"
+        >
+          <Forward size={16} />
+        </button>
+        <ReplyActions
+          onReply={() => openReply(message)}
+          onReplyAll={() => openReplyAll(message)}
+          onAiReply={() => void generateReplyDraft()}
+          aiEnabled={page.data.hasOpenAiKey}
+          drafting={draftingReply}
+          iconOnly
+        />
         <MobileMailActions actions={mobileActions} />
       </div>
       <div class="hidden flex-wrap items-center gap-1 md:flex md:justify-end">
