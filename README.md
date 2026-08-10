@@ -30,6 +30,13 @@ The demo runs with preloaded data and resets automatically, so you can explore t
 - Simple and Modern design
 - Fast, SSR-first
 
+## Documentation
+
+Installation, configuration, deployment, authentication, and development guides are available in
+the [project documentation](https://pmh-only.github.io/mail/).
+
+Run `pnpm docs:dev` to browse the documentation locally.
+
 ## Inspired by
 
 - [Proton Mail](https://proton.me/mail)

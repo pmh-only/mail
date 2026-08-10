@@ -1,0 +1,49 @@
+:root {
+  --vp-c-brand-1: #2563eb;
+  --vp-c-brand-2: #3b82f6;
+  --vp-c-brand-3: #60a5fa;
+  --vp-c-brand-soft: rgb(37 99 235 / 14%);
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #2563eb 20%, #67e8f9 85%);
+}
+
+.dark {
+  --vp-c-bg: #0d0d10;
+  --vp-c-bg-alt: #121217;
+  --vp-c-bg-elv: #18181d;
+  --vp-c-bg-soft: #18181d;
+}
+
+.VPHome .VPHero .text {
+  max-width: 720px;
+}
+
+.screenshot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.screenshot-grid a {
+  overflow: hidden;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 14px;
+  background: var(--vp-c-bg-soft);
+}
+
+.screenshot-grid img {
+  display: block;
+  width: 100%;
+  transition: transform 180ms ease;
+}
+
+.screenshot-grid a:hover img {
+  transform: scale(1.015);
+}
+
+@media (max-width: 640px) {
+  .screenshot-grid {
+    grid-template-columns: 1fr;
+  }
+}

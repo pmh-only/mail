@@ -10,6 +10,8 @@ node_modules
 /build-worker
 /coverage
 /data
+/docs/.vitepress/cache
+/docs/.vitepress/dist
 
 # OS
 .DS_Store
