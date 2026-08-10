@@ -13,6 +13,9 @@ hero:
       text: Deploy mail
       link: /operations/deployment
     - theme: alt
+      text: Explore features
+      link: /features/
+    - theme: alt
       text: Try the demo
       link: https://maildemo.pmh.codes/
 
@@ -38,8 +41,9 @@ application and HTTP APIs. The **worker process** owns mailbox synchronization, 
 cleanup, and other background jobs. Both processes share PostgreSQL and the same configuration
 secrets.
 
-Start with the [getting started guide](/guide/getting-started), or review the
-[architecture](/reference/architecture) before planning a production deployment.
+Start with the [getting started guide](/guide/getting-started), browse the
+[feature pages](/features/), or review the [architecture](/reference/architecture) before planning a
+production deployment.
 
 ## Screenshots
 

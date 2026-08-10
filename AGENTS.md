@@ -97,6 +97,7 @@ All commits must follow the Conventional Commits format and include a brief desc
 For the braking changes including api change or require full mailbox re-sync must include `!` mark like `feat(something)!:`
 Use only `fix`, `feat`, `docs` and `chore`. Always include scope in commit message.
 
+Before committing, agents must update the documentation for every new feature and every change to an existing feature.
 Before committing, formatting, linting, tests, coverage checks, type checks, and builds must succeed.
 Coverage must stay at 100% for statements, branches, functions, and lines; the `pre-commit` hook fails below that.
 

@@ -3,13 +3,13 @@
 A production deployment needs PostgreSQL plus two application processes built from the same mail
 release.
 
-```text
-browser -> reverse proxy -> web process -> PostgreSQL
-                                  ^
-                                  |
-IMAP/SMTP providers <- worker process
-                         |
-                         +-------------> PostgreSQL
+```mermaid
+flowchart LR
+  browser["Browser"] --> proxy["Reverse proxy"]
+  proxy --> web["Web process<br/>SvelteKit + APIs"]
+  web <--> database[(PostgreSQL)]
+  worker["Worker process<br/>Sync + background jobs"] <--> database
+  worker <--> providers["IMAP / SMTP providers"]
 ```
 
 The web process serves SvelteKit and queues background operations. The worker synchronizes IMAP,

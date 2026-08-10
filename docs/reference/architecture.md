@@ -5,22 +5,12 @@ shared between both entry points rather than implemented in either process.
 
 ## Runtime topology
 
-```text
-                         +----------------------+
-browser / API client --->| web: server.js       |
-                         | SvelteKit + auth      |
-                         +----------+-----------+
-                                    |
-                                    v
-                              +-----------+
-                              | PostgreSQL|
-                              +-----------+
-                                    ^
-                                    |
-                         +----------+-----------+
-IMAP and SMTP servers <--| worker: worker.js    |
-                         | sync + background jobs|
-                         +----------------------+
+```mermaid
+flowchart LR
+  client["Browser / API client"] <--> web["Web process<br/>server.js<br/>SvelteKit + auth"]
+  web <--> database[(PostgreSQL)]
+  worker["Worker process<br/>worker.js<br/>Sync + background jobs"] <--> database
+  worker <--> providers["IMAP / SMTP providers"]
 ```
 
 The processes can run on different hosts as long as they share PostgreSQL, compatible environment

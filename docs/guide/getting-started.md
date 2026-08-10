@@ -67,5 +67,8 @@ Demo data resets whenever the web process restarts. The external API is disabled
 
 - Review [authentication](/guide/authentication) before exposing the application publicly.
 - Add and troubleshoot [mail accounts](/guide/mail-accounts).
-- Read the complete [configuration reference](/reference/configuration).
+- Browse the [feature guide](/features/) for user-facing capabilities and their exact Settings or
+  environment requirements.
+- Read the [configuration reference](/reference/configuration) for core process settings and
+  precedence.
 - Follow the [deployment guide](/operations/deployment) for containers, persistence, and backups.

@@ -15,6 +15,19 @@ Authorization: Bearer pmail_your_api_key
 API keys belong to the single owner and have read and send access. Store keys as secrets and revoke
 unused keys from Settings. The external API is unavailable in demo mode.
 
+## Configuration
+
+| Item              | Setting name                                                 | Environment variable                                             | Requirement                                                                   |
+| ----------------- | ------------------------------------------------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Client credential | `Settings > API Keys > Key name` and `Create key`            | None                                                             | Required. Copy the `pmail_` key when issued; it is shown once.                |
+| Public base URL   | None                                                         | `ORIGIN`                                                         | Required for canonical examples and clients connecting from outside the host. |
+| API availability  | None                                                         | `DEMO_MODE`                                                      | Must be unset or `false`; the external API is disabled in demo mode.          |
+| Read operations   | `Settings > IMAP > Host`, `Username / Email`, and `Password` | `IMAP_HOST`, `IMAP_USER`, and `IMAP_PASSWORD`, or `IMAP_SERVERS` | Synchronized mail is required for useful read results.                        |
+| Send operations   | `Settings > SMTP > Host`, `Username / Email`, and `Password` | `SMTP_HOST`, `SMTP_USER`, and `SMTP_PASSWORD`, or `SMTP_SERVERS` | A complete SMTP sender and running worker are required.                       |
+
+There is no separate environment variable for an API key. Keys are generated in Settings, stored as
+scrypt hashes, and can be revoked individually.
+
 ## REST API
 
 The REST base URL is `<ORIGIN>/api/external/v1`. Available operations include:
