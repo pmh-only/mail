@@ -115,7 +115,7 @@ export function markdownToHtml(markdown: string) {
         output.push(`<${nextType}>`)
         listType = nextType
       }
-      output.push(`<li><p>${inlineMarkdownToHtml((unordered ?? ordered)?.[1] ?? '')}</p></li>`)
+      output.push(`<li><p>${inlineMarkdownToHtml((unordered ?? ordered)![1])}</p></li>`)
       continue
     }
 

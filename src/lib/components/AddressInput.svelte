@@ -1,5 +1,6 @@
 <script lang="ts">
   import { X } from 'lucide-svelte'
+  import { onDestroy } from 'svelte'
   import { parseRecipientList, splitRecipientList } from '$lib/recipients'
 
   type Contact = { name: string; email: string; display: string; type?: 'contact' }
@@ -32,6 +33,10 @@
   const listboxId = $derived(id ? `${id}-listbox` : undefined)
   const invalidPills = $derived(parseRecipientList(value).filter((recipient) => !recipient.valid))
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+  onDestroy(() => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+  })
 
   // Sync `value` → pills on mount and when value changes externally
   $effect(() => {

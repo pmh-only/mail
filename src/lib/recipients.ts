@@ -164,8 +164,8 @@ export function validateRecipientFields(fields: Record<RecipientField, string | 
 
   const typoWarnings = allValid
     .map((recipient) => {
-      const domain = recipient.email.split('@')[1]?.toLowerCase()
-      const suggestion = domain ? COMMON_TYPO_DOMAINS.get(domain) : undefined
+      const domain = recipient.email.split('@')[1]!.toLowerCase()
+      const suggestion = COMMON_TYPO_DOMAINS.get(domain)
       return suggestion ? `${recipient.email} (did you mean ${suggestion}?)` : null
     })
     .filter((warning): warning is string => warning !== null)
