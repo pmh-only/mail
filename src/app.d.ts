@@ -8,6 +8,7 @@ declare global {
       user?: User
       session?: Session
       apiKey?: { id: string; userId: string }
+      rostackPrincipalId?: string
     }
 
     // interface Error {}

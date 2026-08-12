@@ -54,3 +54,24 @@ The production Node server also provides a WebSocket extension at
 Prefer HTTP or SSE for clients that expect standard MCP transports.
 
 Requests are rate limited. A limited client should honor HTTP `429` and the `Retry-After` header.
+
+## rostack_v1
+
+The application implements the `rostack_v1` release dated `2026-08-13`. Start at
+`GET /.well-known/rostack`; discovery advertises the read-only `mailbox-entries` resource, its JSON
+Schemas, filters, pagination limits, and the WebSocket gateway.
+
+Use an existing API key as a provisioned shared token:
+
+```http
+Authorization: Rostack-Token pmail_your_api_key
+```
+
+Collection snapshots include an `event_cursor`. Connect to `/api/rostack/v1/events` with the
+`rostack.v1` WebSocket subprotocol, authenticate in the first message, and subscribe from that
+cursor. The gateway supports JSON and compact JSON events, replay after reconnect, application
+ping/pong, idempotent subscription IDs, and graceful draining. Event delivery is at least once, so
+clients must deduplicate by `event_id` and persist each cursor only after processing its event.
+
+Mailbox-entry events retain seven days of history. An unavailable cursor must be recovered by
+fetching a new complete collection snapshot and subscribing from its `event_cursor`.

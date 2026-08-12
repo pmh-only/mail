@@ -10,7 +10,7 @@ import { runMigrations } from '$lib/server/db'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
 import { getDemoAuthSession, isDemoModeEnabled } from '$lib/server/demo'
 import { claimAuthUser, getAuthUserId } from '$lib/server/auth-owner'
-import { bearerApiKey, verifyApiKey } from '$lib/server/api-keys'
+import { bearerApiKey, rostackApiKey, verifyApiKey } from '$lib/server/api-keys'
 import { checkApiRateLimit, checkApiSendRateLimit } from '$lib/server/api-rate-limit'
 
 let startupPromise = Promise.resolve()
@@ -47,10 +47,19 @@ const SETUP_PATHS = ['/setup']
 const EXACT_PUBLIC_PATHS = new Set(['/login', '/setup', '/api-docs'])
 const PUBLIC_PATH_PREFIXES = ['/api/auth', '/share', '/attachments']
 const EXTERNAL_API_PREFIX = '/api/external/v1'
+const ROSTACK_API_PREFIX = '/api/rostack/v1'
 const EMAIL_TRACKING_PREFIX = '/email-open/'
 
 function isExternalApiPath(path: string) {
   return path === EXTERNAL_API_PREFIX || path.startsWith(`${EXTERNAL_API_PREFIX}/`)
+}
+
+function isRostackPublicPath(path: string) {
+  return path === '/.well-known/rostack' || path.startsWith(`${ROSTACK_API_PREFIX}/schemas/`)
+}
+
+function isRostackApiPath(path: string) {
+  return path === ROSTACK_API_PREFIX || path.startsWith(`${ROSTACK_API_PREFIX}/`)
 }
 
 function isPublicPath(path: string) {
@@ -73,7 +82,7 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
   const path = event.url.pathname
 
   if (isDemoModeEnabled()) {
-    if (isExternalApiPath(path)) {
+    if (isExternalApiPath(path) || isRostackApiPath(path)) {
       return new Response(JSON.stringify({ error: 'External API is disabled in demo mode' }), {
         status: 503,
         headers: { 'content-type': 'application/json' }
@@ -98,6 +107,47 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
   }
 
   const auth = await getAuth()
+
+  if (isRostackPublicPath(path)) return resolve(event)
+
+  if (isRostackApiPath(path)) {
+    const rawKey = rostackApiKey(event.request.headers)
+    const principal = rawKey ? await verifyApiKey(rawKey) : null
+    const ownerId = principal ? await getAuthUserId() : null
+    if (!principal || !ownerId || principal.userId !== ownerId) {
+      return new Response(
+        JSON.stringify({
+          type: 'https://spec.pmh.codes/problems/authentication-required',
+          title: 'Authentication required',
+          status: 401
+        }),
+        {
+          status: 401,
+          headers: {
+            'content-type': 'application/problem+json',
+            'www-authenticate': 'Rostack-Token realm="mail-rostack"'
+          }
+        }
+      )
+    }
+    event.locals.user = principal.user
+    event.locals.apiKey = { id: principal.id, userId: principal.userId }
+    event.locals.rostackPrincipalId = principal.id
+    if (!checkApiRateLimit(principal.id)) {
+      return new Response(
+        JSON.stringify({
+          type: 'https://spec.pmh.codes/problems/rate-limit',
+          title: 'API rate limit exceeded',
+          status: 429
+        }),
+        {
+          status: 429,
+          headers: { 'content-type': 'application/problem+json', 'retry-after': '60' }
+        }
+      )
+    }
+    return resolve(event)
+  }
 
   if (isExternalApiPath(path)) {
     const rawKey = bearerApiKey(event.request.headers)

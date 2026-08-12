@@ -29,6 +29,7 @@ import {
   waitForSmtpOperations
 } from './lib/server/smtp-worker'
 import { cleanupStalePublicAttachments } from './lib/server/public-attachments'
+import { cleanupRostackState } from './lib/server/rostack'
 
 const WORKER_TICK_MS = 1_000
 const HEARTBEAT_MS = 30_000
@@ -38,6 +39,7 @@ let lastHeartbeatAt = 0
 let lastSyncAttemptAt = 0
 let lastBackfillAt = 0
 let lastAttachmentCleanupAt = 0
+let lastRostackCleanupAt = 0
 let syncRequested = false
 const dirtyMailboxes = new Map<string, Set<string>>()
 const workerActions = new Map<string, Promise<void>>()
@@ -89,6 +91,12 @@ async function maybeCleanupPublicAttachments() {
   await purgeOrphanedMessages()
 }
 
+async function maybeCleanupRostackState() {
+  if (Date.now() - lastRostackCleanupAt < 60 * 60 * 1000) return
+  lastRostackCleanupAt = Date.now()
+  await cleanupRostackState()
+}
+
 function tick() {
   if (stopping) return
   startWorkerAction('heartbeat', heartbeat)
@@ -99,6 +107,7 @@ function tick() {
   startWorkerAction('mailbox sync', maybeRunSync)
   startWorkerAction('importance classification', maybeClassifyPendingMailFromWorker)
   startWorkerAction('public attachment cleanup', maybeCleanupPublicAttachments)
+  startWorkerAction('rostack state cleanup', maybeCleanupRostackState)
   maybeRunBackfills()
 }
 

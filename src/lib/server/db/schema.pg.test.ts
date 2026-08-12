@@ -17,6 +17,8 @@ const tableColumns = {
   smtpJob: ['id', 'payload', 'rawMessage', 'trackingToken', 'placeholderActive'],
   mailMessage: ['id', 'configId', 'messageId', 'threadKey', 'orphanedAt'],
   mailMessageMailbox: ['id', 'mailMessageId', 'mailbox', 'uid', 'rawSource'],
+  rostackEvent: ['cursor', 'eventId', 'resource', 'eventType', 'resourceId'],
+  rostackSnapshotPage: ['cursor', 'query', 'items', 'eventCursor', 'expiresAt'],
   mailThreadSummary: ['mailbox', 'threadKey', 'representativeMailboxEntryId', 'latestUid'],
   mailThreadMetadata: ['id', 'mailbox', 'threadKey', 'starred', 'pinned'],
   mailThreadNote: ['threadKey', 'body', 'updatedAt'],

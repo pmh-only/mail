@@ -335,6 +335,38 @@ export const mailMessageMailbox = pgTable(
   ]
 )
 
+export const rostackEvent = pgTable(
+  'rostack_event',
+  {
+    cursor: bigint('cursor', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    eventId: text('event_id').notNull(),
+    resource: text('resource').notNull(),
+    eventType: text('event_type').notNull(),
+    resourceId: text('resource_id').notNull(),
+    resourceVersion: text('resource_version').notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull()
+  },
+  (table) => [
+    uniqueIndex('rostack_event_event_id_idx').on(table.eventId),
+    index('rostack_event_resource_cursor_idx').on(table.resource, table.cursor)
+  ]
+)
+
+export const rostackSnapshotPage = pgTable(
+  'rostack_snapshot_page',
+  {
+    cursor: text('cursor').primaryKey(),
+    query: text('query').notNull(),
+    items: jsonb('items').$type<Record<string, unknown>[]>().notNull(),
+    nextCursor: text('next_cursor'),
+    eventCursor: text('event_cursor').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull()
+  },
+  (table) => [index('rostack_snapshot_page_expires_at_idx').on(table.expiresAt)]
+)
+
 export const mailThreadSummary = pgTable(
   'mail_thread_summary',
   {

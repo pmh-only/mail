@@ -4,6 +4,7 @@ import {
   API_KEY_PREFIX,
   apiKeyPrefix,
   bearerApiKey,
+  rostackApiKey,
   generateApiKeyValue,
   hashApiKey,
   verifyApiKeyHash
@@ -11,7 +12,7 @@ import {
 import { db } from './db'
 import { mailApiKey, user } from './db/schema'
 
-export { bearerApiKey }
+export { bearerApiKey, rostackApiKey }
 
 function serializeApiKey(row: typeof mailApiKey.$inferSelect) {
   return {
