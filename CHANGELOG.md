@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/pmh-only/mail/compare/v2.0.0...v2.1.0) (2026-08-13)
+
+
+### Features
+
+* **rostack:** expose concrete mail resources ([d7c2c21](https://github.com/pmh-only/mail/commit/d7c2c210a46273b107655d85928de3b80a6cea30))
+
 ## [2.0.0](https://github.com/pmh-only/mail/compare/v1.5.0...v2.0.0) (2026-08-13)
 
 
