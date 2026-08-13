@@ -138,6 +138,10 @@ test('advertises the shared-token mailbox entry API and schemas', () => {
   assert.equal(discovery.endpoints.websocket, 'wss://mail.example/api/rostack/v1/events')
   assert.equal(discovery.authentication.methods[0].http_authorization_scheme, 'Rostack-Token')
   assert.equal(discovery.resources[0].name, 'mailbox-entries')
+  assert.deepEqual(
+    discovery.resources.map((resource) => resource.name),
+    ['mailbox-entries', 'messages', 'threads', 'mailboxes', 'contacts', 'attachments', 'send-jobs']
+  )
   assert.equal(discovery.resources[0].events.length, 3)
   assert.ok(discovery.errors.http.length > 0)
   assert.ok(discovery.errors.websocket.length > 0)

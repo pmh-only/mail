@@ -20,39 +20,18 @@ import { db } from './db'
 import { mailMessage, mailMessageMailbox, rostackEvent, rostackSnapshotPage } from './db/schema'
 import { getExternalMessage } from './external-mail'
 import { ROSTACK_API_VERSION, ROSTACK_MAX_PAGE_SIZE, ROSTACK_RESOURCE } from './rostack-constants'
+import { RostackError, type RostackProblemCode } from './rostack-error'
+import { concreteResourceDiscovery } from './rostack-resources'
 
-export { ROSTACK_API_VERSION, ROSTACK_MAX_PAGE_SIZE, ROSTACK_RESOURCE }
+export {
+  ROSTACK_API_VERSION,
+  ROSTACK_MAX_PAGE_SIZE,
+  ROSTACK_RESOURCE,
+  RostackError,
+  type RostackProblemCode
+}
 const SNAPSHOT_TTL_MS = 15 * 60 * 1000
 const CURSOR_SECRET = `${String(env.MAIL_SECRET_KEY)}:${String(env.BETTER_AUTH_SECRET)}`
-
-export class RostackError extends Error {
-  constructor(
-    public status: number,
-    public code: RostackProblemCode,
-    message: string
-  ) {
-    super(message)
-  }
-}
-
-export type RostackProblemCode =
-  | 'invalid-request'
-  | 'invalid-filter'
-  | 'unsupported-filter'
-  | 'invalid-sort'
-  | 'invalid-fields'
-  | 'invalid-cursor'
-  | 'resource-not-found'
-  | 'authentication-required'
-  | 'permission-denied'
-  | 'method-not-allowed'
-  | 'representation-not-acceptable'
-  | 'resource-gone'
-  | 'rate-limited'
-  | 'internal-error'
-  | 'service-unavailable'
-  | 'cursor_scope_mismatch'
-  | 'cursor_unavailable'
 
 type Filter = Record<string, unknown>
 
@@ -97,7 +76,13 @@ export function discoveryDocument(url: URL) {
       ],
       permissions: {
         'mailbox-entries:read': 'Read synchronized mailbox entries',
-        'mailbox-entries:subscribe': 'Subscribe to synchronized mailbox entry events'
+        'mailbox-entries:subscribe': 'Subscribe to synchronized mailbox entry events',
+        'messages:read': 'Read canonical synchronized messages',
+        'threads:read': 'Read synchronized message threads',
+        'mailboxes:read': 'Read synchronized mailbox metadata',
+        'contacts:read': 'Read saved and learned contacts',
+        'attachments:read': 'Read attachment metadata',
+        'send-jobs:read': 'Read outbound delivery status'
       }
     },
     capabilities: {
@@ -196,7 +181,8 @@ export function discoveryDocument(url: URL) {
         },
         read_permissions: ['mailbox-entries:read'],
         subscribe_permissions: ['mailbox-entries:subscribe']
-      }
+      },
+      ...concreteResourceDiscovery(base)
     ]
   }
 }

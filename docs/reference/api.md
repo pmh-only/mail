@@ -58,8 +58,11 @@ Requests are rate limited. A limited client should honor HTTP `429` and the `Ret
 ## rostack_v1
 
 The application implements the `rostack_v1` release dated `2026-08-13`. Start at
-`GET /.well-known/rostack`; discovery advertises the read-only `mailbox-entries` resource, its JSON
-Schemas, filters, pagination limits, and the WebSocket gateway.
+`GET /.well-known/rostack`; discovery advertises the read-only `mailbox-entries`, `messages`,
+`threads`, `mailboxes`, `contacts`, `attachments`, and `send-jobs` resources, their JSON Schemas,
+filters, pagination limits, and the WebSocket gateway. Concrete resources avoid forcing clients to
+interpret a single combined mail object. Attachment resources expose metadata and authenticated
+download URLs but never attachment bytes; send jobs omit message payloads.
 `ORIGIN` must be an externally reachable HTTPS origin for discovery to be valid.
 
 Use an existing API key as a provisioned shared token:
@@ -74,7 +77,9 @@ cursor. The gateway supports JSON and compact JSON events, replay after reconnec
 ping/pong, idempotent subscription IDs, and graceful draining. Event delivery is at least once, so
 clients must deduplicate by `event_id` and persist each cursor only after processing its event.
 
-Mailbox-entry events retain seven days of history. API keys are credentials for the same stable
+Only `mailbox-entries` currently advertises events; the concrete resources are snapshot-only until
+their full change lifecycles can be tracked without gaps. Mailbox-entry events retain seven days of
+history. API keys are credentials for the same stable
 single-owner principal, so replacing a key does not invalidate that principal's event cursors.
 An unavailable cursor must be recovered by
 fetching a new complete collection snapshot and subscribing from its `event_cursor`.
