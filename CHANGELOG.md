@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.0](https://github.com/pmh-only/mail/compare/v1.5.0...v2.0.0) (2026-08-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **rostack:** conform to 2026-08-13 specification
+
+### Features
+
+* **docker:** sign published container images ([918b440](https://github.com/pmh-only/mail/commit/918b4400aca9ca7f186ae835cdcea88b6b9bdc58))
+* **rostack:** support rostack v1 protocol ([93f318b](https://github.com/pmh-only/mail/commit/93f318b9f4b12893d8968cb41bcc39393bd577ae))
+
+
+### Bug Fixes
+
+* **rostack:** conform to 2026-08-13 specification ([3923a96](https://github.com/pmh-only/mail/commit/3923a96acb064743d23d6c786b5942254d973328))
+
 ## [1.5.0](https://github.com/pmh-only/mail/compare/v1.4.0...v1.5.0) (2026-08-09)
 
 
