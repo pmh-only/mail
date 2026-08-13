@@ -50,13 +50,12 @@ const db = vi.hoisted(() => ({
   )
 }))
 
-vi.mock('$env/dynamic/private', () => ({
-  env: {
-    ORIGIN: 'https://mail.example',
-    MAIL_SECRET_KEY: 'test-secret',
-    BETTER_AUTH_SECRET: 'auth-secret'
-  }
+const env = vi.hoisted(() => ({
+  ORIGIN: 'https://mail.example',
+  MAIL_SECRET_KEY: 'test-secret',
+  BETTER_AUTH_SECRET: 'auth-secret'
 }))
+vi.mock('$env/dynamic/private', () => ({ env }))
 vi.mock('./db', () => ({ db }))
 vi.mock('./db/schema', () => {
   const columns = (names: string[]) =>
@@ -118,7 +117,10 @@ import {
   listRostackEntries,
   listRostackEvents,
   mailboxEntryEventSchema,
-  mailboxEntrySchema
+  mailboxEntrySchema,
+  mailboxEntrySchemaUrl,
+  rostackPrincipalId,
+  schemaWithId
 } from './rostack.ts'
 
 beforeEach(() => {
@@ -137,14 +139,29 @@ test('advertises the shared-token mailbox entry API and schemas', () => {
   assert.equal(discovery.authentication.methods[0].http_authorization_scheme, 'Rostack-Token')
   assert.equal(discovery.resources[0].name, 'mailbox-entries')
   assert.equal(discovery.resources[0].events.length, 3)
+  assert.ok(discovery.errors.http.length > 0)
+  assert.ok(discovery.errors.websocket.length > 0)
   assert.equal(mailboxEntrySchema.additionalProperties, false)
   assert.equal(mailboxEntryEventSchema.type, 'null')
+  assert.equal(
+    schemaWithId(mailboxEntrySchema, mailboxEntrySchemaUrl(new URL('https://mail.example'))).$id,
+    discovery.resources[0].representations[0].schema_url
+  )
+  assert.equal(rostackPrincipalId('owner'), rostackPrincipalId('owner'))
+  assert.notEqual(rostackPrincipalId('owner'), rostackPrincipalId('other'))
+})
+
+test('requires a TLS discovery origin', () => {
+  const previous = env.ORIGIN
+  env.ORIGIN = 'http://mail.example'
+  assert.throws(() => discoveryDocument(new URL('http://mail.example')), /HTTPS ORIGIN/)
+  env.ORIGIN = previous
 })
 
 test('returns and projects a mailbox entry item', async () => {
   assert.deepEqual(await getRostackEntry('4', '/id,/subject'), { id: 4, subject: 'Subject' })
-  await assert.rejects(getRostackEntry('bad', null), { code: 'invalid_id' })
-  await assert.rejects(getRostackEntry('4', '/unknown'), { code: 'unsupported_field' })
+  await assert.rejects(getRostackEntry('bad', null), { code: 'invalid-request' })
+  await assert.rejects(getRostackEntry('4', '/unknown'), { code: 'invalid-fields' })
 })
 
 test('creates a stable paginated collection snapshot', async () => {
@@ -251,6 +268,7 @@ test('returns empty snapshots and full unprojected items', async () => {
 test('accepts advertised field filters and boolean composition', async () => {
   const filters = [
     { '/id': { eq: 1, in: [1, 2] } },
+    { '/id': { in: [] } },
     { '/mailbox': { in: ['INBOX'] } },
     { '/messageId': { eq: 'one' } },
     { '/flags': { contains: '%_Seen' } },
@@ -273,8 +291,10 @@ test('validates malformed boolean and field predicates', async () => {
     { $not: [] },
     { '/id': null },
     { '/id': {} },
-    { '/id': { in: [] } },
     { '/id': { in: 'wrong' } },
+    { '/id': { eq: '1' } },
+    { '/mailbox': { eq: 1 } },
+    { '/id': { in: ['1'] } },
     { '/flags': { contains: 'seen', eq: 'seen' } }
   ]
   for (const filter of filters) {
@@ -313,9 +333,9 @@ test('reads only valid scoped collection continuation pages', async () => {
   assert.equal((await listRostackEntries(url, 'key-1')).page.has_more, true)
 
   state.selected = []
-  await assert.rejects(listRostackEntries(url, 'key-1'), { code: 'cursor_unavailable' })
+  await assert.rejects(listRostackEntries(url, 'key-1'), { code: 'invalid-cursor' })
   state.selected = [{ ...page, query: 'wrong', expiresAt: new Date(Date.now() + 60_000) }]
-  await assert.rejects(listRostackEntries(url, 'key-1'), { code: 'cursor_unavailable' })
+  await assert.rejects(listRostackEntries(url, 'key-1'), { code: 'invalid-cursor' })
   state.selected = [
     {
       cursor: 'page-1',
@@ -326,21 +346,22 @@ test('reads only valid scoped collection continuation pages', async () => {
       expiresAt: new Date(0)
     }
   ]
-  await assert.rejects(listRostackEntries(url, 'key-1'), { code: 'cursor_unavailable' })
+  await assert.rejects(listRostackEntries(url, 'key-1'), { code: 'invalid-cursor' })
 })
 
 test.each([
-  ['?limit=0', 'invalid_limit'],
-  ['?limit=1.5', 'invalid_limit'],
-  ['?limit=101', 'invalid_limit'],
-  ['?sort=/subject', 'unsupported_sort'],
-  ['?filter=nope', 'invalid_filter'],
-  ['?filter=false', 'invalid_filter'],
-  ['?filter=[]', 'invalid_filter'],
-  ['?filter={"$or":[]}', 'invalid_filter'],
-  ['?filter={"/unknown":{"eq":1}}', 'unsupported_filter'],
-  ['?filter={"/id":{"gt":1}}', 'unsupported_filter'],
-  ['?filter={"/flags":{"contains":1}}', 'unsupported_filter']
+  ['?limit=0', 'invalid-request'],
+  ['?limit=1.5', 'invalid-request'],
+  ['?limit=101', 'invalid-request'],
+  ['?sort=/subject', 'invalid-sort'],
+  ['?filter=nope', 'invalid-filter'],
+  ['?filter=false', 'invalid-filter'],
+  ['?filter=[]', 'invalid-filter'],
+  ['?filter={}', 'invalid-filter'],
+  ['?filter={"$or":[]}', 'invalid-filter'],
+  ['?filter={"/unknown":{"eq":1}}', 'unsupported-filter'],
+  ['?filter={"/id":{"gt":1}}', 'unsupported-filter'],
+  ['?filter={"/flags":{"contains":1}}', 'unsupported-filter']
 ])('rejects invalid collection query %s', async (search, code) => {
   await assert.rejects(
     listRostackEntries(
@@ -374,7 +395,8 @@ function signedCursor(
 ) {
   const encoded = Buffer.from(
     JSON.stringify({
-      api: 'mail-2026-08-13',
+      implementation: 'pmh-mail',
+      api: 'mail-2026-08-13-1',
       resource: 'mailbox-entries',
       principal: 'key-1',
       position,

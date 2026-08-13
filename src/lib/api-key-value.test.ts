@@ -50,12 +50,15 @@ test('reads only bearer authorization credentials', () => {
   assert.equal(bearerApiKey(new Headers()), null)
 })
 
-test('reads only case-sensitive rostack shared-token credentials', () => {
+test('reads case-insensitive rostack shared-token credentials', () => {
   assert.equal(
     rostackApiKey(new Headers({ authorization: 'Rostack-Token pmail_value' })),
     'pmail_value'
   )
-  assert.equal(rostackApiKey(new Headers({ authorization: 'rostack-token pmail_value' })), null)
+  assert.equal(
+    rostackApiKey(new Headers({ authorization: 'rostack-token pmail_value' })),
+    'pmail_value'
+  )
   assert.equal(rostackApiKey(new Headers()), null)
 })
 

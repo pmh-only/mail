@@ -49,6 +49,6 @@ export function bearerApiKey(headers: Headers) {
 
 export function rostackApiKey(headers: Headers) {
   const authorization = headers.get('authorization') ?? ''
-  const match = authorization.match(/^Rostack-Token\s+(.+)$/)
+  const match = authorization.match(/^Rostack-Token\s+(.+)$/i)
   return match?.[1]?.trim() ?? null
 }

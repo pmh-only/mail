@@ -12,6 +12,8 @@ import { getDemoAuthSession, isDemoModeEnabled } from '$lib/server/demo'
 import { claimAuthUser, getAuthUserId } from '$lib/server/auth-owner'
 import { bearerApiKey, rostackApiKey, verifyApiKey } from '$lib/server/api-keys'
 import { checkApiRateLimit, checkApiSendRateLimit } from '$lib/server/api-rate-limit'
+import { rostackPrincipalId } from '$lib/server/rostack'
+import { rostackProblem } from '$lib/server/rostack-http'
 
 let startupPromise = Promise.resolve()
 
@@ -82,7 +84,10 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
   const path = event.url.pathname
 
   if (isDemoModeEnabled()) {
+    if (isRostackPublicPath(path)) return resolve(event)
     if (isExternalApiPath(path) || isRostackApiPath(path)) {
+      if (isRostackApiPath(path))
+        return rostackProblem('service-unavailable', { retryAfterMs: 60_000 })
       return new Response(JSON.stringify({ error: 'External API is disabled in demo mode' }), {
         status: 503,
         headers: { 'content-type': 'application/json' }
@@ -96,6 +101,8 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 
   if (path.startsWith(EMAIL_TRACKING_PREFIX)) return resolve(event)
 
+  if (isRostackPublicPath(path)) return resolve(event)
+
   // Before anything else: if no owner or external provider exists, funnel to setup.
   if (!building) {
     const configured = await isAuthenticationConfigured()
@@ -108,44 +115,22 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 
   const auth = await getAuth()
 
-  if (isRostackPublicPath(path)) return resolve(event)
-
   if (isRostackApiPath(path)) {
     const rawKey = rostackApiKey(event.request.headers)
     const principal = rawKey ? await verifyApiKey(rawKey) : null
     const ownerId = principal ? await getAuthUserId() : null
     if (!principal || !ownerId || principal.userId !== ownerId) {
-      return new Response(
-        JSON.stringify({
-          type: 'https://spec.pmh.codes/problems/authentication-required',
-          title: 'Authentication required',
-          status: 401
-        }),
-        {
-          status: 401,
-          headers: {
-            'content-type': 'application/problem+json',
-            'www-authenticate': 'Rostack-Token realm="mail-rostack"'
-          }
-        }
-      )
+      return rostackProblem('authentication-required', {
+        headers: { 'www-authenticate': 'Rostack-Token realm="mail-rostack"' }
+      })
     }
     event.locals.user = principal.user
     event.locals.apiKey = { id: principal.id, userId: principal.userId }
-    event.locals.rostackPrincipalId = principal.id
-    if (!checkApiRateLimit(principal.id)) {
-      return new Response(
-        JSON.stringify({
-          type: 'https://spec.pmh.codes/problems/rate-limit',
-          title: 'API rate limit exceeded',
-          status: 429
-        }),
-        {
-          status: 429,
-          headers: { 'content-type': 'application/problem+json', 'retry-after': '60' }
-        }
-      )
-    }
+    event.locals.rostackPrincipalId = rostackPrincipalId(principal.userId)
+    const internalGatewayPath =
+      path === `${ROSTACK_API_PREFIX}/session` || path === `${ROSTACK_API_PREFIX}/events/replay`
+    if (!internalGatewayPath && !checkApiRateLimit(principal.id))
+      return rostackProblem('rate-limited', { retryAfterMs: 60_000 })
     return resolve(event)
   }
 

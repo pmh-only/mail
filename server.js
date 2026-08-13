@@ -1,4 +1,5 @@
 import { createServer } from 'node:http'
+import { randomUUID } from 'node:crypto'
 import { WebSocketServer } from 'ws'
 
 process.env.BODY_SIZE_LIMIT ||= 'Infinity'
@@ -93,16 +94,36 @@ server.on('upgrade', async (request, socket, head) => {
   })
 })
 
-function rostackError(websocket, code, message, subscriptionId, retryable = false) {
+const retryableRostackErrors = new Set([
+  'authentication_failed',
+  'rate_limited',
+  'internal_error',
+  'service_unavailable'
+])
+
+function rostackError(websocket, code, message, subscriptionId, retryAfterMs) {
   websocket.send(
     JSON.stringify({
       type: 'error',
       ...(subscriptionId ? { subscription_id: subscriptionId } : {}),
       code,
       message,
-      retryable
+      retryable: retryableRostackErrors.has(code),
+      ...(retryAfterMs !== undefined ? { retry_after_ms: retryAfterMs } : {})
     })
   )
+}
+
+function exactObject(value, keys, required = keys) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const names = Object.keys(value)
+  return (
+    names.every((name) => keys.includes(name)) && required.every((name) => names.includes(name))
+  )
+}
+
+function validString(value) {
+  return typeof value === 'string' && value.length > 0
 }
 
 function normalizedSubscription(message) {
@@ -145,12 +166,21 @@ rostackWss.on('connection', (websocket) => {
   const subscriptions = new Map()
   let session = null
   let polling = false
+  let lastInboundAt = Date.now()
+  let heartbeat = null
+  const peerPingIds = new Set()
+  let commandQueue = Promise.resolve()
   const authenticationTimer = setTimeout(
     () => websocket.close(4408, 'Authentication timeout'),
     10000
   )
 
   async function authenticate(message) {
+    if (!exactObject(message, ['type', 'method', 'token'])) {
+      if (session) rostackError(websocket, 'invalid_message', 'Invalid authenticate message')
+      else websocket.close(4400, 'Invalid authenticate message')
+      return
+    }
     if (
       !['shared_token'].includes(message.method) ||
       typeof message.token !== 'string' ||
@@ -161,23 +191,43 @@ rostackWss.on('connection', (websocket) => {
           websocket,
           'authentication_failed',
           'Replacement credential is invalid',
-          undefined,
-          true
+          undefined
         )
       else websocket.close(4401, 'Authentication failed')
       return
     }
-    const response = await fetch(rostackSessionUrl, {
-      headers: { authorization: `Rostack-Token ${message.token}` }
-    })
+    let response
+    try {
+      response = await fetch(rostackSessionUrl, {
+        headers: { authorization: `Rostack-Token ${message.token}` }
+      })
+    } catch {
+      rostackError(
+        websocket,
+        'service_unavailable',
+        'Authentication service is unavailable',
+        undefined,
+        1000
+      )
+      return
+    }
     if (!response.ok) {
+      if (response.status >= 500) {
+        rostackError(
+          websocket,
+          'service_unavailable',
+          'Authentication service is unavailable',
+          undefined,
+          1000
+        )
+        return
+      }
       if (session)
         rostackError(
           websocket,
           'authentication_failed',
           'Replacement credential is invalid',
-          undefined,
-          true
+          undefined
         )
       else websocket.close(4401, 'Authentication failed')
       return
@@ -207,17 +257,41 @@ rostackWss.on('connection', (websocket) => {
   async function replay(subscription, cursor) {
     let nextCursor = cursor
     while (websocket.readyState === websocket.OPEN) {
-      const response = await fetch(`${rostackReplayUrl}?cursor=${encodeURIComponent(nextCursor)}`, {
-        headers: { authorization: `Rostack-Token ${session.token}` }
-      })
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
+      let response
+      try {
+        response = await fetch(`${rostackReplayUrl}?cursor=${encodeURIComponent(nextCursor)}`, {
+          headers: { authorization: `Rostack-Token ${session.token}` }
+        })
+      } catch {
         rostackError(
           websocket,
-          error.code ?? 'transient_error',
+          'service_unavailable',
+          'Event service is unavailable',
+          subscription.id,
+          1000
+        )
+        return false
+      }
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          websocket.close(
+            response.status === 403 ? 4403 : 4401,
+            'Credential is no longer authorized'
+          )
+          return false
+        }
+        const error = await response.json().catch(() => ({}))
+        const code = ['cursor_scope_mismatch', 'cursor_unavailable'].includes(error.code)
+          ? error.code
+          : response.status >= 500
+            ? 'service_unavailable'
+            : 'internal_error'
+        rostackError(
+          websocket,
+          code,
           error.message ?? 'Event replay failed',
           subscription.id,
-          response.status >= 500
+          code === 'service_unavailable' ? 1000 : undefined
         )
         return false
       }
@@ -239,24 +313,45 @@ rostackWss.on('connection', (websocket) => {
       for (const subscription of subscriptions.values()) {
         if (!subscription.replaying) await replay(subscription, subscription.cursor)
       }
+    } catch {
+      rostackError(websocket, 'internal_error', 'Unexpected subscription failure')
     } finally {
       polling = false
     }
   }
   const pollTimer = setInterval(() => void poll(), 1000)
+  const heartbeatTimer = setInterval(() => {
+    if (!session || websocket.readyState !== websocket.OPEN) return
+    if (heartbeat && Date.now() >= heartbeat.deadline) {
+      websocket.close(4408, 'Heartbeat timeout')
+      return
+    }
+    if (!heartbeat && Date.now() - lastInboundAt >= 30000) {
+      heartbeat = { id: randomUUID(), deadline: Date.now() + 10000 }
+      websocket.send(JSON.stringify({ type: 'ping', id: heartbeat.id }))
+    }
+  }, 1000)
 
   websocket.on('close', () => {
     clearTimeout(authenticationTimer)
     clearInterval(pollTimer)
+    clearInterval(heartbeatTimer)
     sockets.delete(websocket)
   })
-  websocket.on('message', async (data, isBinary) => {
+  async function handleRostackMessage(data, isBinary) {
     if (isBinary) {
       websocket.close(4400, 'JSON messages required')
       return
     }
+    let message
     try {
-      const message = JSON.parse(data.toString())
+      message = JSON.parse(data.toString())
+    } catch {
+      if (session) rostackError(websocket, 'invalid_message', 'Invalid JSON message')
+      else websocket.close(4400, 'Invalid JSON message')
+      return
+    }
+    try {
       if (!session && message.type !== 'authenticate') {
         websocket.close(4401, 'Authentication required')
         return
@@ -266,28 +361,124 @@ rostackWss.on('connection', (websocket) => {
         return
       }
       if (message.type === 'ping') {
-        if (typeof message.id !== 'string' || !message.id) {
-          websocket.close(4400, 'Invalid protocol message')
+        if (
+          !exactObject(message, ['type', 'id']) ||
+          !validString(message.id) ||
+          peerPingIds.has(message.id)
+        ) {
+          rostackError(websocket, 'invalid_message', 'Invalid ping message')
           return
         }
+        peerPingIds.add(message.id)
+        lastInboundAt = Date.now()
         websocket.send(JSON.stringify({ type: 'pong', id: message.id }))
         return
       }
-      if (message.type === 'pong') return
+      if (message.type === 'pong') {
+        if (!exactObject(message, ['type', 'id']) || !validString(message.id)) {
+          rostackError(websocket, 'invalid_message', 'Invalid pong message')
+          return
+        }
+        if (heartbeat?.id === message.id) heartbeat = null
+        lastInboundAt = Date.now()
+        return
+      }
       if (message.type === 'unsubscribe') {
+        if (
+          !exactObject(message, ['type', 'subscription_id']) ||
+          !validString(message.subscription_id)
+        ) {
+          rostackError(websocket, 'invalid_message', 'Invalid unsubscribe message')
+          return
+        }
         subscriptions.delete(message.subscription_id)
+        lastInboundAt = Date.now()
         return
       }
       if (
         message.type !== 'subscribe' ||
-        typeof message.subscription_id !== 'string' ||
-        message.resource !== 'mailbox-entries' ||
-        message.filter
+        !exactObject(
+          message,
+          [
+            'type',
+            'subscription_id',
+            'resource',
+            'event_types',
+            'filter',
+            'cursor',
+            'event_encoding'
+          ],
+          ['type', 'subscription_id', 'resource']
+        ) ||
+        !validString(message.subscription_id) ||
+        !validString(message.resource)
       ) {
-        websocket.close(4400, 'Invalid protocol message')
+        rostackError(websocket, 'invalid_message', 'Invalid subscribe message')
+        return
+      }
+      if (message.resource !== 'mailbox-entries') {
+        rostackError(
+          websocket,
+          'resource_not_found',
+          'Resource is not available',
+          message.subscription_id
+        )
+        return
+      }
+      if (message.filter !== undefined) {
+        rostackError(
+          websocket,
+          'unsupported_filter',
+          'Event filtering is not supported',
+          message.subscription_id
+        )
+        return
+      }
+      const allowedEvents = new Set([
+        'mailbox-entry.created',
+        'mailbox-entry.updated',
+        'mailbox-entry.deleted'
+      ])
+      if (
+        message.event_types !== undefined &&
+        (!Array.isArray(message.event_types) ||
+          message.event_types.length === 0 ||
+          message.event_types.some((value) => !validString(value)) ||
+          new Set(message.event_types).size !== message.event_types.length)
+      ) {
+        rostackError(
+          websocket,
+          'invalid_message',
+          'Invalid event type list',
+          message.subscription_id
+        )
+        return
+      }
+      const eventTypes = new Set(message.event_types ?? allowedEvents)
+      if ([...eventTypes].some((value) => !allowedEvents.has(value))) {
+        rostackError(
+          websocket,
+          'unsupported_event_type',
+          'Event type is not supported',
+          message.subscription_id
+        )
+        return
+      }
+      if (!['json', 'compact-json'].includes(message.event_encoding ?? 'json')) {
+        rostackError(
+          websocket,
+          'unsupported_encoding',
+          'Encoding is not supported',
+          message.subscription_id
+        )
+        return
+      }
+      if (message.cursor !== undefined && !validString(message.cursor)) {
+        rostackError(websocket, 'invalid_message', 'Invalid cursor', message.subscription_id)
         return
       }
       const definition = normalizedSubscription(message)
+      lastInboundAt = Date.now()
       const current = subscriptions.get(message.subscription_id)
       if (current) {
         if (current.definition !== definition) {
@@ -309,30 +500,40 @@ rostackWss.on('connection', (websocket) => {
         )
         return
       }
-      const allowedEvents = new Set([
-        'mailbox-entry.created',
-        'mailbox-entry.updated',
-        'mailbox-entry.deleted'
-      ])
-      const eventTypes = new Set(message.event_types ?? allowedEvents)
-      if (
-        [...eventTypes].some((value) => !allowedEvents.has(value)) ||
-        !['json', 'compact-json'].includes(message.event_encoding ?? 'json')
-      ) {
-        rostackError(
-          websocket,
-          'unsupported_subscription',
-          'Unsupported event type or encoding',
-          message.subscription_id
-        )
-        return
-      }
       let cursor = message.cursor
       if (!cursor) {
-        const response = await fetch(rostackReplayUrl, {
-          headers: { authorization: `Rostack-Token ${session.token}` }
-        })
-        if (!response.ok) throw new Error('Unable to establish event cursor')
+        let response
+        try {
+          response = await fetch(rostackReplayUrl, {
+            headers: { authorization: `Rostack-Token ${session.token}` }
+          })
+        } catch {
+          rostackError(
+            websocket,
+            'service_unavailable',
+            'Event service is unavailable',
+            message.subscription_id,
+            1000
+          )
+          return
+        }
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            websocket.close(
+              response.status === 403 ? 4403 : 4401,
+              'Credential is no longer authorized'
+            )
+          } else {
+            rostackError(
+              websocket,
+              'service_unavailable',
+              'Event service is unavailable',
+              message.subscription_id,
+              1000
+            )
+          }
+          return
+        }
         cursor = (await response.json()).cursor
       }
       const subscription = {
@@ -362,8 +563,13 @@ rostackWss.on('connection', (websocket) => {
         } else subscriptions.delete(subscription.id)
       }
     } catch {
-      websocket.close(4400, 'Invalid protocol message')
+      if (session) rostackError(websocket, 'internal_error', 'Unexpected gateway failure')
+      else websocket.close(4500, 'Unexpected gateway failure')
     }
+  }
+
+  websocket.on('message', (data, isBinary) => {
+    commandQueue = commandQueue.then(() => handleRostackMessage(data, isBinary))
   })
 })
 
@@ -421,8 +627,10 @@ server.listen(port, host, () => {
 })
 
 function shutdown() {
+  let rostackDrain = false
   for (const socket of sockets) {
     if (socket.protocol === 'rostack.v1') {
+      rostackDrain = true
       socket.send(
         JSON.stringify({
           type: 'go_away',
@@ -431,11 +639,12 @@ function shutdown() {
           drain_timeout_ms: 30000
         })
       )
-      socket.close(4410, 'Server shutting down')
+      setTimeout(() => socket.close(4410, 'Server shutting down'), 30000).unref()
     } else socket.close(1001, 'Server shutting down')
   }
-  server.close(() => process.exit(0))
-  setTimeout(() => process.exit(1), 30_000).unref()
+  if (rostackDrain) {
+    setTimeout(() => server.close(() => process.exit(0)), 30000).unref()
+  } else server.close(() => process.exit(0))
 }
 
 process.on('SIGINT', shutdown)

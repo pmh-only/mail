@@ -13,6 +13,9 @@ export const GET: RequestHandler = async ({ locals, url }) => {
   } catch (error) {
     if (error instanceof RostackError)
       return json({ code: error.code, message: error.message }, { status: error.status })
-    throw error
+    return json(
+      { code: 'internal_error', message: 'Unexpected event replay failure' },
+      { status: 500 }
+    )
   }
 }

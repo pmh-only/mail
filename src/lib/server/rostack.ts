@@ -6,7 +6,7 @@ import {
   eq,
   gt,
   inArray,
-  like,
+  lt,
   lte,
   max,
   min,
@@ -19,32 +19,59 @@ import { env } from '$env/dynamic/private'
 import { db } from './db'
 import { mailMessage, mailMessageMailbox, rostackEvent, rostackSnapshotPage } from './db/schema'
 import { getExternalMessage } from './external-mail'
+import { ROSTACK_API_VERSION, ROSTACK_MAX_PAGE_SIZE, ROSTACK_RESOURCE } from './rostack-constants'
 
-export const ROSTACK_API_VERSION = 'mail-2026-08-13'
-export const ROSTACK_RESOURCE = 'mailbox-entries'
-export const ROSTACK_MAX_PAGE_SIZE = 100
+export { ROSTACK_API_VERSION, ROSTACK_MAX_PAGE_SIZE, ROSTACK_RESOURCE }
 const SNAPSHOT_TTL_MS = 15 * 60 * 1000
 const CURSOR_SECRET = `${String(env.MAIL_SECRET_KEY)}:${String(env.BETTER_AUTH_SECRET)}`
 
 export class RostackError extends Error {
   constructor(
     public status: number,
-    public code: string,
+    public code: RostackProblemCode,
     message: string
   ) {
     super(message)
   }
 }
 
+export type RostackProblemCode =
+  | 'invalid-request'
+  | 'invalid-filter'
+  | 'unsupported-filter'
+  | 'invalid-sort'
+  | 'invalid-fields'
+  | 'invalid-cursor'
+  | 'resource-not-found'
+  | 'authentication-required'
+  | 'permission-denied'
+  | 'method-not-allowed'
+  | 'representation-not-acceptable'
+  | 'resource-gone'
+  | 'rate-limited'
+  | 'internal-error'
+  | 'service-unavailable'
+  | 'cursor_scope_mismatch'
+  | 'cursor_unavailable'
+
 type Filter = Record<string, unknown>
 
 function origin(_url: URL) {
-  return String(env.ORIGIN).replace(/\/$/, '')
+  const value = String(env.ORIGIN).replace(/\/$/, '')
+  if (!value.startsWith('https://')) throw new Error('rostack requires an HTTPS ORIGIN')
+  return value
+}
+
+export function mailboxEntrySchemaUrl(url: URL) {
+  return `${origin(url)}/api/rostack/v1/schemas/mailbox-entry`
+}
+
+export function mailboxEntryEventSchemaUrl(url: URL) {
+  return `${origin(url)}/api/rostack/v1/schemas/mailbox-entry-event`
 }
 
 export function discoveryDocument(url: URL) {
   const base = origin(url)
-  const schemaBase = `${base}/api/rostack/v1/schemas`
   return {
     protocol: { name: 'rostack', version: 'rostack_v1' },
     implementation: {
@@ -87,6 +114,55 @@ export function discoveryDocument(url: URL) {
         discovery_refresh_after_ms: 300000
       }
     },
+    errors: {
+      http: [
+        { type: 'https://spec.pmh.codes/problems/invalid-request', operations: ['list', 'get'] },
+        { type: 'https://spec.pmh.codes/problems/invalid-filter', operations: ['list'] },
+        { type: 'https://spec.pmh.codes/problems/unsupported-filter', operations: ['list'] },
+        { type: 'https://spec.pmh.codes/problems/invalid-sort', operations: ['list'] },
+        { type: 'https://spec.pmh.codes/problems/invalid-fields', operations: ['list', 'get'] },
+        { type: 'https://spec.pmh.codes/problems/invalid-cursor', operations: ['list'] },
+        {
+          type: 'https://spec.pmh.codes/problems/authentication-required',
+          operations: ['list', 'get']
+        },
+        { type: 'https://spec.pmh.codes/problems/resource-not-found', operations: ['get'] },
+        { type: 'https://spec.pmh.codes/problems/method-not-allowed', operations: ['list', 'get'] },
+        {
+          type: 'https://spec.pmh.codes/problems/representation-not-acceptable',
+          operations: ['list', 'get']
+        },
+        { type: 'https://spec.pmh.codes/problems/rate-limited', operations: ['list', 'get'] },
+        {
+          type: 'https://spec.pmh.codes/problems/internal-error',
+          operations: ['discovery', 'list', 'get']
+        },
+        { type: 'https://spec.pmh.codes/problems/service-unavailable', operations: ['list', 'get'] }
+      ],
+      websocket: [
+        {
+          code: 'invalid_message',
+          operations: ['authenticate', 'subscribe', 'subscription', 'session']
+        },
+        { code: 'authentication_failed', operations: ['authenticate'] },
+        { code: 'reauthentication_identity_mismatch', operations: ['authenticate'] },
+        { code: 'resource_not_found', operations: ['subscribe'] },
+        { code: 'unsupported_event_type', operations: ['subscribe'] },
+        { code: 'unsupported_filter', operations: ['subscribe'] },
+        { code: 'unsupported_encoding', operations: ['subscribe'] },
+        { code: 'subscription_id_conflict', operations: ['subscribe'] },
+        { code: 'cursor_scope_mismatch', operations: ['subscribe'] },
+        { code: 'cursor_unavailable', operations: ['subscribe', 'subscription'] },
+        {
+          code: 'internal_error',
+          operations: ['authenticate', 'subscribe', 'subscription', 'session']
+        },
+        {
+          code: 'service_unavailable',
+          operations: ['authenticate', 'subscribe', 'subscription', 'session']
+        }
+      ]
+    },
     resources: [
       {
         name: ROSTACK_RESOURCE,
@@ -96,13 +172,13 @@ export function discoveryDocument(url: URL) {
         representations: [
           {
             media_type: 'application/json',
-            schema_url: `${schemaBase}/mailbox-entry`,
+            schema_url: mailboxEntrySchemaUrl(url),
             schema_dialect: 'https://json-schema.org/draft/2020-12/schema'
           }
         ],
         events: ['created', 'updated', 'deleted'].map((transition) => ({
           name: `mailbox-entry.${transition}`,
-          schema_url: `${schemaBase}/mailbox-entry-event`,
+          schema_url: mailboxEntryEventSchemaUrl(url),
           schema_dialect: 'https://json-schema.org/draft/2020-12/schema',
           state_transition:
             transition === 'created' ? 'create' : transition === 'updated' ? 'update' : 'delete',
@@ -127,7 +203,6 @@ export function discoveryDocument(url: URL) {
 
 export const mailboxEntrySchema = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $id: 'https://spec.pmh.codes/implementations/mail/mailbox-entry.schema.json',
   type: 'object',
   additionalProperties: false,
   required: [
@@ -164,18 +239,31 @@ export const mailboxEntrySchema = {
 
 export const mailboxEntryEventSchema = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $id: 'https://spec.pmh.codes/implementations/mail/mailbox-entry-event.schema.json',
   type: 'null'
 } as const
+
+export function schemaWithId<T extends Record<string, unknown>>(schema: T, id: string) {
+  return { ...schema, $id: id }
+}
+
+export function rostackPrincipalId(userId: string) {
+  return createHmac('sha256', CURSOR_SECRET).update(`principal:${userId}`).digest('base64url')
+}
 
 function parseFilter(value: string | null): Filter | null {
   if (!value) return null
   try {
     const parsed = JSON.parse(value)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error()
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      Array.isArray(parsed) ||
+      Object.keys(parsed).length === 0
+    )
+      throw new Error()
     return parsed as Filter
   } catch {
-    throw new RostackError(400, 'invalid_filter', 'filter must be a valid JSON object')
+    throw new RostackError(400, 'invalid-filter', 'filter must be a valid JSON object')
   }
 }
 
@@ -190,10 +278,10 @@ function filterConditions(filter: Filter | null): SQL[] {
   for (const [field, rawPredicate] of Object.entries(filter)) {
     if (field === '$and' || field === '$or') {
       if (!Array.isArray(rawPredicate) || rawPredicate.length === 0)
-        throw new RostackError(400, 'invalid_filter', `${field} must be a non-empty array`)
+        throw new RostackError(400, 'invalid-filter', `${field} must be a non-empty array`)
       const nested = rawPredicate.map((value) => {
         if (!value || typeof value !== 'object' || Array.isArray(value))
-          throw new RostackError(400, 'invalid_filter', `${field} members must be objects`)
+          throw new RostackError(400, 'invalid-filter', `${field} members must be objects`)
         const child = filterConditions(value as Filter)
         return child.length === 1 ? child[0] : and(...child)!
       })
@@ -202,13 +290,13 @@ function filterConditions(filter: Filter | null): SQL[] {
     }
     if (field === '$not') {
       if (!rawPredicate || typeof rawPredicate !== 'object' || Array.isArray(rawPredicate))
-        throw new RostackError(400, 'invalid_filter', '$not must be an object')
+        throw new RostackError(400, 'invalid-filter', '$not must be an object')
       const child = filterConditions(rawPredicate as Filter)
       conditions.push(not(child.length === 1 ? child[0] : and(...child)!))
       continue
     }
     if (!rawPredicate || typeof rawPredicate !== 'object' || Array.isArray(rawPredicate))
-      throw new RostackError(400, 'invalid_filter', 'Field predicates must be objects')
+      throw new RostackError(400, 'invalid-filter', 'Field predicates must be objects')
     const predicate = rawPredicate as Record<string, unknown>
     if (field === '/flags') {
       if (
@@ -217,27 +305,35 @@ function filterConditions(filter: Filter | null): SQL[] {
       )
         throw new RostackError(
           400,
-          'unsupported_filter',
+          'unsupported-filter',
           'flags supports only contains with a string'
         )
-      conditions.push(
-        like(
-          mailMessageMailbox.flags,
-          `%${predicate.contains.replaceAll('%', '\\%').replaceAll('_', '\\_')}%`
-        )
-      )
+      conditions.push(sql`${mailMessageMailbox.flags}::jsonb ? ${predicate.contains}`)
       continue
     }
     const column = columns[field as keyof typeof columns]
     if (!column)
-      throw new RostackError(400, 'unsupported_filter', `Unsupported filter field: ${field}`)
+      throw new RostackError(400, 'unsupported-filter', `Unsupported filter field: ${field}`)
     if (Object.keys(predicate).length === 0)
-      throw new RostackError(400, 'invalid_filter', 'Field predicates must not be empty')
+      throw new RostackError(400, 'invalid-filter', 'Field predicates must not be empty')
     for (const [operator, operand] of Object.entries(predicate)) {
-      if (operator === 'eq') conditions.push(eq(column, operand as never))
-      else if (operator === 'in' && Array.isArray(operand) && operand.length > 0)
-        conditions.push(inArray(column, operand as never[]))
-      else throw new RostackError(400, 'unsupported_filter', `Unsupported operator for ${field}`)
+      const validScalar =
+        field === '/id'
+          ? typeof operand === 'number' && Number.isInteger(operand) && operand >= 1
+          : typeof operand === 'string'
+      if (operator === 'eq' && validScalar) conditions.push(eq(column, operand as never))
+      else if (operator === 'in' && Array.isArray(operand)) {
+        const validItems = operand.every((item) =>
+          field === '/id'
+            ? typeof item === 'number' && Number.isInteger(item) && item >= 1
+            : typeof item === 'string'
+        )
+        if (!validItems)
+          throw new RostackError(400, 'invalid-filter', `Invalid operand type for ${field}`)
+        conditions.push(operand.length === 0 ? sql`false` : inArray(column, operand as never[]))
+      } else if (operator === 'eq')
+        throw new RostackError(400, 'invalid-filter', `Invalid operand type for ${field}`)
+      else throw new RostackError(400, 'unsupported-filter', `Unsupported operator for ${field}`)
     }
   }
   return conditions
@@ -248,7 +344,7 @@ function projection(value: string | null) {
   const fields = value.split(',')
   const allowed = new Set(Object.keys(mailboxEntrySchema.properties).map((field) => `/${field}`))
   if (fields.some((field) => !allowed.has(field)))
-    throw new RostackError(400, 'unsupported_field', 'fields contains an unsupported JSON Pointer')
+    throw new RostackError(400, 'invalid-fields', 'fields contains an unsupported JSON Pointer')
   return fields.map((field) => field.slice(1))
 }
 
@@ -279,6 +375,7 @@ function readCursor(value: string, principalId: string) {
       unknown
     >
     if (
+      payload.implementation !== 'pmh-mail' ||
       payload.api !== ROSTACK_API_VERSION ||
       payload.resource !== ROSTACK_RESOURCE ||
       payload.principal !== principalId
@@ -297,6 +394,7 @@ function readCursor(value: string, principalId: string) {
 
 function eventCursor(position: number, principalId: string) {
   return signCursor({
+    implementation: 'pmh-mail',
     api: ROSTACK_API_VERSION,
     resource: ROSTACK_RESOURCE,
     principal: principalId,
@@ -342,7 +440,7 @@ export async function listRostackEntries(url: URL, principalId: string) {
       .where(eq(rostackSnapshotPage.cursor, cursor))
       .limit(1)
     if (!page || page.expiresAt <= new Date() || page.query !== scopedIdentity)
-      throw new RostackError(400, 'cursor_unavailable', 'Collection cursor is invalid or expired')
+      throw new RostackError(400, 'invalid-cursor', 'Collection cursor is invalid or expired')
     return {
       items: page.items,
       page: {
@@ -357,32 +455,41 @@ export async function listRostackEntries(url: URL, principalId: string) {
   if (!Number.isInteger(limitValue) || limitValue < 1 || limitValue > ROSTACK_MAX_PAGE_SIZE)
     throw new RostackError(
       400,
-      'invalid_limit',
+      'invalid-request',
       `limit must be between 1 and ${ROSTACK_MAX_PAGE_SIZE}`
     )
   const fields = projection(url.searchParams.get('fields'))
   const conditions = filterConditions(parseFilter(url.searchParams.get('filter')))
   const sort = url.searchParams.get('sort') ?? '-/receivedAt'
-  if (!['/id', '-/id', '/receivedAt', '-/receivedAt'].includes(sort))
+  const sortFields = sort.split(',')
+  if (
+    sortFields.length === 0 ||
+    sortFields.some((field) => !['/id', '-/id', '/receivedAt', '-/receivedAt'].includes(field))
+  )
     throw new RostackError(
       400,
-      'unsupported_sort',
+      'invalid-sort',
       'sort must be /id, -/id, /receivedAt, or -/receivedAt'
     )
-  const sortColumn = sort.includes('receivedAt')
-    ? mailMessageMailbox.receivedAt
-    : mailMessageMailbox.id
-  const order = sort.startsWith('-') ? desc(sortColumn) : asc(sortColumn)
+  const order = sortFields.map((field) => {
+    const column = field.includes('receivedAt')
+      ? mailMessageMailbox.receivedAt
+      : mailMessageMailbox.id
+    return field.startsWith('-') ? desc(column) : asc(column)
+  })
 
   return db.transaction(
     async (tx) => {
-      const [boundary] = await tx.select({ value: max(rostackEvent.cursor) }).from(rostackEvent)
+      const [boundary] = await tx
+        .select({ value: max(rostackEvent.cursor) })
+        .from(rostackEvent)
+        .where(eq(rostackEvent.resource, ROSTACK_RESOURCE))
       const rows = await tx
         .select(entrySelect)
         .from(mailMessageMailbox)
         .innerJoin(mailMessage, eq(mailMessageMailbox.mailMessageId, mailMessage.id))
         .where(conditions.length ? and(...conditions) : undefined)
-        .orderBy(order, asc(mailMessageMailbox.id))
+        .orderBy(...order, asc(mailMessageMailbox.id))
       const items = rows.map((row) => project(serializeEntry(row as never), fields))
       const boundaryCursor = eventCursor(Number(boundary?.value ?? 0), principalId)
       const pages = []
@@ -418,7 +525,7 @@ export async function listRostackEntries(url: URL, principalId: string) {
 
 export async function getRostackEntry(id: string, fieldsValue: string | null) {
   if (!/^\d+$/.test(id) || Number(id) < 1)
-    throw new RostackError(400, 'invalid_id', 'Invalid mailbox entry ID')
+    throw new RostackError(400, 'invalid-request', 'Invalid mailbox entry ID')
   const message = await getExternalMessage(id)
   const item = {
     id: message.id,
@@ -456,13 +563,7 @@ export async function listRostackEvents(cursor: string, principalId: string) {
   const rows = await db
     .select()
     .from(rostackEvent)
-    .where(
-      and(
-        eq(rostackEvent.resource, ROSTACK_RESOURCE),
-        gt(rostackEvent.cursor, position),
-        lte(rostackEvent.cursor, position + 1000)
-      )
-    )
+    .where(and(eq(rostackEvent.resource, ROSTACK_RESOURCE), gt(rostackEvent.cursor, position)))
     .orderBy(asc(rostackEvent.cursor))
     .limit(100)
   return rows.map((row) => ({
@@ -476,11 +577,24 @@ export async function listRostackEvents(cursor: string, principalId: string) {
 }
 
 export async function currentRostackCursor(principalId: string) {
-  const [row] = await db.select({ value: max(rostackEvent.cursor) }).from(rostackEvent)
+  const [row] = await db
+    .select({ value: max(rostackEvent.cursor) })
+    .from(rostackEvent)
+    .where(eq(rostackEvent.resource, ROSTACK_RESOURCE))
   return eventCursor(Number(row?.value ?? 0), principalId)
 }
 
 export async function cleanupRostackState() {
   await db.delete(rostackSnapshotPage).where(lte(rostackSnapshotPage.expiresAt, new Date()))
-  await db.delete(rostackEvent).where(lte(rostackEvent.occurredAt, sql`now() - interval '7 days'`))
+  await db
+    .delete(rostackEvent)
+    .where(
+      and(
+        lte(rostackEvent.occurredAt, sql`now() - interval '7 days'`),
+        lt(
+          rostackEvent.cursor,
+          sql`(select max(retained.cursor) from rostack_event retained where retained.resource = ${rostackEvent.resource})`
+        )
+      )
+    )
 }
