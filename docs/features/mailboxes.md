@@ -23,6 +23,9 @@ name and icon, then select its source folders. This is useful for a combined inb
 or a project view assembled from several folders. Composed mailboxes are local views; they do not
 create or rename an IMAP folder.
 
+When the same message exists in multiple source folders, opening it keeps the selected folder copy
+active. This includes messages sent to your own address that appear in both Inbox and Sent.
+
 ## Configuration
 
 | Item                        | Setting name                                                 | Environment variable                                             | Requirement                                                       |

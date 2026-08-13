@@ -934,7 +934,7 @@
         openedAt?: string | null
         storedMessageId?: number | null
       }
-      if (payload.storedMessageId) {
+      if (waitingForStoredCopy && payload.storedMessageId) {
         await goto(resolve(`/${page.params.mailbox}/${payload.storedMessageId}`), {
           replaceState: true
         })
