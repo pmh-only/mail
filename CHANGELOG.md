@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/pmh-only/mail/compare/v2.1.0...v2.1.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* **mail:** preserve self-sent inbox message ([ac0e0d6](https://github.com/pmh-only/mail/commit/ac0e0d6226561d56206ea47330a3da513d4e82d8))
+
 ## [2.1.0](https://github.com/pmh-only/mail/compare/v2.0.0...v2.1.0) (2026-08-13)
 
 
