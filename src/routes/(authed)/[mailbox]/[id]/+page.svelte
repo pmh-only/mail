@@ -50,9 +50,11 @@
   import { encodeThreadId } from '$lib/thread-url'
   import { sendStatusLabel } from '$lib/send-status'
   import {
+    isRemoteContentAllowedForSender,
     normalizeAllowedSenders,
     normalizeSenderAddress,
-    prepareRemoteContent
+    prepareRemoteContent,
+    STYLE_ONLY_CSP_META
   } from '$lib/remote-content'
   import { scoreAttachmentSafety, type AttachmentSafetyScore } from '$lib/mail-attachments'
   import { saveOfflineMessage } from '$lib/offline-cache'
@@ -119,6 +121,7 @@
       shareShiftClickAction: ShareAction
       shareReadCount: number
       translationTargetLanguage: string
+      mailboxPrivacyMode: 'only-text' | 'style-included' | 'full-featured'
       remoteContent: {
         blockRemoteContent: boolean
         allowedSenders: string[]
@@ -1016,7 +1019,7 @@
   }
 
   const remoteContentSettings = $derived({
-    blockRemoteContent: data.remoteContent.blockRemoteContent,
+    blockRemoteContent: data.mailboxPrivacyMode !== 'full-featured',
     allowedSenders: allowedRemoteSenders
   })
 
@@ -1028,11 +1031,18 @@
       allowedMessageIds: showRemoteContentIds
     })
   })
+  const remoteContentAllowed = $derived(
+    showRemoteContentIds.has(message.id) ||
+      isRemoteContentAllowedForSender(message.from, remoteContentSettings)
+  )
 
   const srcdoc = $derived.by(() => {
     const html = message.htmlContent
-    if (!html) return null
-    return injectScrollbarStyle(remoteContentBody.html)
+    if (!html || data.mailboxPrivacyMode === 'only-text') return null
+    const content = injectScrollbarStyle(remoteContentBody.html)
+    return data.mailboxPrivacyMode === 'style-included' && !remoteContentAllowed
+      ? STYLE_ONLY_CSP_META + content
+      : content
   })
 
   const remoteContentSender = $derived(normalizeSenderAddress(message.from))
@@ -1659,8 +1669,8 @@
       <section class="border-b border-amber-500/20 bg-amber-500/10 px-3 py-2 backdrop-blur-xl sm:px-4">
         <div class="flex items-center gap-2">
           <p class="min-w-0 flex-1 truncate text-xs text-amber-100/80">
-            <span class="font-semibold text-amber-100">Remote content blocked.</span>
-            {remoteContentBody.blockedCount} external resource{remoteContentBody.blockedCount === 1
+            <span class="font-semibold text-amber-100">Images or remote content blocked.</span>
+            {remoteContentBody.blockedCount} resource{remoteContentBody.blockedCount === 1
               ? ''
               : 's'} were blocked to protect your privacy.
           </p>

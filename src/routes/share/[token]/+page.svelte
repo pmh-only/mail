@@ -4,7 +4,7 @@
   import { Download, FileImage, FileText, FileVideo, Paperclip, ShieldAlert } from 'lucide-svelte'
   import { scoreAttachmentSafety, type AttachmentSafetyScore } from '$lib/mail-attachments'
   import { interceptMailContentLinks } from '$lib/mail-content-links'
-  import { sanitizeRemoteContent } from '$lib/remote-content'
+  import { sanitizeRemoteContent, STYLE_ONLY_CSP_META } from '$lib/remote-content'
 
   type SharedMessage = {
     messageId: string
@@ -29,6 +29,7 @@
     data: {
       token: string
       subject: string
+      sharePrivacyMode: 'only-text' | 'style-included'
       messages: SharedMessage[]
       attachments: Attachment[]
     }
@@ -89,7 +90,9 @@
 </style>`
 
   function injectScrollbarStyle(html: string): string {
-    const sanitized = sanitizeRemoteContent(html).html
+    const sanitized =
+      STYLE_ONLY_CSP_META +
+      sanitizeRemoteContent(html, { includeStyles: true, blockImages: true }).html
     const headClose = sanitized.indexOf('</head>')
     if (headClose !== -1)
       return sanitized.slice(0, headClose) + SCROLLBAR_STYLE + sanitized.slice(headClose)
