@@ -154,7 +154,7 @@
 
 <div class="relative flex w-full flex-wrap items-start gap-1 rounded-none bg-transparent py-1.5">
   {#if label}
-    <span class="w-full shrink-0 pt-1 text-xs font-medium text-zinc-500 sm:w-10">{label}</span>
+    <span class="w-10 shrink-0 pt-1 text-xs font-medium text-zinc-500">{label}</span>
   {/if}
 
   {#each pills as pill, i (`${pill}-${i}`)}

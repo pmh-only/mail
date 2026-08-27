@@ -110,7 +110,8 @@
             to confirm,
             <kbd class="rounded border border-white/15 bg-white/6 px-1.5 py-0.5 font-mono text-xs"
               >Esc</kbd
-            > to dismiss. Confirmed addresses appear as removable pills.
+            > to dismiss. Confirmed addresses appear as removable pills. Field labels remain inline
+            on narrow screens to leave more room for entering addresses.
           </p>
         </div>
 
