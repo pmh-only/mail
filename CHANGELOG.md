@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.2.0](https://github.com/pmh-only/mail/compare/v2.1.1...v2.2.0) (2026-08-27)
+
+
+### Features
+
+* **privacy:** add message display modes ([95f61f7](https://github.com/pmh-only/mail/commit/95f61f74d33ec23510c9d101cb6300172e1b7f10))
+
+
+### Bug Fixes
+
+* **auth:** align OIDC identity mapping ([67df1fa](https://github.com/pmh-only/mail/commit/67df1fa1cf0584da70e56fba518f8211f73aaa71))
+* **composer:** keep recipient labels inline on mobile ([b233d8c](https://github.com/pmh-only/mail/commit/b233d8c30d0af2bd125afc975fe9cf5d8bbea3b7))
+
 ## [2.1.1](https://github.com/pmh-only/mail/compare/v2.1.0...v2.1.1) (2026-08-13)
 
 
