@@ -28,12 +28,12 @@ Opened messages and recent mailbox lists are also available through the best-eff
 
 ## Configuration
 
-| Item                | Setting name                                                                           | Environment variable                          | Requirement                                                                            |
-| ------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Live mailbox data   | `Settings > IMAP > Host`, `Username / Email`, and `Password`                           | `IMAP_HOST`, `IMAP_USER`, and `IMAP_PASSWORD` | Required outside demo mode to receive mail. See [Mail accounts](/guide/mail-accounts). |
-| Default thread view | `Settings > Interface > Use thread mode on page load`                                  | None                                          | Optional; enabled by default.                                                          |
-| Default card view   | `Settings > Interface > Use simplified mailbox view on page load`                      | None                                          | Optional.                                                                              |
-| Spacing             | `Settings > Interface > Display density`                                               | None                                          | Optional; choose Comfortable, Compact, or Condensed.                                   |
-| Remote images       | `Settings > Privacy > Block remote email content` and `Trusted remote content senders` | None                                          | Optional; blocking is enabled by default. See [Privacy controls](/features/privacy).   |
+| Item                | Setting name                                                                        | Environment variable                          | Requirement                                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Live mailbox data   | `Settings > IMAP > Host`, `Username / Email`, and `Password`                        | `IMAP_HOST`, `IMAP_USER`, and `IMAP_PASSWORD` | Required outside demo mode to receive mail. See [Mail accounts](/guide/mail-accounts).                   |
+| Default thread view | `Settings > Interface > Use thread mode on page load`                               | None                                          | Optional; enabled by default.                                                                            |
+| Default card view   | `Settings > Interface > Use simplified mailbox view on page load`                   | None                                          | Optional.                                                                                                |
+| Spacing             | `Settings > Interface > Display density`                                            | None                                          | Optional; choose Comfortable, Compact, or Condensed.                                                     |
+| Message privacy     | `Settings > Privacy > Mailbox message display` and `Trusted remote content senders` | None                                          | Optional; styling is shown and images are blocked by default. See [Privacy controls](/features/privacy). |
 
 No reading-specific environment variable is required after an IMAP account is configured.

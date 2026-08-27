@@ -50,9 +50,11 @@
   import { sendStatusLabel } from '$lib/send-status'
   import { encodeThreadId } from '$lib/thread-url'
   import {
+    isRemoteContentAllowedForSender,
     normalizeAllowedSenders,
     normalizeSenderAddress,
-    prepareRemoteContent
+    prepareRemoteContent,
+    STYLE_ONLY_CSP_META
   } from '$lib/remote-content'
   import { scoreAttachmentSafety, type AttachmentSafetyScore } from '$lib/mail-attachments'
   import { interceptMailContentLinks } from '$lib/mail-content-links'
@@ -127,6 +129,7 @@
       attachments: Attachment[]
       threadNote: ThreadNote | null
       mailboxRole: 'inbox' | 'archive' | 'trash' | 'spam' | null
+      mailboxPrivacyMode: 'only-text' | 'style-included' | 'full-featured'
       remoteContent: {
         blockRemoteContent: boolean
         allowedSenders: string[]
@@ -766,7 +769,7 @@
   }
 
   const remoteContentSettings = $derived({
-    blockRemoteContent: data.remoteContent.blockRemoteContent,
+    blockRemoteContent: data.mailboxPrivacyMode !== 'full-featured',
     allowedSenders: allowedRemoteSenders
   })
 
@@ -775,6 +778,13 @@
       messageId: msg.id,
       allowedMessageIds: showRemoteContentIds
     })
+  }
+
+  function isRemoteContentAllowedForMessage(msg: Message) {
+    return (
+      showRemoteContentIds.has(msg.id) ||
+      isRemoteContentAllowedForSender(msg.from, remoteContentSettings)
+    )
   }
 
   async function trustRemoteContentSender(msg: Message) {
@@ -1271,7 +1281,14 @@
         {@const isExpanded = isMessageExpanded(msg.id)}
         {@const msgAttachments = getMessageAttachments(msg.messageId)}
         {@const remoteContentBody = remoteContentForMessage(msg)}
-        {@const srcdoc = msg.htmlContent ? injectScrollbarStyle(remoteContentBody.html) : null}
+        {@const srcdoc =
+          msg.htmlContent && data.mailboxPrivacyMode !== 'only-text'
+            ? (data.mailboxPrivacyMode === 'style-included' &&
+              !isRemoteContentAllowedForMessage(msg)
+                ? STYLE_ONLY_CSP_META
+                : '') +
+              injectScrollbarStyle(remoteContentBody.html)
+            : null}
 
         <div
           style:margin-left={`${Math.min(msg.threadDepth, 4) * 1.25}rem`}
@@ -1383,8 +1400,8 @@
                   class="mb-3 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-100 backdrop-blur-xl"
                 >
                   <p class="min-w-0 flex-1 truncate text-amber-100/80">
-                    <span class="font-semibold text-amber-100">Remote content blocked.</span>
-                    {remoteContentBody.blockedCount} external resource{remoteContentBody.blockedCount ===
+                    <span class="font-semibold text-amber-100">Images or remote content blocked.</span>
+                    {remoteContentBody.blockedCount} resource{remoteContentBody.blockedCount ===
                     1
                       ? ''
                       : 's'} blocked to protect your privacy.

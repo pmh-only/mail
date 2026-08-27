@@ -102,6 +102,7 @@ export const load: PageServerLoad = async ({ params }) => {
     shareShiftClickAction: preferences.shareShiftClickAction,
     shareReadCount,
     attachments,
+    mailboxPrivacyMode: preferences.mailboxPrivacyMode,
     remoteContent: preferences.remoteContent
   }
 

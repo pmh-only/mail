@@ -122,3 +122,34 @@ test('blocks remote attachment and object content URLs', () => {
   assert.match(result.html, /data-remote-content-blocked-data="https:\/\/cdn\.test\/file\.pdf"/)
   assert.match(result.html, /data-remote-content-blocked-src="\/\/cdn\.test\/file\.pdf"/)
 })
+
+test('preserves styles while removing resources referenced by CSS', () => {
+  const result = sanitizeRemoteContent(
+    '<style>@import "https://cdn.test/mail.css";p{color:red;background:url(//cdn.test/bg)}</style><p style="color: blue; background-image: url(https://cdn.test/pixel)">Hello</p>',
+    { includeStyles: true }
+  )
+
+  assert.equal(result.blockedCount, 3)
+  assert.match(result.html, /<style>p\{color:red;background:\}<\/style>/)
+  assert.match(result.html, /style="color: blue; background-image: "/)
+  assert.doesNotMatch(result.html, /cdn\.test/)
+})
+
+test('removes inline styles when styles are not included', () => {
+  const result = sanitizeRemoteContent('<p style="color: red">Hello</p>')
+
+  assert.equal(result.blockedCount, 1)
+  assert.equal(result.html, '<p>Hello</p>')
+})
+
+test('blocks embedded images when displaying styles without images', () => {
+  const result = sanitizeRemoteContent(
+    '<img src="data:image/png;base64,abc" alt="Logo"><svg><image href="cid:logo"></image></svg><video src="https://cdn.test/movie.mp4"></video>',
+    { includeStyles: true, blockImages: true }
+  )
+
+  assert.equal(result.blockedCount, 3)
+  assert.match(result.html, /data-remote-content-blocked-src="data:image\/png;base64,abc"/)
+  assert.match(result.html, /data-remote-content-blocked-href="cid:logo"/)
+  assert.match(result.html, /data-remote-content-blocked-src="https:\/\/cdn.test\/movie.mp4"/)
+})

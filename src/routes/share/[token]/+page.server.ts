@@ -5,6 +5,7 @@ import { db } from '$lib/server/db'
 import { mailAttachment } from '$lib/server/db/schema'
 import { inArray } from 'drizzle-orm'
 import { isDemoModeEnabled, listDemoAttachmentsForMessages } from '$lib/server/demo'
+import { getStoredPreferences } from '$lib/server/preferences'
 
 export const load: PageServerLoad = async ({ params, setHeaders }) => {
   setHeaders({ 'referrer-policy': 'no-referrer' })
@@ -15,6 +16,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
   }
 
   await markShareTokenAsRead(params.token)
+  const { sharePrivacyMode } = await getStoredPreferences()
 
   const messageIds = rawMessages.map((m) => m.messageId)
 
@@ -38,7 +40,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
     to: msg.to ?? '',
     preview: msg.preview ?? '',
     textContent: msg.textContent ?? '',
-    htmlContent: msg.htmlContent ?? null,
+    htmlContent: sharePrivacyMode === 'only-text' ? null : (msg.htmlContent ?? null),
     receivedAt: msg.receivedAt?.toISOString() ?? null
   }))
 
@@ -48,6 +50,7 @@ export const load: PageServerLoad = async ({ params, setHeaders }) => {
   return {
     token: params.token,
     subject,
+    sharePrivacyMode,
     messages,
     attachments
   }

@@ -117,6 +117,7 @@ export const load: PageServerLoad = async ({ params }) => {
     messages: messages.map(serializeMessage),
     attachments,
     mailboxRole,
+    mailboxPrivacyMode: preferences.mailboxPrivacyMode,
     remoteContent: preferences.remoteContent,
     threadNote: serializeThreadNote(threadNote),
     metadata

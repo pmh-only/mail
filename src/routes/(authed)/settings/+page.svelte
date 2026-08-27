@@ -14,6 +14,7 @@
   import { normalizeAllowedSenders } from '$lib/remote-content'
   import type { ShareAction } from '$lib/share-action'
   import type { ComposedMailboxIcon } from '$lib/composed-mailbox'
+  import type { MailboxPrivacyMode, SharePrivacyMode } from '$lib/privacy-mode'
   import { pathToSlug } from '$lib/mailbox'
   import { pushNotifications } from '$lib/push-notifications.svelte'
   import {
@@ -132,6 +133,15 @@
     { value: 'native-share', label: 'Open native share screen' },
     { value: 'copy-url', label: 'Copy URL' }
   ]
+  const mailboxPrivacyOptions: SelectOption[] = [
+    { value: 'only-text', label: 'Only text' },
+    { value: 'style-included', label: 'Style included' },
+    { value: 'full-featured', label: 'Full featured (style and images)' }
+  ]
+  const sharePrivacyOptions: SelectOption[] = [
+    { value: 'only-text', label: 'Only text' },
+    { value: 'style-included', label: 'Style included' }
+  ]
   const senderRuleTypeOptions: SelectOption[] = [
     { value: 'block', label: 'Block' },
     { value: 'allow', label: 'Allow' }
@@ -234,6 +244,8 @@
       themePreference: ThemePreference
       themeStyle: ThemeStyle
       translationTargetLanguage: string
+      mailboxPrivacyMode: MailboxPrivacyMode
+      sharePrivacyMode: SharePrivacyMode
       remoteContent: {
         blockRemoteContent: boolean
         allowedSenders: string[]
@@ -311,7 +323,8 @@
     shareClickAction = $state<ShareAction>('native-share')
     shareShiftClickAction = $state<ShareAction>('copy-url')
     translationTargetLanguage = $state('Korean')
-    blockRemoteContent = $state(true)
+    mailboxPrivacyMode = $state<MailboxPrivacyMode>('style-included')
+    sharePrivacyMode = $state<SharePrivacyMode>('style-included')
     remoteContentAllowedSenders = $state('')
     mailboxPreferences = $state<MailboxPreferences>({
       order: [],
@@ -332,6 +345,8 @@
       shareClickAction: ShareAction,
       shareShiftClickAction: ShareAction,
       translationTargetLanguage: string,
+      mailboxPrivacyMode: MailboxPrivacyMode,
+      sharePrivacyMode: SharePrivacyMode,
       remoteContent: Props['data']['remoteContent'],
       mailboxPreferences: MailboxPreferences,
       defaultMailbox: string
@@ -378,7 +393,8 @@
       this.shareClickAction = shareClickAction
       this.shareShiftClickAction = shareShiftClickAction
       this.translationTargetLanguage = translationTargetLanguage
-      this.blockRemoteContent = remoteContent.blockRemoteContent
+      this.mailboxPrivacyMode = mailboxPrivacyMode
+      this.sharePrivacyMode = sharePrivacyMode
       this.remoteContentAllowedSenders = remoteContent.allowedSenders.join('\n')
       this.mailboxPreferences = {
         order: [...mailboxPreferences.order],
@@ -411,6 +427,8 @@
           data.shareClickAction,
           data.shareShiftClickAction,
           data.translationTargetLanguage,
+          data.mailboxPrivacyMode,
+          data.sharePrivacyMode,
           data.remoteContent,
           data.mailboxPreferences,
           data.defaultMailbox
@@ -434,7 +452,8 @@
   let shareClickAction = $derived(form.shareClickAction)
   let shareShiftClickAction = $derived(form.shareShiftClickAction)
   let translationTargetLanguage = $derived(form.translationTargetLanguage)
-  let blockRemoteContent = $derived(form.blockRemoteContent)
+  let mailboxPrivacyMode = $derived(form.mailboxPrivacyMode)
+  let sharePrivacyMode = $derived(form.sharePrivacyMode)
   let remoteContentAllowedSenders = $derived(form.remoteContentAllowedSenders)
   let mailboxPreferences = $derived(form.mailboxPreferences)
   let defaultMailbox = $derived(form.defaultMailbox)
@@ -1502,6 +1521,8 @@
             data.shareClickAction,
             data.shareShiftClickAction,
             data.translationTargetLanguage,
+            data.mailboxPrivacyMode,
+            data.sharePrivacyMode,
             data.remoteContent,
             data.mailboxPreferences,
             data.defaultMailbox
@@ -1686,7 +1707,8 @@
       shareClickAction,
       shareShiftClickAction,
       translationTargetLanguage,
-      blockRemoteContent,
+      mailboxPrivacyMode,
+      sharePrivacyMode,
       remoteContentAllowedSenders,
       mailboxPreferences,
       defaultMailbox,
@@ -2022,8 +2044,9 @@
           shareClickAction,
           shareShiftClickAction,
           translationTargetLanguage,
+          mailboxPrivacyMode,
+          sharePrivacyMode,
           remoteContent: {
-            blockRemoteContent,
             allowedSenders: normalizeAllowedSenders(remoteContentAllowedSenders)
           },
           mailboxPreferences,
@@ -4238,46 +4261,62 @@
         <!-- Privacy -->
         <section class={selectedSettingsSection === 'privacy' ? 'space-y-4' : 'hidden'}>
           <h2 class="text-sm font-semibold tracking-widest text-zinc-500 uppercase">Privacy</h2>
-          <div class="rounded-lg border border-white/8 bg-white/3 p-4">
-            <label class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p class="text-sm font-medium text-zinc-200">Block remote email content</p>
-                <p class="mt-1 text-sm text-zinc-500">
-                  Prevent external images and tracking resources from loading until you allow them.
-                </p>
-              </div>
-
-              <span class="relative inline-flex cursor-pointer items-center">
-                <input
-                  type="checkbox"
-                  bind:checked={blockRemoteContent}
-                  onchange={autosaveToggleChange}
-                  class="peer sr-only"
-                />
-                <span
-                  class="h-5 w-9 rounded-full bg-zinc-700 transition peer-checked:bg-blue-600 after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"
-                ></span>
-              </span>
-            </label>
+          <div class="grid gap-4 md:grid-cols-2">
+            <div class="space-y-2 rounded-lg border border-white/8 bg-white/3 p-4">
+              <label class="block text-sm font-medium text-zinc-200" for="mailbox-privacy-mode">
+                Mailbox message display
+              </label>
+              <p class="text-sm text-zinc-500">
+                Choose whether messages show plain text, styling, or remote images.
+              </p>
+              <CustomSelect
+                id="mailbox-privacy-mode"
+                options={mailboxPrivacyOptions}
+                value={mailboxPrivacyMode}
+                onchange={(value) => {
+                  form.mailboxPrivacyMode = value as MailboxPrivacyMode
+                  autosaveToggleChange()
+                }}
+              />
+            </div>
+            <div class="space-y-2 rounded-lg border border-white/8 bg-white/3 p-4">
+              <label class="block text-sm font-medium text-zinc-200" for="share-privacy-mode">
+                Shared message display
+              </label>
+              <p class="text-sm text-zinc-500">
+                Shared links can use plain text or safe styling. Remote images stay blocked.
+              </p>
+              <CustomSelect
+                id="share-privacy-mode"
+                options={sharePrivacyOptions}
+                value={sharePrivacyMode}
+                onchange={(value) => {
+                  form.sharePrivacyMode = value as SharePrivacyMode
+                  autosaveToggleChange()
+                }}
+              />
+            </div>
           </div>
-          <div class="space-y-2 rounded-lg border border-white/8 bg-white/3 p-4">
-            <label
-              class="block text-sm font-medium text-zinc-200"
-              for="remote-content-allowed-senders"
-            >
-              Trusted remote content senders
-            </label>
-            <p class="text-sm text-zinc-500">
-              One email address per line. Remote content is always shown for these senders.
-            </p>
-            <textarea
-              id="remote-content-allowed-senders"
-              rows="4"
-              placeholder="sender@example.com"
-              bind:value={remoteContentAllowedSenders}
-              class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-mono text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
-            ></textarea>
-          </div>
+          {#if mailboxPrivacyMode === 'style-included'}
+            <div class="space-y-2 rounded-lg border border-white/8 bg-white/3 p-4">
+              <label
+                class="block text-sm font-medium text-zinc-200"
+                for="remote-content-allowed-senders"
+              >
+                Trusted remote content senders
+              </label>
+              <p class="text-sm text-zinc-500">
+                One email address per line. Images are always shown for these senders.
+              </p>
+              <textarea
+                id="remote-content-allowed-senders"
+                rows="4"
+                placeholder="sender@example.com"
+                bind:value={remoteContentAllowedSenders}
+                class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-mono text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+              ></textarea>
+            </div>
+          {/if}
         </section>
 
         <div class="border-t border-white/8"></div>

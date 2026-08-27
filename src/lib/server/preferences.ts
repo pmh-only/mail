@@ -15,6 +15,12 @@ import {
   type MailboxPreferences
 } from '$lib/mailbox-preferences'
 import { sql } from 'drizzle-orm'
+import {
+  normalizeMailboxPrivacyMode,
+  normalizeSharePrivacyMode,
+  type MailboxPrivacyMode,
+  type SharePrivacyMode
+} from '$lib/privacy-mode'
 
 const DEFAULT_TRANSLATION_TARGET_LANGUAGE = 'Korean'
 export const DEFAULT_MAILBOX = 'inbox'
@@ -33,6 +39,8 @@ export type Preferences = {
   themePreference: ThemePreference
   themeStyle: ThemeStyle
   translationTargetLanguage: string
+  mailboxPrivacyMode: MailboxPrivacyMode
+  sharePrivacyMode: SharePrivacyMode
   remoteContent: { blockRemoteContent: boolean; allowedSenders: string[] }
   mailboxPreferences: MailboxPreferences
   listRatio: number
@@ -92,8 +100,15 @@ export function normalizePreferences(value: unknown): Preferences {
     themePreference: normalizeThemePreference(record.themePreference),
     themeStyle: normalizeThemeStyle(record.themeStyle),
     translationTargetLanguage: normalizeTranslationTargetLanguage(record.translationTargetLanguage),
+    mailboxPrivacyMode: normalizeMailboxPrivacyMode(
+      record.mailboxPrivacyMode,
+      remoteContent.blockRemoteContent
+    ),
+    sharePrivacyMode: normalizeSharePrivacyMode(record.sharePrivacyMode),
     remoteContent: {
-      blockRemoteContent: remoteContent.blockRemoteContent !== false,
+      blockRemoteContent:
+        normalizeMailboxPrivacyMode(record.mailboxPrivacyMode, remoteContent.blockRemoteContent) !==
+        'full-featured',
       allowedSenders: normalizeRemoteContentAllowedSenders(remoteContent.allowedSenders)
     },
     mailboxPreferences: normalizeMailboxPreferences(record.mailboxPreferences),

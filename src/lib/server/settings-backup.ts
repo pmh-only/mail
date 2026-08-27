@@ -75,6 +75,8 @@ export type SettingsBackup = {
     density?: 'comfortable' | 'compact' | 'condensed'
     shareClickAction?: ShareAction
     shareShiftClickAction?: ShareAction
+    mailboxPrivacyMode?: 'only-text' | 'style-included' | 'full-featured'
+    sharePrivacyMode?: 'only-text' | 'style-included'
     remoteContent?: { blockRemoteContent?: boolean; allowedSenders?: string[] }
     mailboxPreferences?: { order?: string[]; hidden?: string[]; collapsedAccounts?: string[] }
     listRatio?: number
@@ -423,6 +425,16 @@ export function validateSettingsBackup(value: unknown): {
       shareClickAction: isShareAction(shareClickAction) ? shareClickAction : undefined,
       shareShiftClickAction: isShareAction(shareShiftClickAction)
         ? shareShiftClickAction
+        : undefined,
+      mailboxPrivacyMode: ['only-text', 'style-included', 'full-featured'].includes(
+        String(preferencesObject.mailboxPrivacyMode)
+      )
+        ? (preferencesObject.mailboxPrivacyMode as 'only-text' | 'style-included' | 'full-featured')
+        : undefined,
+      sharePrivacyMode: ['only-text', 'style-included'].includes(
+        String(preferencesObject.sharePrivacyMode)
+      )
+        ? (preferencesObject.sharePrivacyMode as 'only-text' | 'style-included')
         : undefined,
       remoteContent: optionalObject(
         preferencesObject.remoteContent,

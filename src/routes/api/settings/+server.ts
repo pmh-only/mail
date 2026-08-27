@@ -621,6 +621,8 @@ export const POST: RequestHandler = async (event) => {
       typeof body.themePreference === 'string' ? 'themePreference' : null,
       body.themeStyle && typeof body.themeStyle === 'object' ? 'themeStyle' : null,
       typeof body.translationTargetLanguage === 'string' ? 'translationTargetLanguage' : null,
+      typeof body.mailboxPrivacyMode === 'string' ? 'mailboxPrivacyMode' : null,
+      typeof body.sharePrivacyMode === 'string' ? 'sharePrivacyMode' : null,
       body.mailboxPreferences && typeof body.mailboxPreferences === 'object'
         ? 'mailboxPreferences'
         : null,

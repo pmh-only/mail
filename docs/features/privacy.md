@@ -6,9 +6,14 @@ do not make untrusted content inherently safe.
 
 ## Remote content
 
-Remote images and other external resources are blocked by default. The reader can allow content for
-one message, and a sender can be added to the trusted list so future messages from that exact address
-load remote resources automatically.
+Mailbox messages support three privacy modes: **Only text** ignores the HTML body, **Style included**
+keeps email formatting while blocking images and other external resources, and **Full featured** loads
+the styled HTML and its images. Style included is the default. In that mode, the reader can allow
+content for one message, and a sender can be added to the trusted list so future messages from that
+exact address load remote resources automatically.
+
+Shared links support **Only text** and **Style included**. Shared messages never automatically load
+remote images or other external resources.
 
 Loading remote content reveals at least the browser's network address and request metadata to the
 remote host. Leave blocking enabled unless the sender and content are trusted.
@@ -28,7 +33,8 @@ remote host. Leave blocking enabled unless the sender and content are trusted.
 
 | Item                       | Setting name                                          | Environment variable | Requirement                                       |
 | -------------------------- | ----------------------------------------------------- | -------------------- | ------------------------------------------------- |
-| Remote-content blocking    | `Settings > Privacy > Block remote email content`     | None                 | Optional; enabled by default.                     |
+| Mailbox message display    | `Settings > Privacy > Mailbox message display`        | None                 | Optional; Style included by default.              |
+| Shared message display     | `Settings > Privacy > Shared message display`         | None                 | Optional; Style included by default.              |
 | Sender exceptions          | `Settings > Privacy > Trusted remote content senders` | None                 | Optional; enter one exact email address per line. |
 | Link destination warning   | None                                                  | None                 | Always enabled; no setting is required.           |
 | Attachment safety warnings | None                                                  | None                 | Always enabled; no setting is required.           |

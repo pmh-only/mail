@@ -3,6 +3,7 @@ import { DomUtils, parseDocument } from 'htmlparser2'
 type HtmlNode = {
   type: string
   name?: string
+  data?: string
   attribs: Record<string, string>
   children: HtmlNode[]
 }
@@ -21,6 +22,8 @@ export type RemoteContentMessagePermission = {
   messageId: number
   allowedMessageIds: ReadonlySet<number>
 }
+
+export const STYLE_ONLY_CSP_META = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">`
 
 const REMOTE_URL_PATTERN = /^(?:https?:)?\/\//i
 const URL_ATTRS = new Set(['src', 'poster', 'background', 'data'])
@@ -53,15 +56,38 @@ export function isRemoteContentAllowedForSender(
   return Boolean(address && settings.allowedSenders.includes(address))
 }
 
-export function sanitizeRemoteContent(html: string): RemoteContentResult {
+function sanitizeCssResources(css: string) {
+  let blockedCount = 0
+  const remove = () => {
+    blockedCount += 1
+    return ''
+  }
+  const sanitized = css
+    .replace(/@import\s+[^;]*(?:;|$)/gi, remove)
+    .replace(/url\(\s*(?:"[^"]*"|'[^']*'|[^)]*)\s*\)/gi, remove)
+  return { css: sanitized, blockedCount }
+}
+
+export function sanitizeRemoteContent(
+  html: string,
+  options: { includeStyles?: boolean; blockImages?: boolean } = {}
+): RemoteContentResult {
   let blockedCount = 0
   const document = parseDocument(html)
 
   const visit = (node: HtmlNode) => {
     const tagName = (node.name ?? '').toLowerCase()
     if (node.type === 'style' || tagName === 'style') {
-      blockedCount += 1
-      DomUtils.removeElement(node as Parameters<typeof DomUtils.removeElement>[0])
+      if (!options.includeStyles) {
+        blockedCount += 1
+        DomUtils.removeElement(node as Parameters<typeof DomUtils.removeElement>[0])
+        return
+      }
+      for (const child of node.children as Array<HtmlNode & { data: string }>) {
+        const result = sanitizeCssResources(child.data)
+        child.data = result.css
+        blockedCount += result.blockedCount
+      }
       return
     }
     if (node.type !== 'tag') return
@@ -74,13 +100,28 @@ export function sanitizeRemoteContent(html: string): RemoteContentResult {
 
     for (const [rawName, value] of Object.entries(attributes)) {
       const name = rawName.toLowerCase()
-      if (name === 'style' || name === 'srcset') {
+      if (name === 'style') {
+        if (options.includeStyles) {
+          const result = sanitizeCssResources(value)
+          attributes[rawName] = result.css
+          blockedCount += result.blockedCount
+        } else {
+          blockedCount += 1
+          delete attributes[rawName]
+        }
+        continue
+      }
+      if (name === 'srcset') {
         blockedCount += 1
         delete attributes[rawName]
         continue
       }
       const isHref = (name === 'href' || name === 'xlink:href') && HREF_URL_TAGS.has(tagName)
-      if ((URL_ATTRS.has(name) || isHref) && isRemoteUrl(value)) {
+      const isImageSource =
+        options.blockImages &&
+        (tagName === 'img' || tagName === 'image') &&
+        (name === 'src' || name === 'href' || name === 'xlink:href')
+      if ((URL_ATTRS.has(name) || isHref) && (isImageSource || isRemoteUrl(value))) {
         blockedCount += 1
         delete attributes[rawName]
         attributes[`data-remote-content-blocked-${name.replace(':', '-')}`] = value
@@ -106,5 +147,5 @@ export function prepareRemoteContent(
     return { html, blockedCount: 0 }
   }
 
-  return sanitizeRemoteContent(html)
+  return sanitizeRemoteContent(html, { includeStyles: true, blockImages: true })
 }
