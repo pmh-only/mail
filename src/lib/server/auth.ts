@@ -84,7 +84,7 @@ async function createAuth(allowSignUp = false) {
                   providerId: 'oidc',
                   ...(oidc.issuer
                     ? {
-                        issuer: oidc.issuer,
+                        accountIssuer: oidc.issuer,
                         authorizationUrl: oidc.authorizationUrl,
                         tokenUrl: oidc.tokenUrl,
                         userInfoUrl: oidc.userInfoUrl,
@@ -95,13 +95,16 @@ async function createAuth(allowSignUp = false) {
                   clientSecret: oidc.clientSecret,
                   disableSignUp: Boolean(authUserId),
                   scopes: ['openid', 'profile', 'email'],
-                  mapProfileToUser: async (profile) => {
+                  accountSubject: ({ profile }) => {
                     const subject = typeof profile.sub === 'string' ? profile.sub : ''
                     if (!subject) {
                       throw new APIError('BAD_REQUEST', {
                         message: 'The OIDC provider did not return a subject identifier.'
                       })
                     }
+                    return subject
+                  },
+                  mapProfileToUser: async (profile) => {
                     if (
                       typeof profile.email !== 'string' ||
                       !profile.email.trim() ||
@@ -123,7 +126,6 @@ async function createAuth(allowSignUp = false) {
                       })
                     }
                     return {
-                      id: subject,
                       emailVerified:
                         profile.email_verified === true || profile.emailVerified === true
                     }

@@ -41,6 +41,7 @@ identity. Avoid changing `ORIGIN` after enrolling passkeys.
 New OIDC configurations use explicit values for the issuer, authorization endpoint, token endpoint,
 user-info endpoint, client ID, and client secret. All values are required. The provider must return
 `sub`, `email`, and `name` claims, and the client requests the `openid`, `profile`, and `email` scopes.
+The issuer and `sub` claim form the stable provider identity for the linked owner account.
 
 OIDC endpoints must use HTTPS, except for localhost development. `OIDC_DISCOVERY_URL` remains only as
 a compatibility fallback for existing installations.
