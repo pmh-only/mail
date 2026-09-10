@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/pmh-only/mail/compare/v2.2.0...v2.2.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **deps:** support nodemailer 10 address types ([951cfc1](https://github.com/pmh-only/mail/commit/951cfc1d0dc99fa08b8369f652047fca9fddc0e4))
+
 ## [2.2.0](https://github.com/pmh-only/mail/compare/v2.1.1...v2.2.0) (2026-08-27)
 
 
