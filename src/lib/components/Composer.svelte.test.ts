@@ -72,7 +72,7 @@ vi.mock('@tiptap/core', () => ({
   }
 }))
 
-import { composer } from '$lib/composer.svelte'
+import { composer, openCompose } from '$lib/composer.svelte'
 import Composer from './Composer.svelte'
 
 function resetComposer(overrides: Record<string, unknown> = {}) {
@@ -130,6 +130,13 @@ describe('Composer', () => {
       configurable: true,
       value: vi.fn().mockReturnValue(true)
     })
+  })
+
+  it('initializes composer state in the browser', async () => {
+    await openCompose({ subject: 'Browser compose' })
+
+    expect(composer.subject).toBe('Browser compose')
+    expect(composer.open).toBe(true)
   })
 
   it.each([
