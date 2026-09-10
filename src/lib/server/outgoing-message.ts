@@ -3,7 +3,7 @@ import { parseDocument } from 'htmlparser2'
 import addressparser from 'nodemailer/lib/addressparser/index.js'
 
 export function outgoingSenderAddress(value: string) {
-  const address = addressparser(value, { flatten: true })[0]?.address.trim()
+  const address = addressparser(value, { flatten: true })[0]?.address?.trim()
   if (!address) throw new Error('Invalid SMTP payload: invalid sender address')
   return address
 }
