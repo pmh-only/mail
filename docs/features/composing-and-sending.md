@@ -8,8 +8,9 @@ PostgreSQL and performed by the worker, so closing the browser does not cancel a
 - Address fields validate To, CC, and BCC recipients and suggest contacts and contact groups.
 - Advanced mode can select an SMTP sender, set a display name, add CC/BCC, choose a signature,
   insert a template, use AI, and configure OpenPGP.
-- The editor supports headings, inline formatting, lists, alignment, links, rich text, and Markdown
-  input.
+- The WYSIWYG editor supports headings, inline formatting, lists, alignment, links, rich text, and
+  Markdown input. Its light message canvas and email-safe inline styles keep the draft appearance
+  consistent with the delivered message.
 - Drafts are saved every 30 seconds, when explicitly minimized or closed, and on browser unload when
   possible. Drafts retain recipients, attachments, sender, and OpenPGP choices.
 - Recipient warnings flag suspicious or duplicated addressing before delivery.

@@ -204,7 +204,10 @@
       extensions: [
         StarterKit.configure({
           codeBlock: { languageClassPrefix: 'language-' },
-          link: { openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer' } }
+          link: {
+            openOnClick: false,
+            HTMLAttributes: { rel: 'noopener noreferrer' }
+          }
         }),
         TextAlign.configure({ types: ['heading', 'paragraph'] })
       ],
@@ -212,7 +215,8 @@
       editorProps: {
         attributes: {
           class: 'composer-editor focus:outline-none',
-          'aria-label': 'Message content'
+          'aria-label': 'Message content',
+          spellcheck: 'true'
         }
       },
       onTransaction: () => {
@@ -247,7 +251,7 @@
           ? 'advanced'
           : 'simple'
       if (composeLayout === 'advanced') void loadOpenPgpStatus()
-      lastSavedContent = draftSnapshot(composer.initialHtml || '<p></p>')
+      lastSavedContent = draftSnapshot(currentHtml())
       clearAiPreview()
       errorDialogMessage = null
       attachmentError = null
@@ -285,8 +289,54 @@
   }
 
   function currentHtml() {
-    if (markdownMode) return markdownToHtml(markdownSource)
-    return editor?.getHTML() ?? '<p></p>'
+    const html = markdownMode ? markdownToHtml(markdownSource) : (editor?.getHTML() ?? '<p></p>')
+    return serializeEmailHtml(html)
+  }
+
+  function serializeEmailHtml(html: string) {
+    const template = document.createElement('template')
+    template.innerHTML = html
+    const emailStyles = [
+      [
+        'p',
+        'margin:0 0 8px;color:#18181b;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6'
+      ],
+      [
+        'h1',
+        'margin:12px 0 4px;color:#18181b;font-family:Arial,Helvetica,sans-serif;font-size:24px;line-height:1.25'
+      ],
+      [
+        'h2',
+        'margin:12px 0 4px;color:#18181b;font-family:Arial,Helvetica,sans-serif;font-size:20px;line-height:1.25'
+      ],
+      [
+        'h3',
+        'margin:12px 0 4px;color:#18181b;font-family:Arial,Helvetica,sans-serif;font-size:18px;line-height:1.25'
+      ],
+      [
+        'ul,ol',
+        'margin:8px 0;padding-left:24px;color:#18181b;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6'
+      ],
+      ['blockquote', 'margin:8px 0;padding-left:16px;border-left:3px solid #a1a1aa;color:#52525b'],
+      [
+        'pre',
+        'margin:8px 0;padding:12px 16px;border:1px solid #e4e4e7;border-radius:8px;background:#f4f4f5;color:#27272a;font-family:monospace;font-size:13px;line-height:1.5;white-space:pre-wrap'
+      ],
+      [
+        'code',
+        'padding:1px 5px;border-radius:4px;background:#f4f4f5;color:#27272a;font-family:monospace;font-size:0.9em'
+      ],
+      ['pre code', 'padding:0;background:transparent'],
+      ['a', 'color:#2563eb;text-decoration:underline'],
+      ['hr', 'margin:16px 0;border:0;border-top:1px solid #d4d4d8']
+    ] as const
+
+    for (const [selector, style] of emailStyles) {
+      for (const element of template.content.querySelectorAll<HTMLElement>(selector)) {
+        element.style.cssText = `${style};${element.style.cssText}`
+      }
+    }
+    return template.innerHTML
   }
 
   async function saveDraft() {
@@ -377,6 +427,8 @@
       if (saveDraftTimer) clearInterval(saveDraftTimer)
       if (pendingUndoSend) clearTimeout(pendingUndoSend.timeout)
       window.removeEventListener('beforeunload', handleBeforeUnload)
+      editor?.destroy()
+      editor = null
     }
   })
 
@@ -1699,7 +1751,7 @@
 
     <!-- Editor -->
     <div
-      class="app-glass-field composer-editor-wrap relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+      class="composer-editor-wrap relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto bg-white"
     >
       {#if markdownMode}
         <div
@@ -2189,74 +2241,76 @@
   :global(.composer-editor-wrap .ProseMirror) {
     min-height: 100%;
     padding: 1rem;
-    color: #e4e4e7; /* zinc-200 */
+    color: #18181b; /* zinc-900 */
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
     font-size: 0.875rem;
     line-height: 1.6;
     outline: none;
   }
 
   :global(.composer-editor-wrap .ProseMirror p) {
-    margin: 0 0 0.5em;
+    margin: 0 0 8px;
   }
 
   :global(.composer-editor-wrap .ProseMirror h1) {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #fff;
-    margin: 0.75em 0 0.25em;
+    color: #18181b;
+    margin: 12px 0 4px;
   }
 
   :global(.composer-editor-wrap .ProseMirror h2) {
     font-size: 1.25rem;
     font-weight: 600;
-    color: #fff;
-    margin: 0.75em 0 0.25em;
+    color: #18181b;
+    margin: 12px 0 4px;
   }
 
   :global(.composer-editor-wrap .ProseMirror h3) {
-    font-size: 1.1rem;
+    font-size: 1.125rem;
     font-weight: 600;
-    color: #f4f4f5;
-    margin: 0.75em 0 0.25em;
+    color: #18181b;
+    margin: 12px 0 4px;
   }
 
   :global(.composer-editor-wrap .ProseMirror ul) {
     list-style: disc;
     padding-left: 1.5rem;
-    margin: 0.5em 0;
+    margin: 8px 0;
   }
 
   :global(.composer-editor-wrap .ProseMirror ol) {
     list-style: decimal;
     padding-left: 1.5rem;
-    margin: 0.5em 0;
+    margin: 8px 0;
   }
 
   :global(.composer-editor-wrap .ProseMirror blockquote) {
-    border-left: 3px solid #52525b;
+    border-left: 3px solid #a1a1aa;
     padding-left: 1rem;
-    color: #a1a1aa;
-    margin: 0.5em 0;
+    color: #52525b;
+    margin: 8px 0;
   }
 
   :global(.composer-editor-wrap .ProseMirror pre) {
-    background: #0a0a0d;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #f4f4f5;
+    border: 1px solid #e4e4e7;
     border-radius: 0.5rem;
     padding: 0.75rem 1rem;
     font-family: ui-monospace, monospace;
     font-size: 0.8125rem;
     overflow-x: auto;
-    margin: 0.5em 0;
+    margin: 8px 0;
   }
 
   :global(.composer-editor-wrap .ProseMirror code) {
-    background: rgba(255, 255, 255, 0.06);
+    background: #f4f4f5;
     border-radius: 0.25rem;
     padding: 0.1em 0.35em;
     font-family: ui-monospace, monospace;
-    font-size: 0.85em;
-    color: #e4e4e7;
+    font-size: 0.9em;
+    color: #27272a;
   }
 
   :global(.composer-editor-wrap .ProseMirror pre code) {
@@ -2265,20 +2319,20 @@
   }
 
   :global(.composer-editor-wrap .ProseMirror a) {
-    color: #60a5fa;
+    color: #2563eb;
     text-decoration: underline;
   }
 
   :global(.composer-editor-wrap .ProseMirror hr) {
     border: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid #d4d4d8;
     margin: 1rem 0;
   }
 
   :global(.composer-editor-wrap .ProseMirror .is-editor-empty:first-child::before) {
     content: attr(data-placeholder);
     float: left;
-    color: #52525b;
+    color: #a1a1aa;
     pointer-events: none;
     height: 0;
   }
