@@ -279,12 +279,12 @@ async function findAppendedDraftUids(client: ImapFlow, draftId: number, version:
     },
     { uid: true }
   )
-  return result === false ? [] : result
+  return result || []
 }
 
 async function removeDraftCopy(client: ImapFlow, uid: number) {
   const matches = await client.search({ uid: String(uid) }, { uid: true })
-  if (matches === false) throw new Error(`Failed to find draft UID ${uid}`)
+  if (!matches) throw new Error(`Failed to find draft UID ${uid}`)
   if (matches.length === 0) return
   const deleted = await client.messageDelete(String(uid), { uid: true })
   if (!deleted) throw new Error(`Failed to delete old draft UID ${uid}`)

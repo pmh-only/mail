@@ -1148,7 +1148,7 @@ async function resetMailboxForUidValidity(mailbox: string) {
 async function reconcileMailbox(client: ImapFlow, mailbox: string, changedSince?: bigint) {
   const reconciliationStartedAt = new Date()
   const searchResult = await client.search({ all: true }, { uid: true })
-  if (searchResult === false) throw new Error(`UID SEARCH failed for ${mailbox}`)
+  if (!searchResult) throw new Error(`UID SEARCH failed for ${mailbox}`)
   const remoteUids = searchResult
   const remoteUidSet = new Set(remoteUids)
   const remoteFlags = new Map<number, string>()
