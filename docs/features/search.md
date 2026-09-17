@@ -5,8 +5,9 @@ stored mailboxes and include each result's source mailbox.
 
 ## Full-text and structured search
 
-Typing starts a full-text search after a short delay. Pressing Enter runs the same search
-immediately. Plain terms search message content and metadata.
+Typing starts an indexed full-text search after a short delay. Pressing Enter runs the same search
+immediately. Plain terms and partial words search message content and metadata. Search indexing is
+bounded per message so oversized mail cannot disrupt synchronization.
 The following operators narrow results:
 
 | Operator         | Example                  | Meaning                              |

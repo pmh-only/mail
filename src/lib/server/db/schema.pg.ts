@@ -11,6 +11,7 @@ import {
   serial,
   customType
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType() {
@@ -281,7 +282,11 @@ export const mailMessage = pgTable(
     index('mail_message_thread_id_idx').on(table.threadId),
     index('mail_message_thread_key_idx').on(table.threadKey),
     uniqueIndex('mail_message_config_message_id_idx').on(table.configId, table.messageId),
-    index('mail_message_orphaned_at_idx').on(table.orphanedAt)
+    index('mail_message_orphaned_at_idx').on(table.orphanedAt),
+    index('mail_message_search_idx').using(
+      'gin',
+      sql`to_tsvector('simple', left(${table.subject} || ' ' || ${table.from} || ' ' || ${table.to} || ' ' || ${table.textContent}, 100000))`
+    )
   ]
 )
 
