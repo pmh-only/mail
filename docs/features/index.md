@@ -12,7 +12,7 @@ Settings fields or environment variables that affect it.
 | [Reading and organizing](/features/reading-and-organizing) | Message and thread views, attachments, bulk actions, notes, snooze, stars, and pins.     |
 | [Mailboxes](/features/mailboxes)                           | Folder visibility and order, the default mailbox, and composed mailboxes.                |
 | [Composing and sending](/features/composing-and-sending)   | Rich-text composition, drafts, scheduling, undo send, sender selection, and attachments. |
-| [Search](/features/search)                                 | Structured search, natural-language AI search, contact suggestions, and saved searches.  |
+| [Search](/features/search)                                 | Full-text and structured search, contact suggestions, and saved searches.                |
 | [Contacts and groups](/features/contacts)                  | Address-book management, CSV transfer, mail-history import, and group recipients.        |
 | [Signatures](/features/signatures)                         | Reusable HTML signatures and default signature selection.                                |
 | [Message templates](/features/templates)                   | Reusable full-message and snippet content in the composer.                               |

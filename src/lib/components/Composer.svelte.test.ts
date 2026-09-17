@@ -321,6 +321,26 @@ describe('Composer', () => {
     expect(notifyMailboxStateChanged).toHaveBeenCalledWith('message-scheduled')
   })
 
+  it('preserves blank paragraphs when sending', async () => {
+    const user = userEvent.setup()
+    resetComposer({ initialHtml: '<p>First line</p><p></p><p>Second line</p>' })
+    vi.mocked(fetch).mockImplementation((input, init) => {
+      if (String(input) === '/api/send') return Promise.resolve(Response.json({ jobId: 4 }))
+      return defaultFetch(input, init)
+    })
+    render(Composer)
+
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+
+    const sendRequest = vi
+      .mocked(fetch)
+      .mock.calls.find(([input]) => String(input) === '/api/send')?.[1]
+    const payload = JSON.parse(String(sendRequest?.body)) as { html: string }
+    expect(payload.html).toContain(
+      '<p style="margin: 0px 0px 8px; color: rgb(24, 24, 27); font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6;"><br></p>'
+    )
+  })
+
   it('shows a server send failure in the error dialog', async () => {
     const user = userEvent.setup()
     vi.mocked(fetch).mockImplementation((input, init) => {

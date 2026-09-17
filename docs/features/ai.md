@@ -5,16 +5,15 @@ key is configured. The selected model is shared by every AI operation.
 
 ## Available actions
 
-| Feature                    | Behavior                                                                                 | Data sent to OpenAI                                           |
-| -------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Compose assistance         | Improve a draft or rewrite it to be concise, formal, or friendly.                        | Recipients, subject, and current draft content.               |
-| Reply draft                | Generate a proposed reply from an opened message or thread.                              | Relevant message text and addressing context.                 |
-| Message and thread summary | Summarize one thread or a recent mailbox window.                                         | Subject, sender, recipients, previews, and bounded body text. |
-| Action extraction          | Find explicit tasks, owners, dates, and priorities in a thread.                          | Bounded text from each thread message.                        |
-| Translation                | Translate an opened message into the preferred language.                                 | Message content and target language.                          |
-| Attachment summary         | Summarize supported text-like attachments and cache the result.                          | Extracted attachment text.                                    |
-| Natural-language search    | Translate a request into bounded archive searches and select relevant returned messages. | The query and bounded metadata from search candidates.        |
-| Importance classification  | Mark incoming messages likely to need attention.                                         | Incoming message metadata and bounded content.                |
+| Feature                    | Behavior                                                          | Data sent to OpenAI                                           |
+| -------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------- |
+| Compose assistance         | Improve a draft or rewrite it to be concise, formal, or friendly. | Recipients, subject, and current draft content.               |
+| Reply draft                | Generate a proposed reply from an opened message or thread.       | Relevant message text and addressing context.                 |
+| Message and thread summary | Summarize one thread or a recent mailbox window.                  | Subject, sender, recipients, previews, and bounded body text. |
+| Action extraction          | Find explicit tasks, owners, dates, and priorities in a thread.   | Bounded text from each thread message.                        |
+| Translation                | Translate an opened message into the preferred language.          | Message content and target language.                          |
+| Attachment summary         | Summarize supported text-like attachments and cache the result.   | Extracted attachment text.                                    |
+| Importance classification  | Mark incoming messages likely to need attention.                  | Incoming message metadata and bounded content.                |
 
 The application requests `store: false`, limits input and output sizes, and treats email content as
 untrusted input. These controls do not replace reviewing the OpenAI account's own retention and data
