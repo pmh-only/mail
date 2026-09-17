@@ -2419,7 +2419,7 @@
                   class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
                 />
                 <p class="mt-1 text-xs text-zinc-500">
-                  Used for compose, summaries, translation, natural-language search, and importance
+                  Used for compose, summaries, translation, and importance
                   classification.
                 </p>
               </div>

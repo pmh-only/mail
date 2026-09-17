@@ -337,6 +337,9 @@
         element.style.cssText = `${style};${element.style.cssText}`
       }
     }
+    for (const paragraph of template.content.querySelectorAll('p:empty')) {
+      paragraph.append(document.createElement('br'))
+    }
     return template.innerHTML
   }
 

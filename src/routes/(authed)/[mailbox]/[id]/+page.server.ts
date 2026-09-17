@@ -75,15 +75,17 @@ export const load: PageServerLoad = async ({ params }) => {
   // Load attachment metadata (no content blobs — served via /api/attachments/[id])
   const attachments = isDemoModeEnabled()
     ? listDemoAttachmentsForMessage(message.messageId)
-    : await db
-        .select({
-          id: mailAttachment.id,
-          filename: mailAttachment.filename,
-          contentType: mailAttachment.contentType,
-          size: mailAttachment.size
-        })
-        .from(mailAttachment)
-        .where(eq(mailAttachment.mailMessageId, message.contentId!))
+    : message.contentId == null
+      ? []
+      : await db
+          .select({
+            id: mailAttachment.id,
+            filename: mailAttachment.filename,
+            contentType: mailAttachment.contentType,
+            size: mailAttachment.size
+          })
+          .from(mailAttachment)
+          .where(eq(mailAttachment.mailMessageId, message.contentId))
 
   const [preferences, metadata] = await Promise.all([
     getStoredPreferences(),
