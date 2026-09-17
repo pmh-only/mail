@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.2.1](https://github.com/pmh-only/mail/compare/v2.2.0...v2.2.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* **composer:** address WYSIWYG review feedback ([465244a](https://github.com/pmh-only/mail/commit/465244af33421686e2d5e0af28b4f1f7c59782d6))
+* **composer:** align editor with delivered formatting ([662bd38](https://github.com/pmh-only/mail/commit/662bd38fd659ef2a9957e507b69d41363dfadca4))
+* **deps:** support imapflow 2 and mermaid peers ([6d1fbeb](https://github.com/pmh-only/mail/commit/6d1fbeb9a9240a51594772efe5babe7a73bc80df))
+* **deps:** support nodemailer 10 address types ([951cfc1](https://github.com/pmh-only/mail/commit/951cfc1d0dc99fa08b8369f652047fca9fddc0e4))
+
 ## [2.2.0](https://github.com/pmh-only/mail/compare/v2.1.1...v2.2.0) (2026-08-27)
 
 
