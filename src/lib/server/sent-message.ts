@@ -94,7 +94,7 @@ async function findExistingCopy(client: SentMessageClient, jobId: number) {
     { header: { [SMTP_JOB_HEADER]: String(jobId) } },
     { uid: true }
   )
-  if (matches === false) throw new Error(`Failed to search Sent mailbox for SMTP job ${jobId}`)
+  if (!matches) throw new Error(`Failed to search Sent mailbox for SMTP job ${jobId}`)
   return matches.length > 0
 }
 
