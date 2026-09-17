@@ -997,46 +997,6 @@ section[aria-label^='Notifications'] {
   --tw-shadow-color: rgba(15, 23, 42, 0.14) !important;
 }
 
-:root[data-theme='light'] .composer-editor-wrap .ProseMirror {
-  color: #0f172a !important;
-}
-
-:root[data-theme='light'] .composer-editor-wrap .ProseMirror :is(h1, h2, h3) {
-  color: #0f172a !important;
-}
-
-:root[data-theme='light'] .composer-editor-wrap .ProseMirror blockquote {
-  border-left-color: #94a3b8 !important;
-  color: #475569 !important;
-}
-
-:root[data-theme='light'] .composer-editor-wrap .ProseMirror pre {
-  border-color: rgba(15, 23, 42, 0.12) !important;
-  background: #f8fafc !important;
-  color: #0f172a !important;
-}
-
-:root[data-theme='light'] .composer-editor-wrap .ProseMirror code {
-  background: rgba(15, 23, 42, 0.07) !important;
-  color: #0f172a !important;
-}
-
-:root[data-theme='light'] .composer-editor-wrap .ProseMirror pre code {
-  background: transparent !important;
-}
-
-:root[data-theme='light'] .composer-editor-wrap .ProseMirror a {
-  color: #1d4ed8 !important;
-}
-
-:root[data-theme='light'] .composer-editor-wrap .ProseMirror hr {
-  border-top-color: rgba(15, 23, 42, 0.14) !important;
-}
-
-:root[data-theme='light'] .composer-editor-wrap .ProseMirror .is-editor-empty:first-child::before {
-  color: #64748b !important;
-}
-
 /* Attachment previews stay deliberately dark in both themes. */
 :root[data-theme='light'] .bg-black\/85 .text-white {
   color: #ffffff !important;
