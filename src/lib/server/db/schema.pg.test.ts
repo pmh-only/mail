@@ -69,6 +69,12 @@ describe('mail PostgreSQL schema', () => {
     assert.equal(getTableConfig(schema.mailAttachment).foreignKeys[0].onDelete, 'cascade')
 
     assert.equal(getTableConfig(schema.smtpJob).indexes.length, 5)
+    assert.equal(
+      getTableConfig(schema.mailMessage).indexes.some(
+        (index) => index.config.name === 'mail_message_search_idx'
+      ),
+      true
+    )
     assert.equal(schema.openPgpKey.updatedAt.onUpdateFn?.() instanceof Date, true)
     assert.equal(schema.mailSignature.updatedAt.onUpdateFn?.() instanceof Date, true)
 

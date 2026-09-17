@@ -3307,14 +3307,11 @@ function buildSearchWhere(query: string) {
 
   const textQuery = freeText.join(' ').trim()
   if (textQuery) {
-    const pattern = `%${textQuery}%`
     conditions.push(
-      or(
-        ilike(mailMessage.subject, pattern),
-        ilike(mailMessage.from, pattern),
-        ilike(mailMessage.to, pattern),
-        ilike(mailMessage.textContent, pattern)
-      )
+      sql`to_tsvector('simple', left(${mailMessage.subject} || ' ' || ${mailMessage.from} || ' ' || ${mailMessage.to} || ' ' || ${mailMessage.textContent}, 100000)) @@ (
+        select to_tsquery('simple', string_agg(quote_literal(term) || ':*', ' & '))
+        from unnest(tsvector_to_array(to_tsvector('simple', ${textQuery}))) as search_terms(term)
+      )`
     )
   }
 

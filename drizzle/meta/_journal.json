@@ -330,6 +330,13 @@
       "when": 1786507200000,
       "tag": "0033_rostack_v1",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1789629079807,
+      "tag": "0034_full_text_search",
+      "breakpoints": true
     }
   ]
 }
