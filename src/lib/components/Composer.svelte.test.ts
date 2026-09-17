@@ -66,6 +66,8 @@ vi.mock('@tiptap/core', () => ({
       return { href: editorState.href }
     }
 
+    destroy() {}
+
     isActive() {
       return false
     }
@@ -293,6 +295,10 @@ describe('Composer', () => {
 
   it('sends a valid message and closes the composer', async () => {
     const user = userEvent.setup()
+    resetComposer({
+      initialHtml:
+        '<p style="text-align:center">Styled body</p><blockquote><p>Quoted body</p></blockquote>'
+    })
     vi.mocked(fetch).mockImplementation((input, init) => {
       if (String(input) === '/api/send') return Promise.resolve(Response.json({ jobId: 4 }))
       return defaultFetch(input, init)
@@ -304,6 +310,14 @@ describe('Composer', () => {
       '/api/send',
       expect.objectContaining({ method: 'POST', headers: { 'Content-Type': 'application/json' } })
     )
+    const sendRequest = vi
+      .mocked(fetch)
+      .mock.calls.find(([input]) => String(input) === '/api/send')?.[1]
+    const payload = JSON.parse(String(sendRequest?.body)) as { html: string }
+    expect(payload.html).toContain('font-family: Arial, Helvetica, sans-serif')
+    expect(payload.html).toContain('text-align: center')
+    expect(payload.html).toContain('<blockquote')
+    expect(payload.html).toContain('color: rgb(82, 82, 91)')
     expect(notifyMailboxStateChanged).toHaveBeenCalledWith('message-scheduled')
   })
 
