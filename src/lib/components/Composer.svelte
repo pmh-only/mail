@@ -318,6 +318,7 @@
         'margin:8px 0;padding-left:24px;color:#18181b;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6'
       ],
       ['blockquote', 'margin:8px 0;padding-left:16px;border-left:3px solid #a1a1aa;color:#52525b'],
+      ['blockquote p', 'color:#52525b'],
       [
         'pre',
         'margin:8px 0;padding:12px 16px;border:1px solid #e4e4e7;border-radius:8px;background:#f4f4f5;color:#27272a;font-family:monospace;font-size:13px;line-height:1.5;white-space:pre-wrap'
@@ -1755,7 +1756,7 @@
     >
       {#if markdownMode}
         <div
-          class="border-b border-amber-400/15 bg-amber-400/8 px-4 py-2 text-xs text-amber-100/85"
+          class="composer-markdown-banner border-b border-amber-500/25 bg-amber-50 px-4 py-2 text-xs"
         >
           Markdown mode sends and saves converted HTML. Switching from rich text starts from plain
           text, so some existing formatting may not be preserved.
@@ -1763,7 +1764,7 @@
         <textarea
           bind:value={markdownSource}
           aria-label="Markdown message body"
-          class="app-transparent-field min-h-[180px] w-full resize-none p-4 font-mono text-sm leading-6 text-zinc-200 placeholder:text-zinc-600 focus:outline-none"
+          class="composer-markdown-source app-transparent-field min-h-[180px] w-full resize-none p-4 font-mono text-sm leading-6 focus:outline-none"
           placeholder="Write markdown, e.g. **bold**, [link](https://example.com), - lists, > quotes"
         ></textarea>
       {/if}
@@ -2257,6 +2258,7 @@
     font-size: 1.5rem;
     font-weight: 700;
     color: #18181b;
+    line-height: 1.25;
     margin: 12px 0 4px;
   }
 
@@ -2264,6 +2266,7 @@
     font-size: 1.25rem;
     font-weight: 600;
     color: #18181b;
+    line-height: 1.25;
     margin: 12px 0 4px;
   }
 
@@ -2271,6 +2274,7 @@
     font-size: 1.125rem;
     font-weight: 600;
     color: #18181b;
+    line-height: 1.25;
     margin: 12px 0 4px;
   }
 
@@ -2335,5 +2339,17 @@
     color: #a1a1aa;
     pointer-events: none;
     height: 0;
+  }
+
+  .composer-markdown-banner {
+    color: #78350f;
+  }
+
+  .composer-markdown-source {
+    color: #18181b;
+  }
+
+  .composer-markdown-source::placeholder {
+    color: #71717a;
   }
 </style>
