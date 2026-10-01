@@ -124,8 +124,8 @@ describe('composer state', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('opens replies with HTML and normalized metadata', () => {
-    openReply(message)
+  it('opens replies with HTML and normalized metadata', async () => {
+    await openReply(message)
     expect(composer.mode).toBe('reply')
     expect(composer.to).toBe('Alice <alice@example.com>')
     expect(composer.subject).toBe('Re: Subject')
@@ -134,14 +134,14 @@ describe('composer state', () => {
     expect(composer.initialHtml).toContain('<p>Original</p>')
   })
 
-  it('preserves reply prefixes and prepends a draft', () => {
-    openReply({ ...message, subject: 'Re: Existing' }, '<p>Draft</p>')
+  it('preserves reply prefixes and prepends a draft', async () => {
+    await openReply({ ...message, subject: 'Re: Existing' }, '<p>Draft</p>')
     expect(composer.subject).toBe('Re: Existing')
     expect(composer.initialHtml).toMatch(/^<p>Draft<\/p><blockquote/)
   })
 
-  it('builds text-only and anonymous replies', () => {
-    openReply({
+  it('builds text-only and anonymous replies', async () => {
+    await openReply({
       ...message,
       from: 'plain@example.com',
       subject: null,
@@ -155,21 +155,21 @@ describe('composer state', () => {
     expect(composer.initialHtml).toContain('&lt;plain@example.com&gt; wrote:')
     expect(composer.initialHtml).toContain('<p>one<br>two</p>')
 
-    openReply({ ...message, from: null, htmlContent: null, textContent: null })
+    await openReply({ ...message, from: null, htmlContent: null, textContent: null })
     expect(composer.to).toBe('')
     expect(composer.initialHtml).toContain('&lt;&gt; wrote:')
 
-    openReply({ ...message, from: ' <hidden@example.com>' })
+    await openReply({ ...message, from: ' <hidden@example.com>' })
     expect(composer.initialHtml).toContain(' &lt;hidden@example.com&gt;')
   })
 
-  it('opens reply-all and excludes the sender from Cc', () => {
-    openReplyAll(message, '   ')
+  it('opens reply-all and excludes the sender from Cc', async () => {
+    await openReplyAll(message, '   ')
     expect(composer.mode).toBe('reply-all')
     expect(composer.to).toBe(message.from)
     expect(composer.cc).toBe('owner@example.com')
 
-    openReplyAll({
+    await openReplyAll({
       ...message,
       from: null,
       to: null,
@@ -181,18 +181,18 @@ describe('composer state', () => {
     expect(composer.subject).toBe('Re: Existing')
     expect(composer.inReplyTo).toBeNull()
 
-    openReplyAll({ ...message, subject: null })
+    await openReplyAll({ ...message, subject: null })
     expect(composer.subject).toBe('Re: ')
   })
 
-  it('opens forwards with HTML or text and preserves existing prefixes', () => {
-    openForward(message)
+  it('opens forwards with HTML or text and preserves existing prefixes', async () => {
+    await openForward(message)
     expect(composer.mode).toBe('forward')
     expect(composer.subject).toBe('Fwd: Subject')
     expect(composer.initialHtml).toContain('---------- Forwarded message ----------')
     expect(composer.initialHtml).toContain('<p>Original</p>')
 
-    openForward({
+    await openForward({
       ...message,
       subject: 'Fwd: Existing',
       from: null,
@@ -204,10 +204,65 @@ describe('composer state', () => {
     expect(composer.subject).toBe('Fwd: Existing')
     expect(composer.initialHtml).toContain('<p>line one<br>line two</p>')
 
-    openForward({ ...message, subject: null, htmlContent: null, textContent: null })
+    await openForward({ ...message, subject: null, htmlContent: null, textContent: null })
     expect(composer.subject).toBe('Fwd: ')
     expect(composer.initialHtml).toMatch(/<p><\/p>$/)
   })
+
+  it.each([openReply, openReplyAll])(
+    'inserts the default signature before the reply quote (%#)',
+    async (open) => {
+      const signature = { id: 2, name: 'Main', html: '<p>Signature</p>', isDefault: true }
+      vi.mocked(fetch).mockResolvedValue(
+        Response.json({
+          signatureProfiles: [
+            { id: 1, name: 'Other', html: '<p>Other</p>', isDefault: false },
+            signature
+          ]
+        })
+      )
+
+      await open(message)
+      expect(composer.initialHtml).toMatch(/^<p><\/p><p>Signature<\/p><blockquote/)
+      expect(composer).toMatchObject({
+        selectedSignatureId: 2,
+        currentSignatureHtml: signature.html
+      })
+      expect(composer.signatureProfiles).toHaveLength(2)
+
+      await open(message, '<p>Generated reply</p>')
+      expect(composer.initialHtml).toMatch(
+        /^<p>Generated reply<\/p><p><\/p><p>Signature<\/p><blockquote/
+      )
+      expect(composer.initialHtml).toContain('<p>Original</p>')
+      expect(fetch).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('inserts the default signature before the forwarded-message line', async () => {
+    vi.mocked(fetch).mockResolvedValue(Response.json({ signature: '<p>Signature</p>' }))
+    await openForward(message)
+    expect(composer.initialHtml).toMatch(
+      /^<p><\/p><p>Signature<\/p><p><\/p>\s*<p>---------- Forwarded message ----------<\/p>/
+    )
+    expect(composer.initialHtml).toContain('<p>Original</p>')
+    expect(composer.selectedSignatureId).toBe(0)
+    expect(composer.currentSignatureHtml).toBe('<p>Signature</p>')
+  })
+
+  it.each([openReply, openReplyAll, openForward])(
+    'supports empty signature profiles (%#)',
+    async (open) => {
+      vi.mocked(fetch).mockResolvedValue(
+        Response.json({ signatureProfiles: [{ id: 3, name: 'Empty', html: '', isDefault: false }] })
+      )
+      await open(message)
+      expect(composer.initialHtml).toMatch(/^<p><\/p>/)
+      expect(composer.initialHtml).toContain('<p>Original</p>')
+      expect(composer.selectedSignatureId).toBe(3)
+      expect(composer.currentSignatureHtml).toBe('')
+    }
+  )
 
   it('opens a full draft and applies optional security settings', () => {
     composer.smtpServers = [{ id: 'default', name: 'Default', from: 'sender@example.com' }]

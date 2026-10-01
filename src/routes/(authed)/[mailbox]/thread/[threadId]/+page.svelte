@@ -555,9 +555,9 @@
       if (!draft.html) throw new Error('Reply draft was empty.')
 
       if (replyAll) {
-        openReplyAll(msg, draft.html)
+        await openReplyAll(msg, draft.html)
       } else {
-        openReply(msg, draft.html)
+        await openReply(msg, draft.html)
       }
     } catch (error) {
       errorDialogMessage = errorMessageFromUnknown(error, 'Failed to generate reply draft.')

@@ -201,9 +201,15 @@ function buildReplyQuote(msg: ComposerMessage): string {
   return `<p></p><blockquote data-type="quote"><p>On ${date}, ${label} wrote:</p>${body}</blockquote>`
 }
 
-function buildReplyBody(msg: ComposerMessage, draftHtml?: string): string {
-  if (!draftHtml?.trim()) return buildReplyQuote(msg)
-  return `${draftHtml}${buildReplyQuote(msg).replace(/^<p><\/p>/, '')}`
+function buildReplyBody(
+  msg: ComposerMessage,
+  draftHtml: string | undefined,
+  signatureHtml: string
+): string {
+  const body = draftHtml?.trim() ? draftHtml : ''
+  const signedBody = `${body}${signatureHtml ? `<p></p>${signatureHtml}` : ''}`
+  if (!signedBody) return buildReplyQuote(msg)
+  return `${signedBody}${buildReplyQuote(msg).replace(/^<p><\/p>/, '')}`
 }
 
 function buildForwardBody(msg: ComposerMessage): string {
@@ -249,20 +255,22 @@ export async function openCompose(fields: ComposeFields = {}) {
   composer.open = true
 }
 
-export function openReply(msg: ComposerMessage, draftHtml?: string) {
+export async function openReply(msg: ComposerMessage, draftHtml?: string) {
+  const { signatures } = await fetchComposerSettings()
+  const signature = defaultSignature(signatures)
   composer.mode = 'reply'
   composer.to = msg.from ?? ''
   composer.cc = ''
   composer.bcc = ''
   composer.subject = msg.subject?.startsWith('Re:') ? msg.subject : `Re: ${msg.subject ?? ''}`
-  composer.initialHtml = buildReplyBody(msg, draftHtml)
+  composer.initialHtml = buildReplyBody(msg, draftHtml, signature?.html ?? '')
   composer.attachments = []
   composer.inReplyTo = msg.messageId ?? null
   composer.draftId = null
   composer.lastSavedAt = 0
-  composer.signatureProfiles = []
-  composer.selectedSignatureId = null
-  composer.currentSignatureHtml = ''
+  composer.signatureProfiles = signatures
+  composer.selectedSignatureId = signature?.id ?? null
+  composer.currentSignatureHtml = signature?.html ?? ''
   composer.fromName = ''
   composer.openPgpSigning = 'none'
   composer.openPgpEncrypt = false
@@ -272,7 +280,9 @@ export function openReply(msg: ComposerMessage, draftHtml?: string) {
   composer.open = true
 }
 
-export function openReplyAll(msg: ComposerMessage, draftHtml?: string) {
+export async function openReplyAll(msg: ComposerMessage, draftHtml?: string) {
+  const { signatures } = await fetchComposerSettings()
+  const signature = defaultSignature(signatures)
   const fromEmail = extractEmail(msg.from)
   const toAddrs = (msg.to ?? '')
     .split(',')
@@ -283,14 +293,14 @@ export function openReplyAll(msg: ComposerMessage, draftHtml?: string) {
   composer.cc = toAddrs.join(', ')
   composer.bcc = ''
   composer.subject = msg.subject?.startsWith('Re:') ? msg.subject : `Re: ${msg.subject ?? ''}`
-  composer.initialHtml = buildReplyBody(msg, draftHtml)
+  composer.initialHtml = buildReplyBody(msg, draftHtml, signature?.html ?? '')
   composer.attachments = []
   composer.inReplyTo = msg.messageId ?? null
   composer.draftId = null
   composer.lastSavedAt = 0
-  composer.signatureProfiles = []
-  composer.selectedSignatureId = null
-  composer.currentSignatureHtml = ''
+  composer.signatureProfiles = signatures
+  composer.selectedSignatureId = signature?.id ?? null
+  composer.currentSignatureHtml = signature?.html ?? ''
   composer.fromName = ''
   composer.openPgpSigning = 'none'
   composer.openPgpEncrypt = false
@@ -300,20 +310,22 @@ export function openReplyAll(msg: ComposerMessage, draftHtml?: string) {
   composer.open = true
 }
 
-export function openForward(msg: ComposerMessage) {
+export async function openForward(msg: ComposerMessage) {
+  const { signatures } = await fetchComposerSettings()
+  const signature = defaultSignature(signatures)
   composer.mode = 'forward'
   composer.to = ''
   composer.cc = ''
   composer.bcc = ''
   composer.subject = msg.subject?.startsWith('Fwd:') ? msg.subject : `Fwd: ${msg.subject ?? ''}`
-  composer.initialHtml = buildForwardBody(msg)
+  composer.initialHtml = `${signature?.html ? `<p></p>${signature.html}` : ''}${buildForwardBody(msg)}`
   composer.attachments = []
   composer.inReplyTo = null
   composer.draftId = null
   composer.lastSavedAt = 0
-  composer.signatureProfiles = []
-  composer.selectedSignatureId = null
-  composer.currentSignatureHtml = ''
+  composer.signatureProfiles = signatures
+  composer.selectedSignatureId = signature?.id ?? null
+  composer.currentSignatureHtml = signature?.html ?? ''
   composer.fromName = ''
   composer.openPgpSigning = 'none'
   composer.openPgpEncrypt = false
