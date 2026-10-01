@@ -1,14 +1,14 @@
 # Signatures
 
-Signatures are reusable HTML or plain-text blocks appended to new messages. Multiple profiles can be
+Signatures are reusable HTML or plain-text blocks added to new messages, replies, and forwards. Multiple profiles can be
 stored, named, and selected from the advanced composer.
 
 ## Behavior
 
-- One profile can be marked as the default for new messages.
-- The advanced composer can switch to another profile or remove the signature before sending.
+- One profile can be marked as the default for new messages, replies, reply-all, and forwards.
+- For new messages, the advanced composer can switch to another profile or remove the signature before sending.
 - Changing the selected profile replaces the signature currently at the end of the draft.
-- Replies and forwards do not automatically append the default signature.
+- Replies and forwards automatically insert the default signature before the quoted reply header or forwarded-message line, after any generated reply text.
 - Signature content is stored in PostgreSQL and included in a draft after selection.
 
 ## Configuration

@@ -74,7 +74,14 @@ vi.mock('@tiptap/core', () => ({
   }
 }))
 
-import { composer, openCompose } from '$lib/composer.svelte'
+import {
+  composer,
+  invalidateSignatureCache,
+  openCompose,
+  openForward,
+  openReply,
+  openReplyAll
+} from '$lib/composer.svelte'
 import Composer from './Composer.svelte'
 
 function resetComposer(overrides: Record<string, unknown> = {}) {
@@ -140,6 +147,31 @@ describe('Composer', () => {
     expect(composer.subject).toBe('Browser compose')
     expect(composer.open).toBe(true)
   })
+
+  it.each([openReply, openReplyAll, openForward])(
+    'initializes signatures before quoted content in the browser (%#)',
+    async (open) => {
+      invalidateSignatureCache()
+      vi.mocked(fetch).mockResolvedValueOnce(Response.json({ signature: '<p>Signature</p>' }))
+      await open({
+        id: 1,
+        from: 'alice@example.com',
+        to: 'owner@example.com',
+        subject: 'Hello',
+        htmlContent: '<p>Original</p>',
+        textContent: null,
+        receivedAt: null
+      })
+
+      expect(composer.initialHtml).toMatch(/^<p><\/p><p>Signature<\/p>/)
+      expect(composer.initialHtml.indexOf('Signature')).toBeLessThan(
+        composer.initialHtml.indexOf('Original')
+      )
+      expect(composer.currentSignatureHtml).toBe('<p>Signature</p>')
+      expect(composer.open).toBe(true)
+      invalidateSignatureCache()
+    }
+  )
 
   it.each([
     ['compose', 'New Message'],
