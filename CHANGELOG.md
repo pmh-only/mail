@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.0.0](https://github.com/pmh-only/mail/compare/v2.2.1...v3.0.0) (2026-10-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mail:** remove the POST /api/ai/search endpoint and natural-language search behavior.
+
+### Bug Fixes
+
+* **composer:** add signatures before reply and forward content ([9f0ef3a](https://github.com/pmh-only/mail/commit/9f0ef3adc617db99d27ee8061f7e0bf361d2ca8e))
+* **composer:** discard stale initialization results ([f9b11b6](https://github.com/pmh-only/mail/commit/f9b11b6386850a912c90a46ebed97449139d3dda))
+* **deps:** restore compatibility and stabilize PR validation ([56c5679](https://github.com/pmh-only/mail/commit/56c56790ba1d160aa46f1b8546561e1ec5da52ea))
+* **mail:** restore search and sent message rendering ([f6f47af](https://github.com/pmh-only/mail/commit/f6f47afa7eec72397806f6a2318c864659d76d7e))
+* **search:** index full-text queries ([05aa469](https://github.com/pmh-only/mail/commit/05aa469b94d63018e9fecf8f3104b5ab826e04e2))
+
 ## [2.2.1](https://github.com/pmh-only/mail/compare/v2.2.0...v2.2.1) (2026-09-17)
 
 
