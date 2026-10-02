@@ -3061,6 +3061,49 @@ test('handles malformed attached PGP public keys without failing the OpenPGP bac
   )
 })
 
+test('opens the mailbox normally when IMAP STATUS returns false', async () => {
+  state.demoMode = false
+  state.configs = [imapConfig]
+  const lock = { release: vi.fn() }
+  const listConnection = { list: vi.fn(async () => [{ path: 'Inbox', name: 'Inbox' }]) }
+  const syncConnection = {
+    status: vi.fn(async () => false),
+    getMailboxLock: vi.fn(async () => lock),
+    mailbox: { uidValidity: 9n, uidNext: 1, highestModseq: 12n, usable: true },
+    noop: vi.fn(async () => undefined)
+  }
+  state.connections = [listConnection, syncConnection]
+  state.queryResults = [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+      {
+        lastUid: 0,
+        uidValidity: 9,
+        highestModseq: 12n,
+        historyComplete: true,
+        lastReconciledAt: new Date(),
+        lastSyncedAt: null
+      }
+    ]
+  ]
+
+  assert.equal(await runMailboxSyncOnce(), true)
+  assert.equal(syncConnection.getMailboxLock.mock.calls.length, 1)
+  assert.equal(lock.release.mock.calls.length, 1)
+  assert.ok(
+    state.calls.some(
+      (call) =>
+        call.operation === 'insert' &&
+        (call.values as { lastError?: string | null } | undefined)?.lastError === null
+    )
+  )
+})
+
 test('resets a mailbox cache when IMAP UIDVALIDITY changes', async () => {
   state.demoMode = false
   state.configs = [imapConfig]

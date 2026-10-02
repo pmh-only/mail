@@ -1385,6 +1385,7 @@ async function syncOneMailbox(
       Date.now() - (state?.lastReconciledAt?.getTime() ?? 0) < FULL_RECONCILE_INTERVAL_MS
     if (
       state &&
+      status &&
       shouldUseStatusFastPath(
         force,
         reconciliationFresh,
