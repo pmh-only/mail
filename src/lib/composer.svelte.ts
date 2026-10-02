@@ -110,6 +110,7 @@ type ComposerSettings = {
 
 // Cached composer settings — fetched once from the server, invalidated on settings save
 let cachedSettings: ComposerSettings | null = null
+let composerInvocation = 0
 
 export function invalidateSignatureCache() {
   cachedSettings = null
@@ -228,7 +229,9 @@ ${body}`
 }
 
 export async function openCompose(fields: ComposeFields = {}) {
+  const invocation = ++composerInvocation
   const { signatures, smtpServers } = await fetchComposerSettings()
+  if (invocation !== composerInvocation) return
   const signature = defaultSignature(signatures)
   const body = fields.body ? plainTextToHtml(fields.body) : ''
   composer.mode = 'compose'
@@ -256,7 +259,9 @@ export async function openCompose(fields: ComposeFields = {}) {
 }
 
 export async function openReply(msg: ComposerMessage, draftHtml?: string) {
+  const invocation = ++composerInvocation
   const { signatures } = await fetchComposerSettings()
+  if (invocation !== composerInvocation) return
   const signature = defaultSignature(signatures)
   composer.mode = 'reply'
   composer.to = msg.from ?? ''
@@ -281,7 +286,9 @@ export async function openReply(msg: ComposerMessage, draftHtml?: string) {
 }
 
 export async function openReplyAll(msg: ComposerMessage, draftHtml?: string) {
+  const invocation = ++composerInvocation
   const { signatures } = await fetchComposerSettings()
+  if (invocation !== composerInvocation) return
   const signature = defaultSignature(signatures)
   const fromEmail = extractEmail(msg.from)
   const toAddrs = (msg.to ?? '')
@@ -311,7 +318,9 @@ export async function openReplyAll(msg: ComposerMessage, draftHtml?: string) {
 }
 
 export async function openForward(msg: ComposerMessage) {
+  const invocation = ++composerInvocation
   const { signatures } = await fetchComposerSettings()
+  if (invocation !== composerInvocation) return
   const signature = defaultSignature(signatures)
   composer.mode = 'forward'
   composer.to = ''
@@ -336,6 +345,7 @@ export async function openForward(msg: ComposerMessage) {
 }
 
 export function openDraft(draft: DraftRow) {
+  composerInvocation++
   composer.mode = 'compose'
   composer.to = draft.toAddr
   composer.cc = draft.cc
@@ -360,6 +370,7 @@ export function openDraft(draft: DraftRow) {
 }
 
 export function closeComposer() {
+  composerInvocation++
   composer.fullscreen = false
   composer.open = false
   composer.attachments = []
