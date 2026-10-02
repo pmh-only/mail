@@ -357,4 +357,56 @@ describe('composer state', () => {
     expect(composer.draftId).toBeNull()
     expect(composer.attachments).toEqual([])
   })
+
+  it.each([() => openCompose(), openReply, openReplyAll, openForward])(
+    'discards stale initialization when a newer action finishes first (%#)',
+    async (open) => {
+      let resolveSettings!: (response: Response) => void
+      vi.mocked(fetch).mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSettings = resolve
+        })
+      )
+      const pending = open(message)
+      vi.mocked(fetch).mockResolvedValueOnce(Response.json({ signature: '<p>New signature</p>' }))
+      await openReply({ ...message, from: 'new@example.com', subject: 'New message' })
+      const latest = { ...composer }
+
+      resolveSettings(Response.json({ signature: '<p>Old signature</p>' }))
+      await pending
+
+      expect(composer).toEqual(latest)
+      expect(composer.to).toBe('new@example.com')
+      expect(composer.subject).toBe('Re: New message')
+    }
+  )
+
+  it.each(['draft', 'close'] as const)('cancels pending initialization on %s', async (action) => {
+    let resolveSettings!: (response: Response) => void
+    vi.mocked(fetch).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSettings = resolve
+      })
+    )
+    const pending = openReply(message)
+    if (action === 'draft') {
+      openDraft({
+        id: 10,
+        toAddr: 'draft@example.com',
+        cc: '',
+        bcc: '',
+        subject: 'Saved draft',
+        html: '<p>Saved</p>',
+        attachments: [],
+        inReplyTo: null,
+        updatedAt: '2026-08-10T08:00:00Z'
+      })
+    } else {
+      closeComposer()
+    }
+    const latest = { ...composer }
+    resolveSettings(Response.json({ signature: '<p>Signature</p>' }))
+    await pending
+    expect(composer).toEqual(latest)
+  })
 })

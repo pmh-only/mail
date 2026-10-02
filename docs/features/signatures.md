@@ -10,6 +10,7 @@ stored, named, and selected from the advanced composer.
 - Changing the selected profile replaces the signature currently at the end of the draft.
 - Replies and forwards automatically insert the default signature before the quoted reply header or forwarded-message line, after any generated reply text.
 - Signature content is stored in PostgreSQL and included in a draft after selection.
+- If composer actions overlap while settings load, only the latest action initializes the draft. Opening a saved draft or closing the composer cancels pending initialization.
 
 ## Configuration
 
