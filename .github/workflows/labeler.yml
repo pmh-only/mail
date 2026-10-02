@@ -9,6 +9,10 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   label:
     runs-on: ubuntu-latest
@@ -71,28 +75,29 @@ jobs:
                     : 'size: XL';
             const existingLabels = pullRequest.data.labels
               .map((label) => typeof label === 'string' ? label : label.name)
-              .filter((name) => name.startsWith('size:'));
+              .filter((name) => name.startsWith('size:') && name !== size);
 
-            if (existingLabels.length) {
-              await github.rest.issues.removeLabel({
-                ...context.repo,
-                issue_number: context.issue.number,
-                name: existingLabels[0],
-              });
-              await Promise.all(existingLabels.slice(1).map((name) =>
-                github.rest.issues.removeLabel({
+            for (const name of existingLabels) {
+              try {
+                await github.rest.issues.removeLabel({
                   ...context.repo,
                   issue_number: context.issue.number,
                   name,
-                })
-              ));
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
             }
 
-            await github.rest.issues.addLabels({
-              ...context.repo,
-              issue_number: context.issue.number,
-              labels: [size],
-            });
+            if (!pullRequest.data.labels.some((label) =>
+              (typeof label === 'string' ? label : label.name) === size
+            )) {
+              await github.rest.issues.addLabels({
+                ...context.repo,
+                issue_number: context.issue.number,
+                labels: [size],
+              });
+            }
 
       - name: Require an area label
         uses: actions/github-script@v9

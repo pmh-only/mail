@@ -61,10 +61,16 @@ with an allowed type and scope. Read
 [CONTRIBUTING.md](https://github.com/pmh-only/mail/blob/main/CONTRIBUTING.md) and complete the pull
 request template before submitting changes.
 
+Pull request labeling runs are serialized per PR. Size labeling preserves the current correct size
+label and tolerates already-removed stale labels, avoiding races when label events trigger more runs.
+
 ## Documentation changes
 
 Documentation pages live in `docs/` and use VitePress. Navigation and sidebar entries are configured
 in `docs/.vitepress/config.ts`; theme overrides are in `docs/.vitepress/theme/`.
+
+Keep Mermaid on major version 11 while using `vitepress-plugin-mermaid` 2.0.17, whose supported
+Mermaid versions are 10 and 11. Check the plugin's peer dependencies before upgrading Mermaid.
 
 Add new pages to the sidebar, use root-relative links for other documentation pages, and run
 `pnpm docs:build` to catch broken internal links before committing.

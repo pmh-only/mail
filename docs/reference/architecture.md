@@ -48,6 +48,9 @@ long-running mail operations in request handlers.
 The worker writes a heartbeat that is visible to the application. A healthy web process without a
 worker can render stored mail, but new mail, queued sends, and background automation will stall.
 
+Mailbox sync uses IMAP STATUS to skip unchanged mailboxes. If STATUS returns no result, sync opens
+the mailbox normally instead of treating it as unchanged.
+
 ## Data and configuration
 
 PostgreSQL is the source of truth for synchronized mail, thread metadata, authentication, settings,
