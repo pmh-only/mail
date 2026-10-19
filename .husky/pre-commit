@@ -1,8 +1,0 @@
-#!/usr/bin/env sh
-set -eu
-
-pnpm format:check
-pnpm lint
-pnpm test:coverage
-pnpm check
-pnpm build

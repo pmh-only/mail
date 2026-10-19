@@ -70,8 +70,8 @@ pnpm db:generate / db:push / db:migrate / db:studio   # drizzle-kit
 ## Test Structure
 
 - Tests run on Vitest, configured in `vite.config.ts`: `environment: 'node'`, `fileParallelism: false`,
-  and v8 coverage with 100% statement/branch/function/line thresholds (enforced by the `pre-commit`
-  hook and `pnpm test:coverage`).
+  and v8 coverage with 100% statement/branch/function/line thresholds (enforced by
+  `pnpm test:coverage`).
 - Tests are colocated with the code they cover: `foo.ts` → `foo.test.ts` in the same directory.
   Drizzle schema files are validated in `schema.pg.test.ts` / `auth.schema.pg.test.ts`; a couple of
   server modules with heavy mocking use a `*.unit.test.ts` suffix (e.g. `openpgp-message.unit.test.ts`).
@@ -81,15 +81,7 @@ pnpm db:generate / db:push / db:migrate / db:studio   # drizzle-kit
 
 ## Git Hooks
 
-Husky manages the Git hooks in `.husky/`.
-Always confirm Husky is the active hook manager before starting work, and restore it if it is not:
-
-```sh
-git config --get core.hooksPath   # must print .husky/_
-pnpm exec husky                   # re-installs it when missing or pointing elsewhere
-```
-
-Never commit with `--no-verify`, and never repoint `core.hooksPath` away from `.husky/_`.
+This project does not install Git hooks. Run the validation commands manually before committing.
 
 ## Commits
 
@@ -99,7 +91,7 @@ Use only `fix`, `feat`, `docs` and `chore`. Always include scope in commit messa
 
 Before committing, agents must update the documentation for every new feature and every change to an existing feature.
 Before committing, formatting, linting, tests, coverage checks, type checks, and builds must succeed.
-Coverage must stay at 100% for statements, branches, functions, and lines; the `pre-commit` hook fails below that.
+Coverage must stay at 100% for statements, branches, functions, and lines; `pnpm test:coverage` fails below that.
 
 ## Pull Requests
 
