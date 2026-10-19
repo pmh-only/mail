@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/pmh-only/mail/compare/v3.0.0...v4.0.0) (2026-10-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **auth:** use shared OAuth endpoints for OIDC
+
+### Bug Fixes
+
+* **auth:** use shared OAuth endpoints for OIDC ([4b5b7f8](https://github.com/pmh-only/mail/commit/4b5b7f80ed296a985c80565295c7ab421b873a4c))
+
 ## [3.0.0](https://github.com/pmh-only/mail/compare/v2.2.1...v3.0.0) (2026-10-02)
 
 
