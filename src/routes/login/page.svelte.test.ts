@@ -133,15 +133,15 @@ describe('login page', () => {
     })
   })
 
-  it('uses generic OAuth2 payloads and rejects missing redirects', async () => {
+  it('uses the social OAuth endpoint for OIDC and rejects missing redirects', async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({}))
     render(LoginPage, { data: data({ oidc: true }) })
     await fireEvent.click(screen.getByRole('button', { name: 'OpenID Connect' }))
     expect(await screen.findByRole('dialog')).toHaveTextContent('No redirect URL returned.')
-    expect(fetch).toHaveBeenCalledWith('/api/auth/sign-in/oauth2', {
+    expect(fetch).toHaveBeenCalledWith('/api/auth/sign-in/social', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ providerId: 'oidc', callbackURL: '/', errorCallbackURL: '/login' })
+      body: JSON.stringify({ provider: 'oidc', callbackURL: '/', errorCallbackURL: '/login' })
     })
   })
 })

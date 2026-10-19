@@ -30,15 +30,10 @@
     loading = provider
     error = null
     try {
-      const generic = provider === 'oidc'
-      const res = await fetch(generic ? '/api/auth/sign-in/oauth2' : '/api/auth/sign-in/social', {
+      const res = await fetch('/api/auth/sign-in/social', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          generic
-            ? { providerId: provider, callbackURL: '/', errorCallbackURL: '/login' }
-            : { provider, callbackURL: '/', errorCallbackURL: '/login' }
-        )
+        body: JSON.stringify({ provider, callbackURL: '/', errorCallbackURL: '/login' })
       })
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to start sign-in.'))
 

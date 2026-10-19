@@ -27,16 +27,20 @@ would lock out the owner.
 Set `ORIGIN` to the exact public, scheme-qualified origin before registering OAuth clients. Use these
 callback URLs:
 
-| Provider       | Callback URL                             |
-| -------------- | ---------------------------------------- |
-| GitHub         | `<ORIGIN>/api/auth/callback/github`      |
-| Discord        | `<ORIGIN>/api/auth/callback/discord`     |
-| OpenID Connect | `<ORIGIN>/api/auth/oauth2/callback/oidc` |
+| Provider       | Callback URL                         |
+| -------------- | ------------------------------------ |
+| GitHub         | `<ORIGIN>/api/auth/callback/github`  |
+| Discord        | `<ORIGIN>/api/auth/callback/discord` |
+| OpenID Connect | `<ORIGIN>/api/auth/callback/oidc`    |
 
 Changing the scheme, hostname, or port changes both the callback URL and the passkey relying-party
 identity. Avoid changing `ORIGIN` after enrolling passkeys.
 
 ## OpenID Connect
+
+OIDC uses Better Auth's shared social-provider endpoints for sign-in and account linking. If upgrading
+from a version that displayed `/api/auth/oauth2/callback/oidc`, update the registered redirect URI at
+your identity provider to `/api/auth/callback/oidc`.
 
 New OIDC configurations use explicit values for the issuer, authorization endpoint, token endpoint,
 user-info endpoint, client ID, and client secret. All values are required. The provider must return
