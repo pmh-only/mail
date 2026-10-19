@@ -973,23 +973,14 @@
   async function linkProvider(provider: 'github' | 'discord' | 'oidc') {
     linkingProvider = provider
     try {
-      const generic = provider === 'oidc'
-      const res = await fetch(generic ? '/api/auth/oauth2/link' : '/api/auth/link-social', {
+      const res = await fetch('/api/auth/link-social', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(
-          generic
-            ? {
-                providerId: provider,
-                callbackURL: '/settings/oidc',
-                errorCallbackURL: '/settings/oidc'
-              }
-            : {
-                provider,
-                callbackURL: '/settings/oidc',
-                errorCallbackURL: '/settings/oidc'
-              }
-        )
+        body: JSON.stringify({
+          provider,
+          callbackURL: '/settings/oidc',
+          errorCallbackURL: '/settings/oidc'
+        })
       })
       if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to link provider.'))
       const payload = (await res.json()) as { url?: string }
@@ -3708,7 +3699,7 @@
                 <p class="text-sm font-medium text-zinc-200">OpenID Connect</p>
                 <p class="mt-1 text-xs text-zinc-600">
                   Configure explicit endpoints; discovery is not required. Callback:
-                  <span class="font-mono">{data.origin}/api/auth/oauth2/callback/oidc</span>
+                  <span class="font-mono">{data.origin}/api/auth/callback/oidc</span>
                 </p>
               </div>
               {#if data.config.oidc.clientId}

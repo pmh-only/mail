@@ -158,7 +158,7 @@
             <p class="text-sm font-medium text-zinc-200">OpenID Connect</p>
             <p class="mt-1 text-xs text-zinc-600">
               Manual endpoints only. Callback:
-              <span class="font-mono">{data.origin}/api/auth/oauth2/callback/oidc</span>
+              <span class="font-mono">{data.origin}/api/auth/callback/oidc</span>
             </p>
           </div>
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
