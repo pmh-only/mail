@@ -2,13 +2,7 @@
 
 ## Git Hooks
 
-Husky manages the Git hooks in `.husky/`.
-Always confirm Husky is the active hook manager before starting work, and restore it if it is not:
-
-```sh
-git config --get core.hooksPath   # must print .husky/_
-pnpm exec husky                   # re-installs it when missing or pointing elsewhere
-```
+This project does not install Git hooks. Run the validation commands manually before committing.
 
 ## Commits
 
@@ -17,7 +11,7 @@ For the braking changes including api change or require full mailbox re-sync mus
 Use only `fix`, `feat` and `chore`. Always include scope in commit message.
 
 Before committing, formatting, linting, tests, coverage checks, type checks, and builds must succeed.
-Coverage must stay at 100% for statements, branches, functions, and lines; the `pre-commit` hook fails below that.
+Coverage must stay at 100% for statements, branches, functions, and lines; `pnpm test:coverage` fails below that.
 
 ## Pull Requests
 
