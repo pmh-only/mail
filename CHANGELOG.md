@@ -1,5 +1,24 @@
 # Changelog
 
+## [4.0.0](https://github.com/pmh-only/mail/compare/v3.0.0...v4.0.0) (2026-10-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sveltekit:** SvelteKit configuration now lives in vite.config.ts and requires Node.js 22.17 or newer. Run the production web process through server.js to preserve runtime ORIGIN support.
+* **auth:** use shared OAuth endpoints for OIDC
+
+### Features
+
+* **sveltekit:** migrate to SvelteKit 3 ([26ecec7](https://github.com/pmh-only/mail/commit/26ecec7db7344e8c90242d04d9778847d514e3ef))
+
+
+### Bug Fixes
+
+* **auth:** use shared OAuth endpoints for OIDC ([4b5b7f8](https://github.com/pmh-only/mail/commit/4b5b7f80ed296a985c80565295c7ab421b873a4c))
+* **sveltekit:** correct error recovery and logging ([75269d4](https://github.com/pmh-only/mail/commit/75269d47d10bd6f05d4c4bdaa34333ea4d69eefd))
+* **sveltekit:** use grouped root route for error recovery ([0ee6ecb](https://github.com/pmh-only/mail/commit/0ee6ecbe522f2c94b8051daeeed80230f1e78fb6))
+
 ## [3.0.0](https://github.com/pmh-only/mail/compare/v2.2.1...v3.0.0) (2026-10-02)
 
 
