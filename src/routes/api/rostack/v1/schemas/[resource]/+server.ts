@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types'
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import { schemaWithId } from '$lib/server/rostack'
 import {
   isRostackConcreteResource,

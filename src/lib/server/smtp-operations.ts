@@ -1,5 +1,5 @@
 import type { ComposerAttachment } from '$lib/mail-attachments'
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import { randomUUID } from 'node:crypto'
 import type { OpenPgpSigningMethod } from './openpgp-message'
 import { getImapConfigs, getSmtpConfig, getSmtpConfigs } from './config'

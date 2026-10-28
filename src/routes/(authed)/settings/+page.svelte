@@ -1085,7 +1085,7 @@
       const payload = (await res.json()) as { currentSessionRevoked?: boolean }
       if (payload.currentSessionRevoked) {
         toast('Session revoked')
-        await goto(resolve('/login'))
+        await goto(resolve('login'))
         return
       }
 
@@ -2336,7 +2336,7 @@
         <div class="flex w-max gap-1 lg:w-auto lg:flex-col">
           {#each settingsSections as section (section.id)}
             <a
-              href={resolve(`/settings/${section.id}`)}
+              href={resolve(`settings/${section.id}`)}
               class={[
                 'shrink-0 rounded-xl px-3 py-2 text-sm transition lg:w-full',
                 selectedSettingsSection === section.id

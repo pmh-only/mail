@@ -1,4 +1,4 @@
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 
 const PREFIX = 'enc:v1:'

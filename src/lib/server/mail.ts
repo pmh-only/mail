@@ -65,7 +65,7 @@ import { withRetry } from './retry'
 import { getWorkerConnection, invalidateWorkerConnection } from './imap-connections'
 import { parseAddressFields, upsertContacts } from './contacts'
 import { parseMailAuthentication } from '../mail-authentication'
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import {
   countDemoSearchMessages,
   countDemoSharedMessageReads,

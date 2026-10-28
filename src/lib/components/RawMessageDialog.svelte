@@ -133,7 +133,7 @@
       <div class="flex shrink-0 items-center gap-1.5">
         {#if source}
           <a
-            href={resolve(`/api/messages/${messageId}/raw`)}
+            href={resolve(`api/messages/${messageId}/raw`)}
             download={`message-${messageId}.eml`}
             class="inline-flex items-center gap-1.5 rounded-lg border border-white/8 bg-white/3 px-2.5 py-1.5 text-xs text-zinc-300 transition hover:bg-white/6 hover:text-white"
           >

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import { ensureSeenFlag, isAlwaysReadMailbox } from '../mailbox'
 import { contactDisplay, normalizeEmail, parseAddressFields, type ContactInput } from './contacts'
 import { normalizeFilterConditions, type FilterConditionSet } from '$lib/filter-conditions'

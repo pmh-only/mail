@@ -10,8 +10,7 @@ export default defineConfig({
   plugins: [failOnBuildWarningPlugin()],
   resolve: {
     alias: {
-      $lib: fromRoot('./src/lib'),
-      '$env/dynamic/private': fromRoot('./src/lib/server/env-private.ts')
+      $lib: fromRoot('./src/lib')
     }
   },
   build: {

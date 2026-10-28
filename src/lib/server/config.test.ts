@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
   mailSignature: { name: 'mailSignature' }
 }))
 
-vi.mock('$env/dynamic/private', () => ({ env: state.env }))
+vi.mock('$lib/server/env-private', () => ({ env: state.env }))
 vi.mock('./db/schema', () => ({ mailConfig: state.mailConfig, mailSignature: state.mailSignature }))
 vi.mock('drizzle-orm', () => ({ asc: vi.fn(), desc: vi.fn(), eq: vi.fn() }))
 vi.mock('./db', () => ({

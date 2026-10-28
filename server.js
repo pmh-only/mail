@@ -1,9 +1,16 @@
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { WebSocketServer } from 'ws'
+import { withRequestOrigin } from './src/lib/server/request-origin.js'
 
 process.env.BODY_SIZE_LIMIT ||= 'Infinity'
+// Configure the adapter's trusted header names before importing its handler.
+let requestHandler
+const originHandler = withRequestOrigin(process.env, function (request, response) {
+  return requestHandler.call(this, request, response)
+})
 const { handler } = await import('./build/handler.js')
+requestHandler = handler
 
 const host = process.env.HOST || '0.0.0.0'
 const port = Number(process.env.PORT || 3000)
@@ -14,7 +21,7 @@ const authCheckUrl = `http://127.0.0.1:${port}/api/external/v1/auth-check`
 const rostackSessionUrl = `http://127.0.0.1:${port}/api/rostack/v1/session`
 const rostackReplayUrl = `http://127.0.0.1:${port}/api/rostack/v1/events/replay`
 
-const server = createServer(handler)
+const server = createServer(originHandler)
 const sockets = new Set()
 const wss = new WebSocketServer({
   noServer: true,

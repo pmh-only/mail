@@ -55,7 +55,7 @@ const env = vi.hoisted(() => ({
   MAIL_SECRET_KEY: 'test-secret',
   BETTER_AUTH_SECRET: 'auth-secret'
 }))
-vi.mock('$env/dynamic/private', () => ({ env }))
+vi.mock('$lib/server/env-private', () => ({ env }))
 vi.mock('./db', () => ({ db }))
 vi.mock('./db/schema', () => {
   const columns = (names: string[]) =>

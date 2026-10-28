@@ -2,7 +2,7 @@
  * Mail configuration loader.
  * DB values (mail_config table, id=1) take priority over environment variables.
  */
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import { db } from './db'
 import { mailConfig, mailSignature } from './db/schema'
 import { asc, desc, eq } from 'drizzle-orm'

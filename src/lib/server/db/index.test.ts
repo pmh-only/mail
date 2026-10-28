@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({
   migrate: vi.fn()
 }))
 
-vi.mock('$env/dynamic/private', () => ({ env: state.env }))
+vi.mock('$lib/server/env-private', () => ({ env: state.env }))
 vi.mock('postgres', () => ({ default: state.client }))
 vi.mock('drizzle-orm/postgres-js', () => ({ drizzle: state.drizzle }))
 vi.mock('drizzle-orm/postgres-js/migrator', () => ({ migrate: state.migrate }))

@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types'
 import { getDisplayConfig } from '$lib/server/config'
 import { getStoredPreferences } from '$lib/server/preferences'
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import { getImapMailboxes } from '$lib/server/mail'
 import { getLoginMethods } from '$lib/server/auth-methods'
 import { isDemoModeEnabled } from '$lib/server/demo'

@@ -568,7 +568,7 @@
             {#each contacts as contact (contact.id)}
               <div class="flex items-center gap-2 px-4 py-3 transition hover:bg-white/3 sm:px-5">
                 <a
-                  href={resolve(`/contacts/${contact.id}`)}
+                  href={resolve(`contacts/${contact.id}`)}
                   class="flex min-w-0 flex-1 items-center gap-3 rounded-lg focus:ring-2 focus:ring-blue-500/60 focus:outline-none"
                 >
                   <div

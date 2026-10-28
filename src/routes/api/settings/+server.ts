@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import { db } from '$lib/server/db'
 import {
   account,

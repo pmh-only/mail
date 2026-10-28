@@ -5,7 +5,7 @@ This guide runs mail from source for local use. For a long-running installation,
 
 ## Requirements
 
-- Node.js 22 or newer
+- Node.js 22.17 or newer
 - pnpm 10 (the repository pins the expected version in `package.json`)
 - PostgreSQL
 - An IMAP account for receiving mail

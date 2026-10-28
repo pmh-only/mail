@@ -34,7 +34,7 @@
     threadId: string | null
   }
 
-  let { data } = $props<{ data: { contact: Contact; messages: ContactMessage[] } }>()
+  let { data }: { data: { contact: Contact; messages: ContactMessage[] } } = $props()
 
   const contact = $derived(data.contact)
   const messages = $derived(data.messages)
@@ -93,15 +93,15 @@
     }
   }
 
-  function messagePath(message: ContactMessage): `/${string}/${string}` {
-    return `/${pathToSlug(message.mailbox)}/${message.id}`
+  function messagePath(message: ContactMessage): `${string}/${string}` {
+    return `${pathToSlug(message.mailbox)}/${message.id}`
   }
 
   function threadPath(
     message: ContactMessage
-  ): `/${string}/${string}` | `/${string}/thread/${string}` {
+  ): `${string}/${string}` | `${string}/thread/${string}` {
     return message.threadId
-      ? `/${pathToSlug(message.mailbox)}/thread/${encodeThreadId(message.threadId)}`
+      ? `${pathToSlug(message.mailbox)}/thread/${encodeThreadId(message.threadId)}`
       : messagePath(message)
   }
 </script>
@@ -113,7 +113,7 @@
 <div class="flex h-full min-h-0 flex-col bg-zinc-950 text-zinc-100">
   <div class="border-b border-white/8 p-4 sm:p-5">
     <a
-      href={resolve('/contacts')}
+      href={resolve('contacts')}
       class="mb-4 inline-flex items-center gap-2 text-sm text-zinc-500 transition hover:text-zinc-200"
     >
       <ArrowLeft size={15} />

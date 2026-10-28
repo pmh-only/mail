@@ -64,6 +64,20 @@ request template before submitting changes.
 Pull request labeling runs are serialized per PR. Size labeling preserves the current correct size
 label and tolerates already-removed stale labels, avoiding races when label events trigger more runs.
 
+## Dependency compatibility
+
+The app uses SvelteKit 3 with `@sveltejs/adapter-auto` 8 and `@sveltejs/adapter-node` 6.
+Configure SvelteKit in the `sveltekit(...)` plugin in `vite.config.ts`, not `svelte.config.js`.
+The existing `$lib` imports are preserved through explicit Vite and TypeScript aliases. The root TypeScript
+configuration extends `$app/tsconfig` and declares its own included and excluded files.
+
+Server modules share `src/lib/server/env-private.ts` to read runtime environment variables in both
+the web and worker processes, without bundling deployment secrets or requiring build-time values.
+The web Vite config loads mode-specific `.env` files into the process environment for local development;
+exported environment variables take precedence over those files.
+The custom Node server preserves runtime `ORIGIN` through adapter headers that it overwrites on
+every request; do not replace this with a build-time `paths.origin` in container builds.
+
 ## Documentation changes
 
 Documentation pages live in `docs/` and use VitePress. Navigation and sidebar entries are configured
