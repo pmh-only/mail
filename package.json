@@ -32,7 +32,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@better-auth/passkey": "1.7.12",
+    "@better-auth/passkey": "1.7.13",
     "@tiptap/core": "^3.32.0",
     "@tiptap/extension-color": "^3.32.0",
     "@tiptap/extension-highlight": "^3.32.0",
@@ -40,7 +40,7 @@
     "@tiptap/extension-text-style": "^3.32.0",
     "@tiptap/pm": "^3.32.0",
     "@tiptap/starter-kit": "^3.32.0",
-    "better-auth": "1.7.12",
+    "better-auth": "1.7.13",
     "dotenv": "^18.0.9",
     "drizzle-orm": "^0.45.4",
     "html-to-text": "^10.0.1",
