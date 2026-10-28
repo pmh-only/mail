@@ -40,7 +40,7 @@
     "@tiptap/extension-text-style": "^3.31.3",
     "@tiptap/pm": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
-    "better-auth": "1.7.6",
+    "better-auth": "1.7.7",
     "dotenv": "^18.0.4",
     "drizzle-orm": "^0.45.3",
     "html-to-text": "^10.0.1",
