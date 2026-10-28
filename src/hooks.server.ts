@@ -1,7 +1,7 @@
-import type { Handle, HandleServerError } from '@sveltejs/kit'
+import type { Handle, HandleServerError } from '@sveltejs/kit/hooks'
 import { redirect } from '@sveltejs/kit'
 import { sequence } from '@sveltejs/kit/hooks'
-import { building } from '$app/environment'
+import { building } from '$app/env'
 import { getAuth, invalidateAuth } from '$lib/server/auth'
 import { isAuthenticationConfigured } from '$lib/server/config'
 import { repairThreadKeys } from '$lib/server/mail'
@@ -211,14 +211,11 @@ const handleTraffic: Handle = async ({ event, resolve }) => {
 
 export const handle: Handle = sequence(handleStartup, handleTraffic, handleBetterAuth)
 
-export const handleError: HandleServerError = ({ error, event, status, message }) => {
+export const handleError: HandleServerError = ({ error, event, kind }) => {
   logServerError('request', error, {
     method: event.request.method,
     path: redactCapabilityPath(event.url.pathname),
     routeId: event.route.id ?? null,
-    status,
-    message
+    kind
   })
-
-  return { message }
 }

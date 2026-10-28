@@ -4,7 +4,7 @@ import { sveltekitCookies } from 'better-auth/svelte-kit'
 import { genericOAuth } from 'better-auth/plugins'
 import { passkey } from '@better-auth/passkey'
 import { APIError } from 'better-auth/api'
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import { getRequestEvent } from '$app/server'
 import { db } from '$lib/server/db'
 import {

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq, inArray, lte, or } from 'drizzle-orm'
 import nodemailer from 'nodemailer'
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import {
   getImapConfigs,
   getSmtpConfig,

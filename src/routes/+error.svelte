@@ -18,7 +18,7 @@
       return
     }
 
-    window.location.href = resolve('/')
+    window.location.href = resolve('')
   }
 
   function retry() {
@@ -42,7 +42,7 @@
   <div class="grain" aria-hidden="true"></div>
 
   <header class="brand">
-    <a href={resolve('/')} aria-label="Mail home">
+    <a href={resolve('')} aria-label="Mail home">
       <span class="brand-mark"><img src={favicon} alt="" /></span>
       <span>Mail</span>
     </a>
@@ -57,7 +57,7 @@
       <p class="description">{description}</p>
 
       <div class="actions">
-        <a class="primary-action" href={resolve('/')}>
+        <a class="primary-action" href={resolve('')}>
           <Home size={17} strokeWidth={1.8} />
           Back to inbox
         </a>

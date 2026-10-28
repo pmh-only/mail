@@ -164,14 +164,14 @@ describe('demo mode configuration and mailbox data', () => {
 
   it('recognizes every enabled demo-mode value and preserves explicit valid settings', async () => {
     for (const value of ['1', 'true', 'yes', 'on']) {
-      vi.doMock('$env/dynamic/private', () => ({ env: { DEMO_MODE: value } }))
+      vi.doMock('$lib/server/env-private', () => ({ env: { DEMO_MODE: value } }))
       vi.resetModules()
       assert.equal((await import('./demo.ts')).isDemoModeEnabled(), true)
     }
-    vi.doMock('$env/dynamic/private', () => ({ env: { DEMO_MODE: 'false' } }))
+    vi.doMock('$lib/server/env-private', () => ({ env: { DEMO_MODE: 'false' } }))
     vi.resetModules()
     assert.equal((await import('./demo.ts')).isDemoModeEnabled(), false)
-    vi.doUnmock('$env/dynamic/private')
+    vi.doUnmock('$lib/server/env-private')
     vi.resetModules()
 
     saveDemoSettings({

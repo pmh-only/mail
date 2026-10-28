@@ -284,7 +284,7 @@
   let notesCollapsed = $state(false)
 
   function gotoMailbox() {
-    return goto(resolve(`/${page.params.mailbox}`), { noScroll: true, keepFocus: true })
+    return goto(resolve(`${page.params.mailbox}`), { reset: false })
   }
 
   function toggleExpanded(message: Message) {
@@ -445,7 +445,7 @@
 
     try {
       const response = await fetch(
-        resolve(`/api/threads/${encodeThreadId(data.threadId)}/metadata`),
+        resolve(`api/threads/${encodeThreadId(data.threadId)}/metadata`),
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -608,7 +608,7 @@
     savingNote = true
 
     try {
-      const response = await fetch(resolve(`/api/threads/${encodeThreadId(data.threadId)}/note`), {
+      const response = await fetch(resolve(`api/threads/${encodeThreadId(data.threadId)}/note`), {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ body: noteDraft })
@@ -733,7 +733,7 @@
       confirmLabel: 'Download',
       tone: 'danger'
     })
-    if (confirmed) window.location.href = resolve(`/api/attachments/${att.id}`)
+    if (confirmed) window.location.href = resolve(`api/attachments/${att.id}`)
   }
 
   function hasValue(value: string | null | undefined) {
@@ -1483,7 +1483,7 @@
                           </div>
                           <AttachmentSummary attachment={att} compact iconOnly />
                           <a
-                            href={resolve(`/api/attachments/${att.id}`)}
+                            href={resolve(`api/attachments/${att.id}`)}
                             download={att.filename || 'attachment'}
                             onclick={(event) => confirmHighRiskDownload(event, att)}
                             class="shrink-0 text-zinc-500 transition hover:text-zinc-300"

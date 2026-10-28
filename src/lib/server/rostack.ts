@@ -15,7 +15,7 @@ import {
   sql,
   type SQL
 } from 'drizzle-orm'
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 import { db } from './db'
 import { mailMessage, mailMessageMailbox, rostackEvent, rostackSnapshotPage } from './db/schema'
 import { getExternalMessage } from './external-mail'

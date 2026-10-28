@@ -1506,7 +1506,7 @@
             <KeyRound size={12} /> Attach public key
           </label>
           {#if !openPgpSenderAvailable && !loadingOpenPgp}
-            <a href={resolve('/settings/openpgp')} class="text-amber-300 hover:text-amber-200"
+            <a href={resolve('settings/openpgp')} class="text-amber-300 hover:text-amber-200"
               >Configure a key for this sender</a
             >
           {/if}

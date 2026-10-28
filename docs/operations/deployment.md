@@ -81,6 +81,10 @@ database also runs in a container.
 Terminate HTTPS in front of the web process and preserve the original host and protocol headers.
 `ORIGIN` must exactly match the public URL.
 
+With SvelteKit 3, run the web process through `node server.js` (or `pnpm start:web`), not the
+adapter's generated server directly. This entry point preserves runtime `ORIGIN` support, including
+the scheme and non-standard port, without baking deployment URLs into the image.
+
 Configure the proxy to:
 
 - Forward ordinary HTTP traffic to port `3000`.

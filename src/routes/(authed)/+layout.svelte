@@ -1,6 +1,6 @@
 <script lang="ts">
   import favicon from '$lib/assets/favicon.svg'
-  import { dev } from '$app/environment'
+  import { dev } from '$app/env'
   import { page } from '$app/state'
   import { setSimplifiedModeSidebarActionContext } from '$lib/simplified-mode-context'
   import { onMount, untrack } from 'svelte'
@@ -855,7 +855,7 @@
 
     const fields = mailto ? parseMailtoUrl(mailto) : sharedFields
     if (fields) void openCompose(fields)
-    queueMicrotask(() => replaceState(resolve('/inbox'), page.state))
+    queueMicrotask(() => replaceState(resolve('inbox'), page.state))
   })
 
   $effect(() => {
@@ -891,7 +891,7 @@
     // Register select callback so the keyboard module can trigger navigation
     keyboard.onMailboxSelect = () => {
       const mb = mailboxes[keyboard.focusedMailboxIndex]
-      if (mb) void goto(resolve(`/${mb.slug}`))
+      if (mb) void goto(resolve(`${mb.slug}`))
     }
     return () => {
       keyboard.onMailboxSelect = null
@@ -930,7 +930,7 @@
   onMount(() => {
     registerMailtoProtocolHandler(
       navigator,
-      `${window.location.origin}${resolve('/inbox')}?mailto=%s`
+      `${window.location.origin}${resolve('inbox')}?mailto=%s`
     )
 
     logPerf('shell hydrated', { mailbox, ms: Math.round(now() - shellInitAt) })
@@ -1355,7 +1355,7 @@
             >
               {#if row.selectable && row.slug}
                 <a
-                  href={resolve(`/${row.slug}`)}
+                  href={resolve(`${row.slug}`)}
                   data-mailbox-item
                   onclick={() => {
                     mobileNavOpen = false
@@ -1432,7 +1432,7 @@
             </p>
             <div class="space-y-1">
               {#each savedSearches as savedSearch (savedSearch.id)}
-                {@const href = resolve(`/inbox?q=${encodeURIComponent(savedSearch.query)}`)}
+                {@const href = resolve(`inbox?q=${encodeURIComponent(savedSearch.query)}`)}
                 {@const activeSmartFolder = page.url.searchParams.get('q') === savedSearch.query}
                 <div
                   class={[
@@ -1533,7 +1533,7 @@
               class="app-popover absolute bottom-full left-0 z-30 mb-2 w-full overflow-hidden rounded-2xl border border-white/10 p-1.5 shadow-2xl ring-1 shadow-black/50 ring-black/20 backdrop-blur-xl"
             >
               <a
-                href={resolve('/contacts')}
+                href={resolve('contacts')}
                 role="menuitem"
                 onclick={() => {
                   mobileNavOpen = false
@@ -1550,7 +1550,7 @@
                 Contacts
               </a>
               <a
-                href={resolve('/settings/ai-features')}
+                href={resolve('settings/ai-features')}
                 role="menuitem"
                 onclick={() => {
                   mobileNavOpen = false
@@ -1567,7 +1567,7 @@
                 Settings
               </a>
               <a
-                href={resolve('/operations')}
+                href={resolve('operations')}
                 role="menuitem"
                 onclick={() => {
                   mobileNavOpen = false
@@ -1584,7 +1584,7 @@
                 Operations
               </a>
               <a
-                href={resolve('/audit-log')}
+                href={resolve('audit-log')}
                 role="menuitem"
                 onclick={() => {
                   mobileNavOpen = false
@@ -1601,7 +1601,7 @@
                 Audit log
               </a>
               <a
-                href={resolve('/api-docs')}
+                href={resolve('api-docs')}
                 role="menuitem"
                 onclick={() => {
                   mobileNavOpen = false
@@ -1618,7 +1618,7 @@
                 API docs
               </a>
               <a
-                href={resolve('/manual')}
+                href={resolve('manual')}
                 role="menuitem"
                 onclick={() => {
                   mobileNavOpen = false
@@ -1902,7 +1902,7 @@
               </button>
             {:else}
               <a
-                href={resolve('/settings/notifications')}
+                href={resolve('settings/notifications')}
                 class="self-start rounded-lg border border-amber-300/30 px-3 py-1.5 text-sm font-medium text-amber-100 hover:bg-amber-300/10 sm:self-auto"
               >
                 Review setup

@@ -185,7 +185,7 @@
   </div>
 
   <a
-    href={resolve('/api-docs')}
+    href={resolve('api-docs')}
     class="inline-flex text-sm font-medium text-blue-300 hover:text-blue-200"
   >
     Open API and MCP documentation →

@@ -461,7 +461,7 @@
   })
 
   function gotoMailbox() {
-    return goto(resolve(`/${page.params.mailbox}`), { noScroll: true, keepFocus: true })
+    return goto(resolve(`${page.params.mailbox}`), { reset: false })
   }
 
   function splitTextNodeValue(value: string) {
@@ -618,7 +618,7 @@
 
     try {
       const response = await fetch(
-        resolve(`/api/threads/${encodeThreadId(data.message.threadKey)}/metadata`),
+        resolve(`api/threads/${encodeThreadId(data.message.threadKey)}/metadata`),
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -938,8 +938,8 @@
         storedMessageId?: number | null
       }
       if (waitingForStoredCopy && payload.storedMessageId) {
-        await goto(resolve(`/${page.params.mailbox}/${payload.storedMessageId}`), {
-          replaceState: true
+        await goto(resolve(`${page.params.mailbox}/${payload.storedMessageId}`), {
+          replace: true
         })
         return
       }
@@ -1119,7 +1119,7 @@
       confirmLabel: 'Download',
       tone: 'danger'
     })
-    if (confirmed) window.location.href = resolve(`/api/attachments/${att.id}`)
+    if (confirmed) window.location.href = resolve(`api/attachments/${att.id}`)
   }
 
   function isImage(contentType: string) {
@@ -1789,7 +1789,7 @@
                   {/if}
                 </div>
                 <a
-                  href={resolve(`/api/attachments/${att.id}`)}
+                  href={resolve(`api/attachments/${att.id}`)}
                   download={att.filename}
                   onclick={(event) => confirmHighRiskDownload(event, att)}
                   class="shrink-0 text-zinc-600 hover:text-zinc-300"
@@ -1961,7 +1961,7 @@
           </span>
         {/if}
         <a
-          href={resolve(`/api/attachments/${att.id}`)}
+          href={resolve(`api/attachments/${att.id}`)}
           download={att.filename}
           onclick={(event) => confirmHighRiskDownload(event, att)}
           class="flex items-center gap-1 text-xs text-zinc-400 hover:text-white"

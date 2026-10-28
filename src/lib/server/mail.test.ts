@@ -153,7 +153,7 @@ vi.mock('./push', () => ({
   })
 }))
 
-vi.mock('$env/dynamic/private', () => ({
+vi.mock('$lib/server/env-private', () => ({
   env: new Proxy(
     {},
     {

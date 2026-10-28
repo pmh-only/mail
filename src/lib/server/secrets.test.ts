@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { beforeEach, test, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({ env: {} as Record<string, string | undefined> }))
-vi.mock('$env/dynamic/private', () => ({ env: state.env }))
+vi.mock('$lib/server/env-private', () => ({ env: state.env }))
 
 import {
   decryptSecret,

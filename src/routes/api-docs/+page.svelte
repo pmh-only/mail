@@ -43,7 +43,7 @@ curl -X POST -H "Authorization: Bearer $MAIL_API_KEY" \\
       </h1>
       <p class="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
         Read received mail, schedule outgoing messages, and expose the same operations as MCP tools.
-        Create a key in <a href={resolve('/settings/api')} class="text-blue-300 hover:text-blue-200"
+        Create a key in <a href={resolve('settings/api')} class="text-blue-300 hover:text-blue-200"
           >Settings → API Keys</a
         >. Send it as a Bearer token. API keys have full read and send access.
       </p>

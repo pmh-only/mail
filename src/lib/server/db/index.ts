@@ -3,7 +3,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { resolve } from 'path'
 import postgres from 'postgres'
 import * as schema from './schema'
-import { env } from '$env/dynamic/private'
+import { env } from '$lib/server/env-private'
 
 const databaseUrl = env.DATABASE_URL
 const demoMode = ['1', 'true', 'yes', 'on'].includes(env.DEMO_MODE?.trim().toLowerCase() ?? '')

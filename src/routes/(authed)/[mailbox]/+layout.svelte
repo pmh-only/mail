@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { dev } from '$app/environment'
+  import { dev } from '$app/env'
   import { afterNavigate, beforeNavigate, goto } from '$app/navigation'
   import { resolve } from '$app/paths'
   import ActionModal from '$lib/components/ActionModal.svelte'
@@ -636,9 +636,8 @@
   function selectSavedSearch(savedSearch: SavedSearch) {
     searchQuery = savedSearch.query
     showSavedSearchMenu = false
-    void goto(resolve(`/${mailbox}?q=${encodeURIComponent(savedSearch.query)}`), {
-      noScroll: true,
-      keepFocus: true
+    void goto(resolve(`${mailbox}?q=${encodeURIComponent(savedSearch.query)}`), {
+      reset: false
     })
   }
 
@@ -819,7 +818,7 @@
   }
 
   function isCurrentMailboxPath(pathname: string) {
-    const prefix = resolve(`/${mailbox}`)
+    const prefix = resolve(`${mailbox}`)
     return pathname === prefix || pathname.startsWith(`${prefix}/`)
   }
 
@@ -1039,12 +1038,11 @@
         ? pathToSlug(message.mailbox)
         : mailbox
     if (threadedMode && message.threadId && (message.threadCount ?? 0) > 1) {
-      goto(resolve(`/${targetMailbox}/thread/${encodeThreadId(message.threadId)}`), {
-        noScroll: true,
-        keepFocus: true
+      goto(resolve(`${targetMailbox}/thread/${encodeThreadId(message.threadId)}`), {
+        reset: false
       })
     } else {
-      goto(resolve(`/${targetMailbox}/${message.id}`), { noScroll: true, keepFocus: true })
+      goto(resolve(`${targetMailbox}/${message.id}`), { reset: false })
     }
   }
 
@@ -1244,7 +1242,7 @@
     if (enabled) {
       if (showSimplifiedMailboxView) return
       enableSimplifiedMode()
-      await goto(resolve(`/${mailbox}`))
+      await goto(resolve(`${mailbox}`))
       return
     }
 

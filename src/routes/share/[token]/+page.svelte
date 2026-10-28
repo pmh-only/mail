@@ -164,7 +164,7 @@
   }
 
   function attachmentUrl(id: number, inline = false) {
-    return resolve(`/share/${data.token}/attachments/${id}${inline ? '?inline=1' : ''}`)
+    return resolve(`share/${data.token}/attachments/${id}${inline ? '?inline=1' : ''}`)
   }
 
   function getMessageAttachments(messageId: string) {
@@ -257,7 +257,7 @@
               >
                 {#if isImage(att.contentType)}
                   <a
-                    href={resolve(`/share/${data.token}/attachments/${att.id}?inline=1`)}
+                    href={resolve(`share/${data.token}/attachments/${att.id}?inline=1`)}
                     target="_blank"
                     rel="noreferrer"
                     class="block h-40 w-full overflow-hidden bg-black/20 sm:h-32"
@@ -300,7 +300,7 @@
                     {/if}
                   </div>
                   <a
-                    href={resolve(`/share/${data.token}/attachments/${att.id}`)}
+                    href={resolve(`share/${data.token}/attachments/${att.id}`)}
                     download={att.filename || 'attachment'}
                     onclick={(event) => confirmHighRiskDownload(event, att)}
                     class="shrink-0 text-zinc-500 hover:text-zinc-300"
@@ -390,7 +390,7 @@
                     >
                       {#if isImage(att.contentType)}
                         <a
-                          href={resolve(`/share/${data.token}/attachments/${att.id}?inline=1`)}
+                          href={resolve(`share/${data.token}/attachments/${att.id}?inline=1`)}
                           target="_blank"
                           rel="noreferrer"
                           class="block h-40 w-full overflow-hidden bg-black/20 sm:h-32"
@@ -433,7 +433,7 @@
                           {/if}
                         </div>
                         <a
-                          href={resolve(`/share/${data.token}/attachments/${att.id}`)}
+                          href={resolve(`share/${data.token}/attachments/${att.id}`)}
                           download={att.filename || 'attachment'}
                           onclick={(event) => confirmHighRiskDownload(event, att)}
                           class="shrink-0 text-zinc-500 hover:text-zinc-300"
