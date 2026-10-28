@@ -57,8 +57,8 @@ importers:
         specifier: ^3.9.28
         version: 3.9.28
       nodemailer:
-        specifier: ^10.0.11
-        version: 10.0.11
+        specifier: ^10.1.4
+        version: 10.1.4
       openai:
         specifier: ^7.23.0
         version: 7.23.0(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
@@ -3578,8 +3578,8 @@ packages:
     resolution: {integrity: sha512-He9XskOFms62SyAKkLu8CcGcYHAo+BSHSsORI8s4PJH8qZgZY4L4lDfvyN0twvmbpyG+eGrxpyBlskj9d9rJ8A==}
     engines: {node: '>=20.0.0'}
 
-  nodemailer@10.0.11:
-    resolution: {integrity: sha512-/c4P7U7aGpiNu2Rl08q525q2zECkUpSaf2zQPgIStCcAjHAkkQQKwD4sTyi3l91mGcLQrKzL1syXPHymo+Ogtw==}
+  nodemailer@10.1.4:
+    resolution: {integrity: sha512-EsMnOR2oRv4LGnWvHgcVYkkQ4O2j8KO4WTw6l+PHR4sOXo8SAgIraxtEnGDmotjbhv0hDsu3IuDIFZm8iXwO4A==}
     engines: {node: '>=20.0.0'}
 
   non-layered-tidy-tree-layout@2.0.2:
@@ -7164,7 +7164,7 @@ snapshots:
 
   nodemailer@10.0.10: {}
 
-  nodemailer@10.0.11: {}
+  nodemailer@10.1.4: {}
 
   non-layered-tidy-tree-layout@2.0.2:
     optional: true
