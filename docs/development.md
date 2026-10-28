@@ -78,6 +78,10 @@ exported environment variables take precedence over those files.
 The custom Node server preserves runtime `ORIGIN` through adapter headers that it overwrites on
 every request; do not replace this with a build-time `paths.origin` in container builds.
 
+Error-page home actions use the root route ID (`resolve('/')`) so recovery works from nested URLs.
+The server error hook skips expected client and validation failures below status 500, while logging
+server failures and unknown exceptions without exposing their details to clients.
+
 ## Documentation changes
 
 Documentation pages live in `docs/` and use VitePress. Navigation and sidebar entries are configured

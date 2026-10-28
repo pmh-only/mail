@@ -6,6 +6,7 @@ import { getAuth, invalidateAuth } from '$lib/server/auth'
 import { isAuthenticationConfigured } from '$lib/server/config'
 import { repairThreadKeys } from '$lib/server/mail'
 import { logServerError } from '$lib/server/perf'
+import { shouldLogRequestError } from '$lib/server/request-errors'
 import { runMigrations } from '$lib/server/db'
 import { svelteKitHandler } from 'better-auth/svelte-kit'
 import { getDemoAuthSession, isDemoModeEnabled } from '$lib/server/demo'
@@ -211,7 +212,9 @@ const handleTraffic: Handle = async ({ event, resolve }) => {
 
 export const handle: Handle = sequence(handleStartup, handleTraffic, handleBetterAuth)
 
-export const handleError: HandleServerError = ({ error, event, kind }) => {
+export const handleError: HandleServerError = (failure) => {
+  if (!shouldLogRequestError(failure)) return
+  const { error, event, kind } = failure
   logServerError('request', error, {
     method: event.request.method,
     path: redactCapabilityPath(event.url.pathname),
