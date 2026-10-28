@@ -78,7 +78,9 @@ exported environment variables take precedence over those files.
 The custom Node server preserves runtime `ORIGIN` through adapter headers that it overwrites on
 every request; do not replace this with a build-time `paths.origin` in container builds.
 
-Error-page home actions use the root route ID (`resolve('/')`) so recovery works from nested URLs.
+Error-page home actions use the grouped root route ID (`resolve('/(authed)')`), which resolves to `/`,
+so recovery works from nested URLs. Use freshly generated SvelteKit types when checking a migration;
+stale `.svelte-kit` declarations from earlier framework versions can mask invalid route IDs.
 The server error hook skips expected client and validation failures below status 500, while logging
 server failures and unknown exceptions without exposing their details to clients.
 
