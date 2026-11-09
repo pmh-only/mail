@@ -13,7 +13,7 @@ function getNotificationUrl(notification) {
 async function openApp(url) {
   const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true })
   for (const client of windowClients) {
-    if (client.frameType !== 'top-level') continue
+    if (client.frameType !== 'top-level' && client.frameType !== 'auxiliary') continue
     if ('navigate' in client) {
       const navigatedClient = await client.navigate(url)
       if (navigatedClient && 'focus' in navigatedClient) return navigatedClient.focus()

@@ -19,9 +19,14 @@ type NotificationClickEvent = {
   waitUntil: (value: Promise<unknown>) => void
 }
 
-test.each(['', 'mark-read'])(
-  'notification action %j navigates the top-level app instead of a recently focused message iframe',
-  async (action) => {
+test.each([
+  ['', 'top-level'],
+  ['mark-read', 'top-level'],
+  ['', 'auxiliary'],
+  ['mark-read', 'auxiliary']
+])(
+  'notification action %j navigates the %s app instead of a recently focused message iframe',
+  async (action, frameType) => {
     const navigated: string[] = []
     const focused: string[] = []
     const opened: string[] = []
@@ -36,7 +41,7 @@ test.each(['', 'mark-read'])(
       focus: async () => focused.push(name)
     })
     const iframe = makeClient('message', 'nested')
-    const app = makeClient('app', 'top-level')
+    const app = makeClient('app', frameType)
     let windowClients = [iframe, app]
     const source = readFileSync(new URL('../../static/sw.js', import.meta.url), 'utf8')
     vm.runInNewContext(source, {
