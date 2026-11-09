@@ -13,6 +13,83 @@ type WorkerMessageEvent = {
   ports: Array<{ postMessage: (value: unknown) => void }>
 }
 
+type NotificationClickEvent = {
+  action: string
+  notification: { data: { url: string; messageId: number }; close: () => void }
+  waitUntil: (value: Promise<unknown>) => void
+}
+
+test.each(['', 'mark-read'])(
+  'notification action %j navigates the top-level app instead of a recently focused message iframe',
+  async (action) => {
+    const navigated: string[] = []
+    const focused: string[] = []
+    const opened: string[] = []
+    const closed: string[] = []
+    const listeners = new Map<string, (event: NotificationClickEvent) => void>()
+    const makeClient = (name: string, frameType: string) => ({
+      frameType,
+      navigate: async (url: string) => {
+        navigated.push(`${name}:${url}`)
+        return { focus: async () => focused.push(name) }
+      },
+      focus: async () => focused.push(name)
+    })
+    const iframe = makeClient('message', 'nested')
+    const app = makeClient('app', 'top-level')
+    let windowClients = [iframe, app]
+    const source = readFileSync(new URL('../../static/sw.js', import.meta.url), 'utf8')
+    vm.runInNewContext(source, {
+      self: {
+        location: { origin: 'https://mail.example' },
+        addEventListener: (type: string, handler: (event: NotificationClickEvent) => void) =>
+          listeners.set(type, handler)
+      },
+      clients: {
+        matchAll: async (options: { type: string; includeUncontrolled: boolean }) => {
+          assert.equal(options.type, 'window')
+          assert.equal(options.includeUncontrolled, true)
+          return windowClients
+        },
+        openWindow: async (url: string) => opened.push(url)
+      },
+      fetch: async () => ({ ok: false }),
+      URL
+    })
+    const handleClick = listeners.get('notificationclick')
+    assert.ok(handleClick)
+    const completions: Promise<unknown>[] = []
+    const click = () => {
+      handleClick({
+        action,
+        notification: {
+          data: { url: '/inbox/42', messageId: 42 },
+          close: () => closed.push('notification')
+        },
+        waitUntil: (value) => completions.push(value)
+      })
+      return completions.at(-1)
+    }
+
+    await click()
+    assert.deepEqual(navigated, ['app:https://mail.example/inbox/42'])
+    assert.deepEqual(focused, ['app'])
+    assert.deepEqual(opened, [])
+
+    // An embedded client alone must not prevent opening a real app window.
+    windowClients = [iframe]
+    await click()
+    assert.deepEqual(navigated, ['app:https://mail.example/inbox/42'])
+    assert.deepEqual(focused, ['app'])
+    assert.deepEqual(opened, ['https://mail.example/inbox/42'])
+
+    windowClients = []
+    await click()
+    assert.equal(opened.length, 2)
+    assert.equal(closed.length, 3)
+  }
+)
+
 test('read control pushes close matching notifications without showing a new one', async () => {
   const listeners = new Map<string, (event: unknown) => void>()
   const closed: number[] = []
