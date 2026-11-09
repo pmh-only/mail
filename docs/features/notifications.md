@@ -20,6 +20,8 @@ variables. On iOS, install the PWA on the Home Screen before requesting push per
 - Quiet hours suppress pushes inside a daily local-time window, including windows crossing midnight.
 - A notification can open its message, and supported subscriptions can mark a message read from the
   notification action.
+- Notification clicks reuse a top-level app window, never an embedded message frame. If no top-level
+  window is open, a new window is opened.
 - Reading mail in one client dismisses matching new-mail notifications on other capable clients.
 
 ## Configuration
