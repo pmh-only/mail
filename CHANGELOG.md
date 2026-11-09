@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.1](https://github.com/pmh-only/mail/compare/v4.0.0...v4.0.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **notifications:** open mail in top-level windows only ([1623344](https://github.com/pmh-only/mail/commit/1623344300b0084cffceb1aab2f381d818ac3926))
+* **notifications:** reuse auxiliary app windows ([71075a4](https://github.com/pmh-only/mail/commit/71075a41be0cc9fb7cea917a8fa2a282009a8c27))
+
 ## [4.0.0](https://github.com/pmh-only/mail/compare/v3.0.0...v4.0.0) (2026-10-28)
 
 
