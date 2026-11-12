@@ -1,4 +1,4 @@
-import webpush from 'web-push'
+import { setVapidDetails } from 'web-push'
 import { db } from './db'
 import { mailConfig, mailPushSubscription } from './db/schema'
 import { logServerError } from './perf'
@@ -20,7 +20,7 @@ async function ensureInit(): Promise<boolean> {
   const [config] = await db.select().from(mailConfig).where(eq(mailConfig.id, 1)).limit(1)
   if (!config?.vapidPublicKey || !config?.vapidPrivateKey || !config?.vapidSubject) return false
 
-  webpush.setVapidDetails(config.vapidSubject, config.vapidPublicKey, config.vapidPrivateKey)
+  setVapidDetails(config.vapidSubject, config.vapidPublicKey, config.vapidPrivateKey)
   initialized = true
   return true
 }
