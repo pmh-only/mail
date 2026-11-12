@@ -140,7 +140,9 @@
   ]
   const sharePrivacyOptions: SelectOption[] = [
     { value: 'only-text', label: 'Only text' },
-    { value: 'style-included', label: 'Style included' }
+    { value: 'style-included', label: 'Style included' },
+    { value: 'full-featured', label: 'Full featured' },
+    { value: 'full-featured-link-deducted', label: 'Full featured (link deducted)' }
   ]
   const senderRuleTypeOptions: SelectOption[] = [
     { value: 'block', label: 'Block' },
@@ -4262,6 +4264,7 @@
               </p>
               <CustomSelect
                 id="mailbox-privacy-mode"
+                buttonClass="px-3 py-2 text-sm"
                 options={mailboxPrivacyOptions}
                 value={mailboxPrivacyMode}
                 onchange={(value) => {
@@ -4275,10 +4278,11 @@
                 Shared message display
               </label>
               <p class="text-sm text-zinc-500">
-                Shared links can use plain text or safe styling. Remote images stay blocked.
+                Choose plain text, safe styling, or full styling and images with optional link removal.
               </p>
               <CustomSelect
                 id="share-privacy-mode"
+                buttonClass="px-3 py-2 text-sm"
                 options={sharePrivacyOptions}
                 value={sharePrivacyMode}
                 onchange={(value) => {
