@@ -12,19 +12,22 @@ export function prepareSharedMessageHtml(html: string, mode: SharePrivacyMode): 
       sanitizeRemoteContent(html, { includeStyles: true, blockImages: true }).html
     )
   }
-  if (mode === 'full-featured-link-deducted') {
-    const document = parseDocument(html)
-    for (const element of DomUtils.getElementsByTagName('*', document)) {
-      if (element.name === 'a' || element.name === 'area') {
-        delete element.attribs.href
-        delete element.attribs['xlink:href']
-        delete element.attribs.ping
-      }
-      if (element.name === 'meta' && element.attribs['http-equiv']?.toLowerCase() === 'refresh') {
-        DomUtils.removeElement(element)
-      }
+  const document = parseDocument(html)
+  for (const element of DomUtils.getElementsByTagName('*', document)) {
+    if (
+      mode === 'full-featured-link-deducted' &&
+      (element.name === 'a' || element.name === 'area')
+    ) {
+      delete element.attribs.href
+      delete element.attribs['xlink:href']
+      delete element.attribs.ping
     }
-    return FULL_FEATURED_CSP_META + DomUtils.getInnerHTML(document)
+    if (
+      element.name === 'meta' &&
+      element.attribs['http-equiv']?.trim().toLowerCase() === 'refresh'
+    ) {
+      DomUtils.removeElement(element)
+    }
   }
-  return FULL_FEATURED_CSP_META + html
+  return FULL_FEATURED_CSP_META + DomUtils.getInnerHTML(document)
 }
