@@ -4,6 +4,8 @@ Startup thread repair runs independently for each account and updates messages b
 IDs. Identical Message-ID headers in different accounts do not collide or merge their thread roots.
 Thread-summary rebuilding joins mailbox entries to their stored message IDs, preserving account
 boundaries. This repair does not require deleting mail or performing a full mailbox re-sync.
+Summaries are rebuilt even when all thread keys are already correct, so counts and phantom threads
+left by older Message-ID-based joins are repaired too. Empty message stores also clear stale summaries.
 
 mail stores synchronized messages in PostgreSQL and presents them as individual messages, grouped
 threads, or swipeable cards. The same actions update local state immediately and queue the matching
