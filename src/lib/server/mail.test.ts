@@ -2180,6 +2180,8 @@ test('repairs persisted thread keys and rebuilds thread summaries in one transac
   state.queryResults = [
     [
       {
+        id: 1,
+        configId: 'primary',
         messageId: '<reply@example.test>',
         subject: 'Re: Project',
         inReplyTo: '<root@example.test>',
@@ -2188,6 +2190,8 @@ test('repairs persisted thread keys and rebuilds thread summaries in one transac
         receivedAt: new Date('2026-01-02T00:00:00Z')
       },
       {
+        id: 2,
+        configId: 'primary',
         messageId: '<root@example.test>',
         subject: 'Project',
         inReplyTo: null,
@@ -2202,8 +2206,55 @@ test('repairs persisted thread keys and rebuilds thread summaries in one transac
 
   assert.equal(state.transactionCalls.length, 6)
   assert.deepEqual(state.transactionCalls[1]?.[0], [
-    { message_id: '<reply@example.test>', next_thread_key: '<root@example.test>' }
+    { mail_message_id: 1, next_thread_key: '<root@example.test>' }
   ])
+})
+
+test('repairs duplicate Message-IDs independently across accounts using unique stored row IDs', async () => {
+  state.demoMode = false
+  const root = {
+    subject: 'Project',
+    inReplyTo: null,
+    references: null,
+    threadKey: 'stale',
+    receivedAt: new Date('2026-01-01T00:00:00Z')
+  }
+  state.queryResults = [
+    [
+      { ...root, id: 1, configId: 'primary', messageId: '<root-a@example.test>' },
+      { ...root, id: 2, configId: 'secondary', messageId: '<root-b@example.test>' },
+      {
+        ...root,
+        id: 3,
+        configId: 'primary',
+        messageId: '<shared@example.test>',
+        subject: 'Re: Project'
+      },
+      {
+        ...root,
+        id: 4,
+        configId: 'secondary',
+        messageId: '<shared@example.test>',
+        subject: 'Re: Project'
+      }
+    ]
+  ]
+
+  await repairThreadKeys()
+
+  assert.deepEqual(state.transactionCalls[1]?.[0], [
+    { mail_message_id: 1, next_thread_key: '<root-a@example.test>' },
+    { mail_message_id: 3, next_thread_key: '<root-a@example.test>' },
+    { mail_message_id: 2, next_thread_key: '<root-b@example.test>' },
+    { mail_message_id: 4, next_thread_key: '<root-b@example.test>' }
+  ])
+  const sql = state.transactionCalls
+    .filter((call) => Array.isArray(call[0]) && 'raw' in call[0])
+    .map((call) => (call[0] as string[]).join('?'))
+    .join('\n')
+  assert.ok(sql.includes('mail_message_id integer primary key'))
+  assert.ok(sql.includes('where mail_message.id = thread_repair.mail_message_id'))
+  assert.ok(sql.includes('on mail_message_mailbox.mail_message_id = mail_message.id'))
 })
 
 test('orders Sent placeholders with stored rows and counts composed mailbox placeholders', async () => {
