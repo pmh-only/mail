@@ -2502,6 +2502,8 @@ export async function repairThreadKeys() {
   const startedAt = Date.now()
   const messages = await db
     .select({
+      id: mailMessage.id,
+      configId: mailMessage.configId,
       messageId: mailMessage.messageId,
       subject: mailMessage.subject,
       inReplyTo: mailMessage.inReplyTo,
@@ -2511,27 +2513,35 @@ export async function repairThreadKeys() {
     })
     .from(mailMessage)
 
-  const assigned = assignThreadKeys(messages)
-  const changes = messages
-    .map((message) => ({ message, nextThreadKey: assigned.get(message.messageId)! }))
-    .filter(({ message, nextThreadKey }) => message.threadKey !== nextThreadKey)
+  const messagesByConfig = new Map<string, typeof messages>()
+  for (const message of messages) {
+    const group = messagesByConfig.get(message.configId)
+    if (group) group.push(message)
+    else messagesByConfig.set(message.configId, [message])
+  }
+  const changes = Array.from(messagesByConfig.values()).flatMap((group) => {
+    const assigned = assignThreadKeys(group)
+    return group
+      .map((message) => ({ message, nextThreadKey: assigned.get(message.messageId)! }))
+      .filter(({ message, nextThreadKey }) => message.threadKey !== nextThreadKey)
+  })
 
   if (changes.length === 0) return
 
   await client.begin(async (tx) => {
     await tx`
       create temp table thread_repair (
-        message_id text primary key,
+        mail_message_id integer primary key,
         next_thread_key text not null
       ) on commit drop
     `
 
     for (let index = 0; index < changes.length; index += 1000) {
       const batch = changes.slice(index, index + 1000).map(({ message, nextThreadKey }) => ({
-        message_id: message.messageId,
+        mail_message_id: message.id,
         next_thread_key: nextThreadKey
       }))
-      await tx`insert into thread_repair ${tx(batch, 'message_id', 'next_thread_key')}`
+      await tx`insert into thread_repair ${tx(batch, 'mail_message_id', 'next_thread_key')}`
     }
 
     await tx`
@@ -2539,7 +2549,7 @@ export async function repairThreadKeys() {
       set thread_id = thread_repair.next_thread_key,
           thread_key = thread_repair.next_thread_key
       from thread_repair
-      where mail_message.message_id = thread_repair.message_id
+      where mail_message.id = thread_repair.mail_message_id
     `
 
     await tx`delete from mail_thread_summary`
@@ -2570,7 +2580,7 @@ export async function repairThreadKeys() {
           ) as rn
         from mail_message_mailbox
         join mail_message
-          on mail_message_mailbox.message_id = mail_message.message_id
+          on mail_message_mailbox.mail_message_id = mail_message.id
       ) ranked
       where rn = 1
     `

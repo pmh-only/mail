@@ -1,5 +1,10 @@
 # Reading and organizing mail
 
+Startup thread repair runs independently for each account and updates messages by their stored row
+IDs. Identical Message-ID headers in different accounts do not collide or merge their thread roots.
+Thread-summary rebuilding joins mailbox entries to their stored message IDs, preserving account
+boundaries. This repair does not require deleting mail or performing a full mailbox re-sync.
+
 mail stores synchronized messages in PostgreSQL and presents them as individual messages, grouped
 threads, or swipeable cards. The same actions update local state immediately and queue the matching
 IMAP operation for the worker.
