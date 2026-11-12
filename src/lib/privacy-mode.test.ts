@@ -13,5 +13,10 @@ test('normalizes mailbox privacy modes and migrates the remote-content preferenc
 test('normalizes share privacy modes', () => {
   assert.equal(normalizeSharePrivacyMode('only-text'), 'only-text')
   assert.equal(normalizeSharePrivacyMode('style-included'), 'style-included')
+  assert.equal(normalizeSharePrivacyMode('full-featured'), 'full-featured')
+  assert.equal(
+    normalizeSharePrivacyMode('full-featured-link-deducted'),
+    'full-featured-link-deducted'
+  )
   assert.equal(normalizeSharePrivacyMode('invalid'), 'style-included')
 })

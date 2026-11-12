@@ -1,5 +1,6 @@
 import { isValidThemeStyle, normalizeThemeStyle, type ThemeStyle } from '$lib/theme'
 import { isShareAction, type ShareAction } from '$lib/share-action'
+import { SHARE_PRIVACY_MODES, type SharePrivacyMode } from '$lib/privacy-mode'
 
 export const SETTINGS_BACKUP_SCHEMA_VERSION = 1
 
@@ -76,7 +77,7 @@ export type SettingsBackup = {
     shareClickAction?: ShareAction
     shareShiftClickAction?: ShareAction
     mailboxPrivacyMode?: 'only-text' | 'style-included' | 'full-featured'
-    sharePrivacyMode?: 'only-text' | 'style-included'
+    sharePrivacyMode?: SharePrivacyMode
     remoteContent?: { blockRemoteContent?: boolean; allowedSenders?: string[] }
     mailboxPreferences?: { order?: string[]; hidden?: string[]; collapsedAccounts?: string[] }
     listRatio?: number
@@ -431,10 +432,10 @@ export function validateSettingsBackup(value: unknown): {
       )
         ? (preferencesObject.mailboxPrivacyMode as 'only-text' | 'style-included' | 'full-featured')
         : undefined,
-      sharePrivacyMode: ['only-text', 'style-included'].includes(
-        String(preferencesObject.sharePrivacyMode)
+      sharePrivacyMode: SHARE_PRIVACY_MODES.includes(
+        preferencesObject.sharePrivacyMode as SharePrivacyMode
       )
-        ? (preferencesObject.sharePrivacyMode as 'only-text' | 'style-included')
+        ? (preferencesObject.sharePrivacyMode as SharePrivacyMode)
         : undefined,
       remoteContent: optionalObject(
         preferencesObject.remoteContent,

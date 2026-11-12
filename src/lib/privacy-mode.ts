@@ -1,5 +1,10 @@
 export const MAILBOX_PRIVACY_MODES = ['only-text', 'style-included', 'full-featured'] as const
-export const SHARE_PRIVACY_MODES = ['only-text', 'style-included'] as const
+export const SHARE_PRIVACY_MODES = [
+  'only-text',
+  'style-included',
+  'full-featured',
+  'full-featured-link-deducted'
+] as const
 
 export type MailboxPrivacyMode = (typeof MAILBOX_PRIVACY_MODES)[number]
 export type SharePrivacyMode = (typeof SHARE_PRIVACY_MODES)[number]
