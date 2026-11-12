@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.1.0](https://github.com/pmh-only/mail/compare/v4.0.1...v4.1.0) (2026-11-12)
+
+
+### Features
+
+* **privacy:** add full-featured sharing modes and fix select padding ([6e89e46](https://github.com/pmh-only/mail/commit/6e89e460e0e8ed9d22e600aff75d258489e3c57a))
+
+
+### Bug Fixes
+
+* **mail:** rebuild legacy summaries even when thread keys are unchanged ([f8866cb](https://github.com/pmh-only/mail/commit/f8866cb0d521338942d36c51e1d14a8e7ce7456d))
+* **mail:** scope startup thread repair to account-specific message rows ([956d105](https://github.com/pmh-only/mail/commit/956d1054cfa82e3ab1499f2051cd827dfb964c92))
+* **privacy:** block automatic refreshes in full-featured shares ([8b4a82d](https://github.com/pmh-only/mail/commit/8b4a82dddf3b29e1190f78d0b01fd2c3c1750480))
+* **push:** use web-push v4 named ESM exports ([469f276](https://github.com/pmh-only/mail/commit/469f27633238a156cc4b8709afe57ef7fecaa09e))
+
 ## [4.0.1](https://github.com/pmh-only/mail/compare/v4.0.0...v4.0.1) (2026-11-09)
 
 
