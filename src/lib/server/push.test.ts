@@ -32,7 +32,7 @@ vi.mock('./db/schema', () => ({
   mailConfig: state.mailConfig,
   mailPushSubscription: state.mailPushSubscription
 }))
-vi.mock('web-push', () => ({ default: { setVapidDetails: state.setVapidDetails } }))
+vi.mock('web-push', () => ({ setVapidDetails: state.setVapidDetails }))
 vi.mock('./config', () => ({ getQuietHoursConfig: state.getQuietHoursConfig }))
 vi.mock('./quiet-hours', () => ({ isQuietHoursActive: state.isQuietHoursActive }))
 vi.mock('$lib/push-control', () => ({

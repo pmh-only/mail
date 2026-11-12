@@ -1,7 +1,7 @@
 import { Agent, request as httpsRequest } from 'node:https'
 import { isIP, type LookupFunction } from 'node:net'
 import { lookup } from 'node:dns/promises'
-import webpush from 'web-push'
+import { generateRequestDetails } from 'web-push'
 
 export const MAX_PUSH_SUBSCRIPTIONS = 20
 export const MAX_PUSH_REQUEST_BYTES = 16 * 1024
@@ -125,7 +125,7 @@ export async function sendWebPushSafely(
     callback(null, resolved.address, resolved.family)
   }
   const agent = new Agent({ lookup: pinnedLookup })
-  const details = webpush.generateRequestDetails(subscription, payload, { TTL: ttl })
+  const details = generateRequestDetails(subscription, payload, { TTL: ttl })
 
   await new Promise<void>((resolve, reject) => {
     const request = httpsRequest(details.endpoint, {

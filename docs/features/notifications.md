@@ -13,6 +13,9 @@ and tracked outgoing-message reads.
 VAPID keys and browser subscriptions are stored in PostgreSQL. There are no VAPID environment
 variables. On iOS, install the PWA on the Home Screen before requesting push permission.
 
+The server uses the named ESM exports of `web-push` v4 for VAPID key generation and push delivery.
+Existing VAPID keys and browser subscriptions remain valid after the upgrade; no regeneration is needed.
+
 ## Delivery controls
 
 - New-mail notifications can be enabled or disabled per synchronized mailbox.

@@ -31,7 +31,7 @@ vi.mock('node:https', () => ({
   },
   request: state.request
 }))
-vi.mock('web-push', () => ({ default: { generateRequestDetails: state.generateRequestDetails } }))
+vi.mock('web-push', () => ({ generateRequestDetails: state.generateRequestDetails }))
 
 import { isPublicIpAddress, sendWebPushSafely, validatePushSubscription } from './push-endpoint.ts'
 

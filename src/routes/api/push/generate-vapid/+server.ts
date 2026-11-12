@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit'
 import type { RequestHandler } from './$types'
-import webpush from 'web-push'
+import { generateVAPIDKeys } from 'web-push'
 import { db } from '$lib/server/db'
 import { mailConfig } from '$lib/server/db/schema'
 import { resetPushInit } from '$lib/server/push'
@@ -13,7 +13,7 @@ export const POST: RequestHandler = async (event) => {
     return json(generateDemoVapidKeys())
   }
 
-  const vapidKeys = webpush.generateVAPIDKeys()
+  const vapidKeys = generateVAPIDKeys()
   const subject = url.origin
 
   await db
