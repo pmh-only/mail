@@ -2526,32 +2526,33 @@ export async function repairThreadKeys() {
       .filter(({ message, nextThreadKey }) => message.threadKey !== nextThreadKey)
   })
 
-  if (changes.length === 0) return
-
   await client.begin(async (tx) => {
-    await tx`
+    if (changes.length > 0) {
+      await tx`
       create temp table thread_repair (
         mail_message_id integer primary key,
         next_thread_key text not null
       ) on commit drop
     `
 
-    for (let index = 0; index < changes.length; index += 1000) {
-      const batch = changes.slice(index, index + 1000).map(({ message, nextThreadKey }) => ({
-        mail_message_id: message.id,
-        next_thread_key: nextThreadKey
-      }))
-      await tx`insert into thread_repair ${tx(batch, 'mail_message_id', 'next_thread_key')}`
-    }
+      for (let index = 0; index < changes.length; index += 1000) {
+        const batch = changes.slice(index, index + 1000).map(({ message, nextThreadKey }) => ({
+          mail_message_id: message.id,
+          next_thread_key: nextThreadKey
+        }))
+        await tx`insert into thread_repair ${tx(batch, 'mail_message_id', 'next_thread_key')}`
+      }
 
-    await tx`
+      await tx`
       update mail_message
       set thread_id = thread_repair.next_thread_key,
           thread_key = thread_repair.next_thread_key
       from thread_repair
       where mail_message.id = thread_repair.mail_message_id
     `
+    }
 
+    // Legacy Message-ID joins may have corrupted summaries even when every key is correct.
     await tx`delete from mail_thread_summary`
 
     await tx`

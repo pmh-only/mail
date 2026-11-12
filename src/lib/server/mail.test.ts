@@ -2754,7 +2754,7 @@ test('returns sync edge states without starting an IMAP connection', async () =>
   })
 })
 
-test('keeps already-correct persisted thread keys out of the repair transaction', async () => {
+test('rebuilds legacy summaries even when all persisted thread keys are already correct', async () => {
   state.demoMode = false
   state.queryResults = [
     [
@@ -2771,7 +2771,28 @@ test('keeps already-correct persisted thread keys out of the repair transaction'
 
   await repairThreadKeys()
 
-  assert.deepEqual(state.transactionCalls, [])
+  assert.equal(state.transactionCalls.length, 2)
+  const statements = state.transactionCalls.map((call) => (call[0] as string[]).join('?'))
+  assert.equal(statements[0], 'delete from mail_thread_summary')
+  assert.ok(statements[1].includes('insert into mail_thread_summary'))
+  assert.ok(statements[1].includes('on mail_message_mailbox.mail_message_id = mail_message.id'))
+  assert.ok(!statements.join('\n').includes('update mail_message'))
+})
+
+test('clears stale thread summaries when no stored messages remain', async () => {
+  state.demoMode = false
+  state.queryResults = [[]]
+
+  await repairThreadKeys()
+
+  assert.equal(state.transactionCalls.length, 2)
+  assert.equal(
+    (state.transactionCalls[0][0] as string[]).join(''),
+    'delete from mail_thread_summary'
+  )
+  assert.ok(
+    (state.transactionCalls[1][0] as string[]).join('').includes('insert into mail_thread_summary')
+  )
 })
 
 test('filters shared thread targets and counts read shares through parsed and fallback IDs', async () => {
