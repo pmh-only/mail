@@ -16,7 +16,8 @@ Shared links support **Only text**, **Style included**, **Full featured**, and
 **Full featured (link deducted)**. Style included is the default and blocks remote images and other
 external resources. Both full-featured modes load styling and images; the link-deducted mode removes
 HTML link destinations while preserving their visible text and images. It does not redact URLs written
-in the message text or disable attachment downloads. Scripts remain disabled in all modes.
+in the message text or disable attachment downloads. Scripts remain disabled in all modes, and HTML
+meta-refresh directives are removed to prevent automatic navigation away from the shared message.
 
 Loading remote content reveals at least the browser's network address and request metadata to the
 remote host. Leave blocking enabled unless the sender and content are trusted.

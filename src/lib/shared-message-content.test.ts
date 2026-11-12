@@ -23,6 +23,21 @@ test('full-featured shared messages retain images and links', () => {
   assert.ok(result.includes("default-src 'none'"))
 })
 
+test('full-featured shared messages block automatic refreshes without removing ordinary links', () => {
+  const result = prepareSharedMessageHtml(
+    '<html><head><meta http-equiv=" ReFrEsH " content="0;url=https://attacker.example"><meta charset="utf-8"></head><body>' +
+      html +
+      '<meta http-equiv="refresh" content="5;url=https://attacker.example/again"></body></html>',
+    'full-featured'
+  )!
+  assert.ok(!result.includes('attacker.example'))
+  assert.ok(!result.toLowerCase().includes('refresh'))
+  assert.ok(result.includes('<meta charset="utf-8">'))
+  assert.ok(result.includes('href="https://example.com"'))
+  assert.ok(result.includes('<img src="https://example.com/image.png">'))
+  assert.ok(result.includes('p{color:red}'))
+})
+
 test('link-deducted shared messages preserve content and images without link destinations', () => {
   const result = prepareSharedMessageHtml(
     html +
